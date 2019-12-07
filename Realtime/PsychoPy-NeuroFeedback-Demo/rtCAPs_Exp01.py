@@ -252,18 +252,18 @@ class DemoExperiment(object):
       else:
          self.FD.append(0)
 
-      # 4) Compute Predictions
-      #print(' ++ CURRENT DATA shape is %s' % str(current_DATA.shape))
-      container = np.zeros((self.MASK_Nx,self.MASK_Ny, self.MASK_Nz))
-      for i in np.arange(len(current_DATA)):
-         container[int(roi_i[i]),int(roi_j[i]), int(roi_k[i])] = current_DATA[i]
-      current_DATA = np.reshape(container,(self.MASK_Nx*self.MASK_Ny*self.MASK_Nz), order='F')
-      current_DATA = current_DATA[self.MASK_Vector == 1]
-      print('CURRENT DATA MEAN +/- STDV = %f +/- %f' % (current_DATA.mean(),current_DATA.std()))
-      current_DATA = current_DATA[:,np.newaxis]
-      print('CURRENT DATA SHAPE %s' % str(current_DATA.shape))
-      #Img = new_img_like(self.MASK_Path, container)
-      #Img.to_filename('/data/SFIMJGC_HCP7T/PRJ_rtCAPs/PrcsData/TECH06/RTtest/TEST'+str(self.acq).zfill(4)+'.nii')
+      # # 4) Compute Predictions
+      # #print(' ++ CURRENT DATA shape is %s' % str(current_DATA.shape))
+      # container = np.zeros((self.MASK_Nx,self.MASK_Ny, self.MASK_Nz))
+      # for i in np.arange(len(current_DATA)):
+      #    container[int(roi_i[i]),int(roi_j[i]), int(roi_k[i])] = current_DATA[i]
+      # current_DATA = np.reshape(container,(self.MASK_Nx*self.MASK_Ny*self.MASK_Nz), order='F')
+      # current_DATA = current_DATA[self.MASK_Vector == 1]
+      # print('CURRENT DATA MEAN +/- STDV = %f +/- %f' % (current_DATA.mean(),current_DATA.std()))
+      # current_DATA = current_DATA[:,np.newaxis]
+      # print('CURRENT DATA SHAPE %s' % str(current_DATA.shape))
+      # #Img = new_img_like(self.MASK_Path, container)
+      # #Img.to_filename('/data/SFIMJGC_HCP7T/PRJ_rtCAPs/PrcsData/TECH06/RTtest/TEST'+str(self.acq).zfill(4)+'.nii')
 
       aux_pred = []
       for cap_idx,cap_lab in enumerate(self.CAP_Labels):
