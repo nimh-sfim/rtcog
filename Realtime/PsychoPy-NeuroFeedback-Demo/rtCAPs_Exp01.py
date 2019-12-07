@@ -20,6 +20,12 @@ import numpy as np
 
 import afniInterfaceRT as nf
 
+from sklearn.preprocessing import StandardScaler
+import pickle
+import nibabel as nib
+from nilearn.image import new_img_like
+
+
 # Tests if Psychopy is available
 # ==============================
 try:
@@ -29,13 +35,61 @@ except ImportError:
    psychopyInstalled = 0
 
 
-
+def unpack_extra(extra):
+   n_elements = len(extra)
+   if np.mod(n_elements,8) > 0:
+      print('++ ERROR: Number of Elements in package is not a multiple of 8.')
+      print(' +        Very likely "Vals to Send" is not All Data.')
+      return None
+   aux = np.array(extra)
+   n_voxels = int(n_elements/8)
+   aux = aux.reshape(n_voxels,8)
+   #roi_id   = aux[:,0]
+   roi_i    = aux[:,1]
+   roi_j    = aux[:,2]
+   roi_k    = aux[:,3]
+   #roi_x    = aux[:,4]
+   #roi_y    = aux[:,5]
+   #roi_z    = aux[:,6]
+   roi_data = aux[:,7]
+   return (roi_i,roi_j,roi_k,roi_data)
 
 class DemoExperiment(object):
 
    def __init__(self, options):
 
       self.TR_data      = []
+      self.acq = -1
+
+      # Motion Related Containers
+      self.dS    = []
+      self.dL    = []
+      self.dP    = []
+      self.roll  = []
+      self.yaw   = []
+      self.pitch = []
+      self.FD    = []
+
+      # Support Vector Regression Machines
+      SVRs_Path = "/data/SFIMJGC_HCP7T/PRJ_rtCAPs/PrcsData/TECH06/D00_OriginalData/SVRs.pkl"
+      SVRs_pickle_in = open(SVRs_Path,"rb")
+      self.SVRs = pickle.load(SVRs_pickle_in)
+      print('++ Support Vector Regression Objects loaded into memory')
+
+      # Mask Stuff
+      self.MASK_Path = "/data/SFIMJGC_HCP7T/PRJ_rtCAPs/PrcsData/TECH06/D00_OriginalData/GMribbon_R4Feed.nii"
+      self.MASK_Img  = nib.load(self.MASK_Path)
+      [self.MASK_Nx, self.MASK_Ny, self.MASK_Nz] = self.MASK_Img.shape
+      self.MASK_Nv = self.MASK_Img.get_data().sum()
+      self.MASK_Vector = np.reshape(self.MASK_Img.get_data(),(self.MASK_Nx*self.MASK_Ny*self.MASK_Nz),          order='F')
+      # CAPs Specific Information for this particular experiment
+      self.CAP_Labels = ['VMed','VPol','VLat','DMN','SMot','Audi','ExCn','rFPa','lFPa']
+      self.n_CAPs = len(self.CAP_Labels)
+
+      # Results from Predictions
+      self.predictions = {}
+      self.hits = []
+      self.predictions_path = '/data/SFIMJGC_HCP7T/PRJ_rtCAPs/PrcsData/TECH06/D00_OriginalData/Online_Predictions.pkl'
 
       # dc_params = [P1, P2]
       # P1 = dr low limit, P2 = scalar -> [0,1]
@@ -44,6 +98,12 @@ class DemoExperiment(object):
 
       self.show_data    = options.show_data
 
+      if options.fullscreen is None:
+         self.fullscreen = False
+      else:
+         self.fullscreen = True
+         print('++ Full Screen Requested')
+
       print ("++ Initializing experiment stimuli")
       self.setupExperiment()
 
@@ -51,10 +111,16 @@ class DemoExperiment(object):
 
    def setupExperiment(self):
 
-      """create the GUI for display of the demo data"""
+      """create the GUI for display of the demo data:
+         * Create the window
+         * Create the different graphic elements
+         * Potentially create the input objects
+      """
 
-      # self.exptWindow = visual.Window(fullscr=options.fullscreen, allowGUI=False)
-      self.exptWindow = visual.Window([1280, 720], allowGUI=False)
+      if self.fullscreen:
+         self.exptWindow = visual.Window(fullscr=True, allowGUI=False)
+      else:
+         self.exptWindow = visual.Window([1280, 720], allowGUI=False)
 
       # For this demonstration experiement, set corners of the "active area" (where
       # we will "draw") to be a square in the middle of a 16:9 screen.
@@ -129,7 +195,13 @@ class DemoExperiment(object):
 
          self.exptWindow.flip()
 
-
+   def final_steps(self):
+      print('++ Entering Final Steps Function.')
+      print(' + Predictions.shape: %s' % str(len(self.predictions)))
+      predictions_pickle_out = open(self.predictions_path,"wb")
+      pickle.dump(self.predictions, predictions_pickle_out)
+      predictions_pickle_out.close()
+      print(' + Predictions saved to pickle file: %s' % self.predictions_path)
 
    def compute_TR_data(self, motion, extra):
 
@@ -148,9 +220,72 @@ class DemoExperiment(object):
           error code:     0 on success, -1 on error
           data array:     (possibly empty) array of data to send
       """
+      self.acq = self.acq + 1
+      print("++ Entering compute TR data [%d]" % self.acq)
+      # The motion variable contains the current motion parameters
+      # ==========================================================
+      #print('++ Motion: %s' % str(motion))
+      # The extra variable contains all other incomming data
+      # ====================================================
+      #print('++ Extra.shape: %s' % str(len(extra)))
 
-      print("++ Entering compute TR data")
+      # 1) Extract the values in the ROI
+      [roi_i,roi_j,roi_k,current_DATA] = unpack_extra(extra)
+      
+      # 2) Spatially normalize
+      sc = StandardScaler(with_mean=True, with_std=True)
+      current_DATA = sc.fit_transform(current_DATA[:,np.newaxis])
+      #print('CURRENT DATA MEAN +/- STDV = %f +/- %f' % (current_DATA.mean(),current_DATA.std()))
+      # 3) Compute FD
+      self.roll.append(motion[0])
+      self.pitch.append(motion[1])
+      self.yaw.append(motion[2])
+      self.dS.append(motion[3])
+      self.dL.append(motion[4])
+      self.dP.append(motion[5])
+      if self.acq > 0:
+         FD = np.abs(self.dS[-1]- self.dS[-2]) + np.abs(self.dL[-1]- self.dL[-2]) + np.abs(self.dP[-1]- self.dP[-2]) + \
+              ((50 * np.pi / 180) * np.abs(self.roll[-1]- self.roll[-2])) + \
+              ((50 * np.pi / 180) * np.abs(self.pitch[-1]- self.pitch[-2])) + \
+              ((50 * np.pi / 180) * np.abs(self.yaw[-1]- self.yaw[-2]))
+         self.FD.append(FD)    
+      else:
+         self.FD.append(0)
 
+      # 4) Compute Predictions
+      #print(' ++ CURRENT DATA shape is %s' % str(current_DATA.shape))
+      container = np.zeros((self.MASK_Nx,self.MASK_Ny, self.MASK_Nz))
+      for i in np.arange(len(current_DATA)):
+         container[int(roi_i[i]),int(roi_j[i]), int(roi_k[i])] = current_DATA[i]
+      current_DATA = np.reshape(container,(self.MASK_Nx*self.MASK_Ny*self.MASK_Nz), order='F')
+      current_DATA = current_DATA[self.MASK_Vector == 1]
+      print('CURRENT DATA MEAN +/- STDV = %f +/- %f' % (current_DATA.mean(),current_DATA.std()))
+      current_DATA = current_DATA[:,np.newaxis]
+      print('CURRENT DATA SHAPE %s' % str(current_DATA.shape))
+      #Img = new_img_like(self.MASK_Path, container)
+      #Img.to_filename('/data/SFIMJGC_HCP7T/PRJ_rtCAPs/PrcsData/TECH06/RTtest/TEST'+str(self.acq).zfill(4)+'.nii')
+
+      aux_pred = []
+      for cap_idx,cap_lab in enumerate(self.CAP_Labels):
+         aux_pred.append(self.SVRs[cap_lab].predict(current_DATA.T)[0])
+      self.predictions[self.acq] = aux_pred
+      print('Predictions %s' % str(aux_pred))
+
+      # 5) Compute Matches
+
+      ### #print('++ Extra: %s' % str(roi_data))
+      ### if self.acq == 0:
+      ###   print('SAVING TO DISK')
+      ###   Nx = int(max(roi_i)+1)
+      ###   Ny = int(max(roi_j)+1)
+      ###   Nz = int(max(roi_k)+1)
+      ###   print('Data Dimensions [%d,%d,%d]' % (Nx,Ny,Nz))
+      ###   print('ROI Data Shape [%s]' % str(roi_data.shape))
+      ###   DATA = np.reshape(roi_data,(Nx,Ny,Nz), order='F')
+      ###   MASK_PATH = '/data/SFIMJGC_HCP7T/PRJ_rtCAPs/PrcsData/TECH06/RTtest/ALLv.nii'
+      ###   Img = new_img_like(MASK_PATH,DATA)
+      ###   Img.to_filename('/data/SFIMJGC_HCP7T/PRJ_rtCAPs/PrcsData/TECH06/RTtest/VOL'+str(self.acq).zfill(4)+'.nii')
+      
       # # case 'motion': send all motion
       # if rec.data_choice == 'motion':
       #     if rti.nread > 0:
@@ -176,7 +311,7 @@ class DemoExperiment(object):
 
       # # case 'diff_ratio': (a-b)/(abs(a)+abs(b))
       # elif rec.data_choice == 'diff_ratio':
-
+      
       npairs = len(extra) // 2
       print(npairs)
       if npairs <= 0:
@@ -255,8 +390,10 @@ def processExperimentOptions (self, options=None):
 
 def main():
 
+   # 1) Read Input Parameters: port, fullscreen, etc..
    opts, args = processExperimentOptions(sys.argv)
-
+   print('++ Options: %s' % str(opts))
+   # 2) If Psychopy is not available, stop running
    if (psychopyInstalled == 0):
       print("")
       print("  *** This program requires the PsychoPy module.")
@@ -266,15 +403,19 @@ def main():
       print("")
       return -1
 
+   # 3) Set the logging level based on input parameters
    if opts.verbose and not opts.debug:
       nf.add_stderr_logger(level=logging.INFO)
    elif opts.debug:
       nf.add_stderr_logger(level=logging.DEBUG)
-
+   
+   # 4) Initialize the DemoExperiment Object
    print("++ Starting rtCAPs Experiment...")
    demo = DemoExperiment(opts)
-
-   # create main interface
+   print(' + --> Completed.')
+   
+   # 5) create main interface
+   print('++ Opening Communication Channel with AFNI....')
    receiver = nf.ReceiverInterface(port=opts.tcp_port, swap=opts.swap,
                                    show_data=opts.show_data)
    if not receiver:
@@ -284,7 +425,9 @@ def main():
    receiver.set_signal_handlers()  # require signal to exit
 
    # set receiver callback
-   receiver.compute_TR_data = demo.compute_TR_data
+   # At this point Receiver is still basically an empty container
+   receiver.compute_TR_data  = demo.compute_TR_data
+   receiver.final_steps      = demo.final_steps
 
    # prepare for incoming connections
    if receiver.RTI.open_incoming_socket():
