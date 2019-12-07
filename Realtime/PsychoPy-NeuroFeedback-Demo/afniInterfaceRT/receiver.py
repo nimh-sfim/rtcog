@@ -40,6 +40,9 @@ class ReceiverInterface(object):
       # callbacks
       self.compute_TR_data = None
 
+      # Experiment Object
+      self.final_steps = None
+
 
 
    def __del__(self):
@@ -114,8 +117,8 @@ class ReceiverInterface(object):
          return  0 on success and 1 on error
       """
 
-      log.info("++ Entering process_one_run()")
-
+      #log.info("++ Entering process_one_run()")
+      print("++ Entering process_one_run()")
       # wait for the real-time plugin to talk to us
       if self.RTI.wait_for_new_run():
          return 1
@@ -126,19 +129,26 @@ class ReceiverInterface(object):
             return 1
 
       # process one TR at a time until
-      log.info('-- incoming data')
+      #log.info('-- incoming data')
+      print('-- incoming data')
 
       rv = self.process_one_TR()
       while rv == 0:
          rv = self.process_one_TR()
-      log.info("++ The life of this program is coming to an end....")
-
+      #log.info("++ The life of this program is coming to an end....")
+      print("++ The life of this program is coming to an end....")
+      print("++ Calling the Final Steps Function...")
+      if self.final_steps:
+         self.final_steps()
+         
       if rv > 0:
          tail = '(terminating on success)'
       else:
          tail = '(terminating on error)'
-      log.info('-- processed %d TRs of data %s' % (self.RTI.nread, tail))
-      log.info('-' * 60)
+      #log.info('-- processed %d TRs of data %s' % (self.RTI.nread, tail))
+      #log.info('-' * 60)
+      print('-- processed %d TRs of data %s' % (self.RTI.nread, tail))
+      print('-' * 60)
 
       return rv
 
