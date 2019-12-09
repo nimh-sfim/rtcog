@@ -72,7 +72,7 @@ nuisance_motion = Motion - Motion.mean(axis=0)
 print(Motion.shape)
 
 # Create Polort
-polort          = 3
+polort          = 4
 min             = -1.0
 max             = 1.0
 vols_to_discard = 10
@@ -83,7 +83,7 @@ for n in range(polort):
     nuisance_polort[:,n] = Pn(x).T
 
 nuisance = np.concatenate((nuisance_polort,nuisance_motion),axis=1)
-nuisance_DF = pd.DataFrame(nuisance,columns=['Polort0','Polort1','Polort2','roll','pitch','yaw','dS','dL','dP'])
+nuisance_DF = pd.DataFrame(nuisance,columns=['Polort0','Polort1','Polort2','Polort3','roll','pitch','yaw','dS','dL','dP'])
 nuisance_DF.hvplot()
 
 # ***
@@ -128,15 +128,6 @@ def iGLMVol(n,Yn,Fn,Dn,Cn,s2n):
         iNn = inv(Nn.T)
         An    = (1/n) * np.matmul(Dn,iNn.T)  # Eq. 14
         Bn    = np.matmul(An,iNn)            # Eq. 16
-        #e2n   = (n/df) * ( (s2n/n) - np.sum(An*An,axis=1) )  # Eq. 8,9, 22
-        ## Handle negative e2n
-        #[neg_e2n,_] = np.where(e2n<0.0)
-        #if neg_e2n.size != 0:
-        #    e2n[neg_e2n] = np.abs(e2n[neg_e2n])
-        ## Handle zero e2n
-        #[zero_e2n,_] = np.where(e2n==0.0)
-        #if neg_e2n.size != 0:
-        #    e2n[zero_e2n] = 1e-10 #In openNFT was 1e10 (Does not make sense)
     else:
         print ('%d non positive definite'% n)
         Bn = np.zeros((nv,nrBasFct))
@@ -159,15 +150,15 @@ for v in tqdm(np.arange(TRAIN_InMask_Nt)):
     Yn_d = Yn - np.matmul(Bn,Fn)
     TRAIN_InMask_d[:,v] = np.squeeze(Yn_d)
 
-plt.plot(TRAIN_InMask[1000,np.arange(20,490)])
+plt.plot(TRAIN_InMask[1000,np.arange(100,490)])
 
-plt.plot(TRAIN_InMask_d[1000,np.arange(20,490)])
+plt.plot(TRAIN_InMask_d[1000,np.arange(100,490)])
 
 output = np.zeros((MASK_Nx*MASK_Ny*MASK_Nz,TRAIN_InMask_d.shape[1]))
 output[MASK_Vector==1,:] = TRAIN_InMask_d
 output = np.reshape(output,(MASK_Nx,MASK_Ny,MASK_Nz,TRAIN_InMask_d.shape[1]),order='F')
 output_img = nib.Nifti1Image(output,affine=MASK_Img.affine)
-output_img.to_filename('/data/SFIMJGC_HCP7T/PRJ_rtCAPs/PrcsData/TECH06/FeedingData/TrainingData.volreg.detrended.nii')
+output_img.to_filename('/data/SFIMJGC_HCP7T/PRJ_rtCAPs/PrcsData/TECH06/FeedingData/TrainingData.volreg.detrended2.nii')
 
 
 # K = Nv = Number of Voxels
