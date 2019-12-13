@@ -1,0 +1,11 @@
+TRAIN_Path        = '/data/SFIMJGC_HCP7T/PRJ_rtCAPs/PrcsData/TECH07/D01_RT_Run01/pb04.TECH07_Run01_Training.nii'
+TRAIN_Motion_Path = '/data/SFIMJGC_HCP7T/PRJ_rtCAPs/PrcsData/TECH07/D01_RT_Run01/pb04.TECH07_Run01_Training.Motion.1D'
+Mask_Path         = '/data/SFIMJGC_HCP7T/PRJ_rtCAPs/PrcsData/TECH07/D01_RT_Run01/GMribbon_R4Feed.nii'
+CAPs_Path         = '/data/SFIMJGC_HCP7T/PRJ_rtCAPs/PrcsData/TECH07/D01_RT_Run01/Frontier2013_CAPs_R4Feed.nii'
+SVRs_Path         = '/data/SFIMJGC_HCP7T/PRJ_rtCAPs/PrcsData/TECH07/D01_RT_Run01/Offline_SVRs.pkl'
+TEST_Path         = '/data/SFIMJGC_HCP7T/PRJ_rtCAPs/PrcsData/TECH07/D01_RT_Run01/pb04.TECH07_Run01_Testing.nii'
+TEST_Motion_Path  = '/data/SFIMJGC_HCP7T/PRJ_rtCAPs/PrcsData/TECH07/D01_RT_Run01/pb04.TECH07_Run01_Testing.Motion.1D'
+OUT_Dir           = '/data/SFIMJGC_HCP7T/PRJ_rtCAPs/PrcsData/TECH07/D01_RT_Run01/'
+TRAIN_NVols_Discard = 0
+CAP_indexes = [25,4,18,28,24,11,21]
+CAP_labels  = ['VPol','DMN','SMot','Audi','ExCn','rFPa','lFPa']
