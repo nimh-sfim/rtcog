@@ -120,7 +120,6 @@ def unmask_fMRI_img(data, mask_img, out_path=None):
         out    = out.reshape((m_x,m_y,m_z,Nt), order='F')
 
     if out_path != None:
-        print('hello')
         out_img = type(mask_img)(out, affine=mask_img.affine)
         out_img.header['sform_code'] = mask_img.header['sform_code']
         #out_img = type(mask_img)(out, affine=None, header=mask_img.header)
