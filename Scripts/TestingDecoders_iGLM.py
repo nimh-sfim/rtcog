@@ -13,173 +13,186 @@
 #     name: psychopy
 # ---
 
-TEST_Path = '/data/SFIMJGC_HCP7T/PRJ_rtCAPs/PrcsData/TECH07/D01_RT_Run01/TECH07_Run01_Testing.nii'
-Motion_Path = '/data/SFIMJGC_HCP7T/PRJ_rtCAPs/PrcsData/TECH07/D01_RT_Run01/TECH07_Run01_Testing.Motion.1D'
-MASK_Path = '/data/SFIMJGC_HCP7T/PRJ_rtCAPs/PrcsData/TECH07/D01_RT_Run01/rt.__002.mask.FB.nii'
-CAPs_Path = '/data/SFIMJGC_HCP7T/PRJ_rtCAPs/PrcsData/TECH07/D01_RT_Run01/Frontier2013_CAPs_R4Feed.nii'
-SVRs_Path = '/data/SFIMJGC_HCP7T/PRJ_rtCAPs/PrcsData/TECH07/D01_RT_Run01/Offline_SVRs.pkl'
-DONT_USE_VOLS   = 10
-FIRST_VALID_VOL = 50
-
 import nibabel as nib
 import numpy as np
 import pandas as pd
-import pickle
 from sklearn.preprocessing import StandardScaler
 from sklearn import linear_model
 import holoviews as hv
 import hvplot.pandas
 from scipy.stats import zscore
 from sklearn.svm import SVR
-from scipy.special import legendre
-from numpy.linalg import cholesky, inv
+import matplotlib.pyplot as plt
+import config
+import pickle
+import os.path as osp
 hv.extension('bokeh')
-
-
-# +
-def is_pos_def(x):
-    return np.all(np.linalg.eigvals(x) > 1e-10)
-
-def iGLMVol(n,Yn,Fn,Dn,Cn,s2n):
-    nv       = Yn.shape[0]
-    nrBasFct = Fn.shape[0]  
-    df = n - nrBasFct                        # Degrees of Freedom
-    Dn = Dn + np.matmul(Yn,Fn.T)             # Eq. 17
-    Cn = (((n-1)/n) * Cn) + ((1/n)*np.matmul(Fn,Fn.T))  # Eq. 18
-    s2n = s2n + (Yn * Yn)            # Eq. 9 without the 1/n factor... see below
-    if (is_pos_def(Cn) == True) and (n > nrBasFct + 2):
-        Nn = cholesky(Cn).T
-        iNn = inv(Nn.T)
-        An    = (1/n) * np.matmul(Dn,iNn.T)  # Eq. 14
-        Bn    = np.matmul(An,iNn)            # Eq. 16
-    else:
-        print ('%d non positive definite'% n)
-        Bn = np.zeros((nv,nrBasFct))
-    return Bn,Cn,Dn,s2n
-
-
-# -
 
 # %%capture
 from tqdm.notebook import tqdm
 tqdm().pandas()
 
-# Load CAPs in same grid as functional (linearly interpolated)
-# ============================================================
-CAPs_Img  = nib.load(CAPs_Path)
-[CAPs_Nx, CAPs_Ny, CAPs_Nz, n_CAPs] = CAPs_Img.shape
-print ('+ CAPs Dimensions = %d CAPs | [%d,%d,%d]' % (n_CAPs, CAPs_Nx,CAPs_Ny,CAPs_Nz))
+from rtcap_lib import load_fMRI_file, mask_fMRI_img, rt_regress_vol 
+from rtcap_lib import gen_polort_regressors, unmask_fMRI_img, smooth_array
+from rtcap_lib import kalman_filter_mv, apply_EMA_filter
+from rtcap_lib import create_win, is_hit_method01
 
-CAP_indexes = np.arange(n_CAPs)
-CAP_labels  = np.array(['CAP'+str(cap).zfill(2) for cap in CAP_indexes])
-rCAP_indexes = np.array([15,25,2,4,18,28,24,11,21])
-rCAP_labels  = np.array(['VMed','VPol','VLat','DMN','SMot','Audi','ExCn','rFPa','lFPa'])
-for i,ii in enumerate(rCAP_indexes):
-    CAP_labels[ii] = rCAP_labels[i]
-
-# Load FOV mask in same grid as functional (ensure it only cover areas that have data on input and CAPs)
-# ======================================================================================================
-MASK_Img  = nib.load(MASK_Path)
-[MASK_Nx, MASK_Ny, MASK_Nz] = MASK_Img.shape
-n_vox = MASK_Img.get_data().sum()
-print ('+ Mask Dimensions = %d Voxels in mask | [%d,%d,%d]' % (n_vox, MASK_Nx,MASK_Ny,MASK_Nz))
-print ('+ Mask Path: %s' % MASK_Path)
-
-# Load TESTing Dataset
-TEST_Img = nib.load(TEST_Path)
-[TEST_Nx, TEST_Ny, TEST_Nz, TEST_Nt] = TEST_Img.shape
-print ('+ Data Dimensions = [%d,%d,%d, Nvols = %d]' % (TEST_Nx, TEST_Ny, TEST_Nz, TEST_Nt))
-
-# ***
-# ## Vectorize all analysis inputs (Space is lost)
+from config import CAP_indexes, CAP_labels, CAPs_Path
+from config import Mask_Path
+from config import SVRs_Path, OUT_Dir
+n_CAPs      = len(CAP_indexes)
 
 # +
-# Vectorize All
-# =============
-MASK_Vector  = np.reshape(MASK_Img.get_data(),(MASK_Nx*MASK_Ny*MASK_Nz),          order='F')
-CAPs_Vector  = np.reshape(CAPs_Img.get_data(),(CAPs_Nx*CAPs_Ny*CAPs_Nz, n_CAPs),  order='F')
-TEST_Vector  = np.reshape(TEST_Img.get_data(),(TEST_Nx*TEST_Ny*TEST_Nz, TEST_Nt), order='F')
+Data_Path        = '/data/SFIMJGC_HCP7T/PRJ_rtCAPs/PrcsData/TECH07/D01_RT_Run01/TECH07_Run01_Testing.nii'
+Data_Motion_Path = '/data/SFIMJGC_HCP7T/PRJ_rtCAPs/PrcsData/TECH07/D01_RT_Run01/TECH07_Run01_Testing.Motion.1D'
 
-# Minimize rounding errors
-# ========================
-CAPs_Vector  = CAPs_Vector.astype('float64')
-TEST_Vector  = TEST_Vector.astype('float64')
-
-# Mask All (and keep only CAPs of interest)
-# =========================================
-CAPs_InMask = CAPs_Vector[MASK_Vector==1,:]
-CAPs_InMask = CAPs_InMask[:,CAP_indexes]
-TEST_InMask = TEST_Vector[MASK_Vector==1,:]
-[TEST_InMask_Nv, TEST_InMask_Nt] = TEST_InMask.shape
-print('++ Final CAPs Template Dimensions: %d CAPs with %d voxels' % (CAPs_InMask.shape[1],CAPs_InMask.shape[0]))
-print('++ Final TESTing Data Dimensions: %d Acqs with %d voxels' % (TEST_InMask_Nt, TEST_InMask_Nv))
-
-n_CAPs = CAPs_InMask.shape[1]
+DONT_USE_VOLS   = 10  # No Detrending should be done on non-steady state volumes
+FIRST_VALID_VOL = 100 # It takes quite some time for detrending to become stable
+POLORT = 2
+FWHM = 6
 # -
 
+# Load Data in Memory
+CAPs_Img     = load_fMRI_file(CAPs_Path)
+Mask_Img     = load_fMRI_file(Mask_Path)
+Data_Img    = load_fMRI_file(Data_Path)
+Data_Motion = np.loadtxt(Data_Motion_Path)
+print('++ CAPs Dimensions  : %s' % str(CAPs_Img.header.get_data_shape()))
+print('++ DATA Dimensions  : %s' % str(Data_Img.header.get_data_shape()))
+print('++ MASK Dimensions  : %s' % str(Mask_Img.header.get_data_shape()))
+print('++ Motion Dimensions: %s' % str(Data_Motion.shape))
+
+# Mask & Vectorize Data
+CAPs_InMask = mask_fMRI_img(CAPs_Img,Mask_Img)
+CAPs_InMask = CAPs_InMask[:, CAP_indexes]                            # Select only CAPs of intrest 
+Data_InMask = mask_fMRI_img(Data_Img,Mask_Img)
+[Data_Nv, Data_Nt] = Data_InMask.shape
+print('++ Masked CAPs Dimensions  : %s' % str(CAPs_InMask.shape))
+print('++ Masked Data Dimensions  : %s' % str(Data_InMask.shape))
+
 # ***
-# # Detrend Data (as if it happens online)
+# # Data Pre-processing
 
-Motion = np.loadtxt(Motion_Path) #[np.arange(DONT_USE_VOLS,TEST_Nt),:]
-nuisance_motion = Motion - Motion.mean(axis=0)
-print('++ Motion Regressor Dimensions [%s]' % str(Motion.shape))
+Data_Motion = np.loadtxt(Data_Motion_Path) #[np.arange(DONT_USE_VOLS,TRAIN_Nt),:]
+nuisance_motion = Data_Motion - Data_Motion.mean(axis=0)
+print('++ Motion Regressor Dimensions [%s]' % str(Data_Motion.shape))
 
-# Create Polort
-polort          = 2
-min             = -1.0
-max             = 1.0
-vols_to_discard = 10
-#nuisance_polort = np.zeros((TEST_Nt-vols_to_discard, polort))
-nuisance_polort = np.zeros((TEST_Nt, polort))
-for n in range(polort):
-    Pn = legendre(n)
-    x = np.linspace(-1,1,TEST_Nt)
-    nuisance_polort[:,n] = Pn(x).T
-print('++ Polort Regressor Dimensions [%s]' % str(nuisance_polort.shape))
+nuisance_polort = gen_polort_regressors(POLORT,Data_Nt)
 
 nuisance = np.concatenate((nuisance_polort,nuisance_motion),axis=1)
-nuisance_DF = pd.DataFrame(nuisance,columns=['Polort'+str(i) for i in np.arange(polort)] + ['roll','pitch','yaw','dS','dL','dP'])
-nuisance_DF.hvplot()
+nuisance_labels = ['Polort'+str(i) for i in np.arange(POLORT)] + ['roll','pitch','yaw','dS','dL','dP']
+n_regressors = nuisance.shape[1]
+nuisance_DF = pd.DataFrame(nuisance,columns=nuisance_labels)
+nuisance_DF.hvplot().opts(width=1000, legend_position='top', height=200)
 
-Vols4Detrending = np.arange(DONT_USE_VOLS,TEST_InMask_Nt)
-Vols4Detrending.shape
+Vols4Preproc = np.arange(DONT_USE_VOLS,Data_Nt)
+print('++ Number of Volumes to pre-process [%d]: [min=%d, max=%d] (Python)' % (Vols4Preproc.shape[0], np.min(Vols4Preproc), np.max(Vols4Preproc)))
 
-TEST_InMask_d = np.zeros(TEST_InMask.shape)
-for i,v in tqdm(enumerate(Vols4Detrending), total=Vols4Detrending.shape[0]):
-    # This Acq Data + Nuisance
-    n = i + 1
-    Yn = TEST_InMask[:,v][:,np.newaxis]
-    Fn = nuisance[v,:][:,np.newaxis]
+import multiprocessing
+print("Number of cpu : ", multiprocessing.cpu_count())
+num_cores = 16
+
+# +
+Data_InMask_Step01 = np.zeros(Data_InMask.shape) # Data after EMA
+Data_InMask_Step02 = np.zeros(Data_InMask.shape) # Data after iGLM
+Data_InMask_Step03 = np.zeros(Data_InMask.shape) # Data after Kalman
+Data_InMask_Step04 = np.zeros(Data_InMask.shape) # Data after Smoothing
+Regressor_Coeffs   = np.zeros((n_regressors,Data_Nv,Data_Nt))
+
+v_start = np.arange(0,Data_Nv,int(np.floor(Data_Nv/(num_cores-1)))).tolist()
+v_end   = v_start[1:] + [Data_Nv]
+pool    = multiprocessing.Pool(processes=num_cores)
+for t in tqdm(np.arange(Data_Nt)):
+    if t not in Vols4Preproc:
+        continue
+    if t == Vols4Preproc[0]:
+        n                = 1 # Initialize counter
+        prev_iGLM        = {} # Initialization for iGML
+        S_x              = np.zeros((Data_Nv, Data_Nt))
+        S_Q              = np.zeros((Data_Nv, Data_Nt))
+        S_R              = np.zeros((Data_Nv, Data_Nt))
+        S_P              = np.zeros((Data_Nv, Data_Nt))
+        fPositDerivSpike = np.zeros((Data_Nv, Data_Nt))
+        fNegatDerivSpike = np.zeros((Data_Nv, Data_Nt))
+        kalmThreshold    = np.zeros((Data_Nv, Data_Nt))
+        # Initialization for EMA
+        EMA_th      = 0.98
+    else:
+        n = n +1;
     
-    # Initializations for iGLM (only happens once)
-    if v == Vols4Detrending[0]:
-        L   = Fn.shape[0]
-        Cn  = np.zeros((L,L), dtype='float64')
-        Dn  = np.zeros((TEST_InMask_Nv, L), dtype='float64')
-        s2n = np.zeros((TEST_InMask_Nv, 1), dtype='float64')
+    # 1) EMA Filter
+    if t == Vols4Preproc[0]:
+        EMA_filt_in             = Data_InMask[:,t][:,np.newaxis]
+        Data_InMask_Step01[:,t] = Data_InMask[:,t] - Data_InMask[:,t-1]
+    else:
+        [EMA_data_out, EMA_filt_out] = apply_EMA_filter(EMA_th,Data_InMask[:,t][:,np.newaxis],EMA_filt_in)
+        EMA_filt_in                  = EMA_filt_out
+        Data_InMask_Step01[:,t]      = np.squeeze(EMA_data_out)
     
-    # Detrend Volume
-    Bn,Cn,Dn,s2n = iGLMVol(n,Yn,Fn,Dn,Cn,s2n)
-    Yn_d = Yn - np.matmul(Bn,Fn)
-    TEST_InMask_d[:,v] = np.squeeze(Yn_d)
+    # 2) Remove Nuissance Regressors from data
+    Yn = Data_InMask_Step01[:,t][:,np.newaxis]
+    Fn = nuisance[t,:][:,np.newaxis]
+    
+    Yn_d,prev_iGLM, Bn      = rt_regress_vol(n,Yn,Fn,prev_iGLM)
+    Data_InMask_Step02[:,t] = Yn_d
+    Regressor_Coeffs[:,:,t] = Bn.T
+    
+    # 3) Low-Pass Filtering (Kalman Filter)
+    if t > (Vols4Preproc[0] + 1):
+        o_data, o_fPos, o_fNeg, o_S_x, o_S_R, o_voxels   = [],[],[],[],[],[]
+        inputs = ({'d'   : Data_InMask_Step02[v_s:v_e,t],
+                   'std' : np.std(Data_InMask_Step02[v_s:v_e,DONT_USE_VOLS:t+1], axis=1),
+                   'S_x' : S_x[v_s:v_e,t-1],
+                   'S_P' : S_P[v_s:v_e,t-1],
+                   'S_Q' : 0.25 * np.power(np.std(Data_InMask_Step02[v_s:v_e,DONT_USE_VOLS:t+1], axis=1),2),
+                   'S_R' : np.power(np.std(Data_InMask_Step02[v_s:v_e,DONT_USE_VOLS:t+1], axis=1),2),
+                   'fPos': fPositDerivSpike[v_s:v_e,t-1],
+                   'fNeg': fNegatDerivSpike[v_s:v_e,t-1],
+                   'vox' : np.arange(v_s,v_e)}
+                  for v_s,v_e in zip(v_start,v_end))
+        res = pool.map(kalman_filter_mv,inputs)
+        for j in np.arange(num_cores):
+            o_data.append(res[j][0])
+            o_fPos.append(res[j][1])
+            o_fNeg.append(res[j][2])
+            o_S_x.append(res[j][3])
+            o_S_R.append(res[j][4])
+            o_voxels.append(res[j][5])
+        o_data   = [item for sublist in o_data   for item in sublist]
+        o_fPos   = [item for sublist in o_fPos for item in sublist]
+        o_fNeg   = [item for sublist in o_fNeg for item in sublist]
+        o_S_x    = [item for sublist in o_S_x for item in sublist]
+        o_S_R    = [item for sublist in o_S_R for item in sublist]
+        o_voxels = [item for sublist in o_voxels for item in sublist]
+        
+        Data_InMask_Step03[:,t] = o_data
+        S_x[:,t]                = o_S_x
+        S_R[:,t]                = o_S_R
+        fPositDerivSpike[:,t]   = o_fPos
+        fNegatDerivSpike[:,t]   = o_fNeg
+    
+    Yn_df = Data_InMask_Step03[:,t]
+    
+    # 4) Spatial Smoothing
+    Yn_d_vol    = unmask_fMRI_img(Yn_df, Mask_Img)
+    Yn_d_vol_sm = smooth_array(Yn_d_vol,affine=Data_Img.affine, fwhm=FWHM)
+    Yn_sm       = mask_fMRI_img(Yn_d_vol_sm, Mask_Img)
+    
+    # 5) Update Global Structures
+    Data_InMask_Step04[:,t] = Yn_sm
+pool.close()
+pool.join()
 
-output = np.zeros((MASK_Nx*MASK_Ny*MASK_Nz,TEST_InMask_d.shape[1]))
-output[MASK_Vector==1,:] = TEST_InMask_d
-output = np.reshape(output,(MASK_Nx,MASK_Ny,MASK_Nz,TEST_InMask_d.shape[1]),order='F')
-output_img = nib.Nifti1Image(output,affine=MASK_Img.affine)
-output_img.to_filename('/data/SFIMJGC_HCP7T/PRJ_rtCAPs/PrcsData/TECH07/D01_RT_Run01/TECH07_Run01_TestingData.detrended.nii')
+# +
+out = unmask_fMRI_img(Data_InMask_Step01, Mask_Img, '/data/SFIMJGC_HCP7T/PRJ_rtCAPs/PrcsData/TECH07/D01_RT_Run01/TECH07_Run01_Testing_MVema_Step01.nii')
+out = unmask_fMRI_img(Data_InMask_Step02, Mask_Img, '/data/SFIMJGC_HCP7T/PRJ_rtCAPs/PrcsData/TECH07/D01_RT_Run01/TECH07_Run01_Testing_MVema_Step02.nii')
+out = unmask_fMRI_img(Data_InMask_Step03, Mask_Img, '/data/SFIMJGC_HCP7T/PRJ_rtCAPs/PrcsData/TECH07/D01_RT_Run01/TECH07_Run01_Testing_MVema_Step03.nii')
+out = unmask_fMRI_img(Data_InMask_Step04, Mask_Img, '/data/SFIMJGC_HCP7T/PRJ_rtCAPs/PrcsData/TECH07/D01_RT_Run01/TECH07_Run01_Testing_MVema_Step04.nii')
 
-from nilearn.image import smooth_img
-
-output_img_sm = smooth_img(output_img,6)
-
-output_img_sm.to_filename('/data/SFIMJGC_HCP7T/PRJ_rtCAPs/PrcsData/TECH07/D01_RT_Run01/TECH07_Run01_TestingData.detrended.smooth.nii')
-
-SMOOTH_Vector = np.reshape(output_img_sm.get_data(),(TEST_Nx*TEST_Ny*TEST_Nz, TEST_Nt), order='F')
-SMOOTH_Vector = SMOOTH_Vector.astype('float64')
-SMOOTH_InMask = SMOOTH_Vector[MASK_Vector==1,:]
-[SMOOTH_InMask_Nv, SMOOTH_InMask_Nt] = SMOOTH_InMask.shape
-print('++ Final Training Data Dimensions: %d Acqs with %d voxels' % (SMOOTH_InMask_Nt, SMOOTH_InMask_Nv))
+for i,lab in enumerate(nuisance_labels):
+    data = Regressor_Coeffs[i,:,:]
+    out = unmask_fMRI_img(data, Mask_Img, '/data/SFIMJGC_HCP7T/PRJ_rtCAPs/PrcsData/TECH07/D01_RT_Run01/TECH07_Run01_Testing_MVema_'+lab+'.nii')
+# -
 
 # ***
 # # Data Standarization in Space
@@ -191,9 +204,8 @@ CAPs_InMask = sc_CAPs.fit_transform(CAPs_InMask)
 
 # Standarize Time series in Space
 # ===============================
-sc_TEST_space     = StandardScaler(with_mean=True, with_std=True)
-#TEST_InMask_dn  = sc_TEST_space.fit_transform(TEST_InMask_d)
-TEST_InMask_dn  = sc_TEST_space.fit_transform(SMOOTH_InMask)
+sc_Data_space  = StandardScaler(with_mean=True, with_std=True)
+Data_InMask_dn = sc_Data_space.fit_transform(Data_InMask_Step04)
 
 # ***
 # # Support Vector Regression (Realtime Predictions)
@@ -202,77 +214,92 @@ SVRs_pickle_in = open(SVRs_Path,"rb")
 SVRs = pickle.load(SVRs_pickle_in)
 print('++ Support Vector Regression Objects loaded into memory')
 
-Vols4Testing = np.arange(FIRST_VALID_VOL,TEST_InMask_Nt)
+Vols4Testing = np.arange(FIRST_VALID_VOL,Data_Nt)
 Vols4Testing.shape
 
-Initial_DoNothing_NVols   = 10
-PostTrial_DoNothing_NVols = 0 
+# +
+hit_opts = {'method':               'method01',
+            'vols2discard':         10,
+            'vols2discard_postHit': 10,
+            'z_th':                 2,
+            'vols4hit':             2}
+
 Realtime_Predictions      = {}
-Z_Score_TH                = 1.75
-NconsecutiveVols4Hit      = 2
 Vol_LastQEnded            = 0
-NHits                     = 0
-Hits_DF        = pd.DataFrame(False,columns=rCAP_labels, index=np.arange(TEST_Nt))
-Predictions_DF = pd.DataFrame(columns=rCAP_labels, index=np.arange(TEST_Nt))
-for vol in tqdm(Vols4Testing):
-    current_DATA = (TEST_InMask_dn[:,vol][:,np.newaxis]).T
+WL = 4
+DO_WINDOWS      = True
+CONSIDER_MOTION = False
+Hits_DF         = pd.DataFrame(False,columns=CAP_labels, index=np.arange(Data_Nt))
+SVRscores_DF  = pd.DataFrame(columns=CAP_labels, index=np.arange(Data_Nt))
+win_weights     = create_win(4)
+for vol in tqdm(np.arange(Data_Nt)):
+    # 1) Discard Initial Volumes
+    # --------------------------
+    if vol < hit_opts['vols2discard']:
+        #print('++ Skipping Initial Volume [%d]' % vol)
+        continue
+        
+    # 2) Create Voxel-wise Map (single-vol or win average)
+    # ----------------------------------------------------
+    if DO_WINDOWS == True:
+        # Construct this acq input (via window averaging)
+        vols_to_use   = (np.arange(vol-4,vol)+1)[::-1]                                 # For vol = 999 --> vols_to_use = 999 998 997 996
+        weigthed_Data = Data_InMask_dn[:,vols_to_use] * win_weights
+        current_DATA  = (weigthed_Data.sum(axis=1)/win_weights.sum())[:,np.newaxis].T
+    else:
+        current_DATA = (Data_InMask_dn[:,vol][:,np.newaxis]).T
     
-    #current_MOT  = TEST_Mot.loc[vol]
-    ## Frame-wise Displacement
-    #if vol > 0:
-    #    previous_MOT = TEST_Mot.loc[vol-1]
-    #    FD = np.abs(current_MOT['dS'] - previous_MOT['dS']) + \
-    #         np.abs(current_MOT['dL'] - previous_MOT['dL']) + \
-    #         np.abs(current_MOT['dP'] - previous_MOT['dP']) + \
-    #         ((50 * np.pi / 180) * np.abs(current_MOT['roll'] - previous_MOT['roll'])) + \
-    #         ((50 * np.pi / 180) * np.abs(current_MOT['pitch'] - previous_MOT['pitch'])) + \
-    #         ((50 * np.pi / 180) * np.abs(current_MOT['yaw'] - previous_MOT['yaw']))
-    #else:
-    #    FD = None
+    # 3) If motion is used in hit-decision, then extract and compute FD
+    # ------------------------------------------------------------------
+    if CONSIDER_MOTION == True:
+        current_MOT  = Data_Mot.loc[vol]
+        # Frame-wise Displacement
+        if vol > 0:
+            previous_MOT = Data_Mot.loc[vol-1]
+            FD = np.abs(current_MOT['dS'] - previous_MOT['dS']) + \
+                 np.abs(current_MOT['dL'] - previous_MOT['dL']) + \
+                 np.abs(current_MOT['dP'] - previous_MOT['dP']) + \
+                 ((50 * np.pi / 180) * np.abs(current_MOT['roll'] - previous_MOT['roll'])) + \
+                 ((50 * np.pi / 180) * np.abs(current_MOT['pitch'] - previous_MOT['pitch'])) + \
+                 ((50 * np.pi / 180) * np.abs(current_MOT['yaw'] - previous_MOT['yaw']))
+        else:
+            FD = None
+    else:
+        FD = 0
+        current_MOT = 0
     
-    FD = 0
-    current_MOT = 0
-    # Predictions
+    # 4) Obtain predictions (SVRs)
+    # ----------------------------
     aux_pred = []
-    for cap_idx,cap_lab in enumerate(rCAP_labels):
+    for cap_idx,cap_lab in enumerate(CAP_labels):
         aux_pred.append(SVRs[cap_lab].predict(current_DATA)[0])
     aux_pred = np.array(aux_pred)
-    Predictions_DF.loc[vol] = aux_pred
-    # Matches
-    num_matches = np.sum(aux_pred > Z_Score_TH)
-    if num_matches > 0 :
-        matches = [rCAP_labels[i] for i in np.where(aux_pred > Z_Score_TH)[0]]
-    else:
-        matches = None
-    # Hit
-    if (num_matches == 1) and (vol > Vol_LastQEnded + PostTrial_DoNothing_NVols + NconsecutiveVols4Hit):
-        #print('Volume with potential hit: %d,%s' % (vol,matches))
-        this_hit = matches[0]
-        present = np.repeat(False,NconsecutiveVols4Hit-1)
-        for ii,i in enumerate(np.arange(vol-NconsecutiveVols4Hit+1, vol)):
-            relevant_matches = Realtime_Predictions[i]['matches']
-            #print('  %d,%s' % (i,relevant_matches))
-            if (relevant_matches is not None) and (this_hit in relevant_matches):
-                present[ii] = True
-        if np.all(present):
-            hit = this_hit
-            Vol_LastQEnded = vol
-            Hits_DF[hit][vol] = True
-            NHits = NHits + 1
-            #print('++ HIT %d [vol=%d,CAP=%s]' % (NHits,vol+NTEST_Vols,hit))
-        else:
-            hit = None
-    else:
-        hit = None
-    #if vol > Initial_DoNothing_NVols & vol > NconsecutiveVols4Hit
-    # Save
+    SVRscores_DF.loc[vol] = aux_pred
+    
+    # 5) Compute Hits
+    if hit_opts['method'] == 'method01':
+        matches, hit = is_hit_method01(vol, CAP_labels, hit_opts, SVRscores_DF, Realtime_Predictions,  Vol_LastQEnded)
+    if hit != None:
+        Vol_LastQEnded    = vol
+        Hits_DF[hit][vol] = True
+    # 6) Update records
     aux_dict = {'pred_per_cap':aux_pred,'matches':matches,'hit':hit, 'mot':current_MOT, 'FD':FD}
     Realtime_Predictions[vol] = aux_dict
-#Hits_DF.index=np.arange(TEST_Nt)+NTEST_Vols
 Hits_DF.sum()
+# -
 
-Predictions_DF.loc[Vols4Testing].hvplot().opts(width=1500)
+SVRscores_DF.loc[np.arange(10,Data_Nt)].hvplot().opts(width=1500, toolbar='above', legend_position='top')
 
-Hits_DF[Hits_DF['DMN']==True]
+# ***
+# # Save Average Hit Maps to Disk
 
-
+for cap in CAP_labels:
+    thisCAP_hits = Hits_DF[cap].sum()
+    if thisCAP_hits > 0:
+        thisCAP_Vols = []
+        for vol in Hits_DF[Hits_DF[cap]==True].index:
+            thisCAP_Vols.append(vol-np.arange(hit_opts['vols4hit']+1))
+        thisCAP_Vols = [item for sublist in thisCAP_Vols for item in sublist]
+        print('+ CAP [%s] was hit %d times. Contributing Vols: %s' % (cap,thisCAP_hits,str(thisCAP_Vols)))
+        thisCAP_InMask  = Data_InMask_dn[:,thisCAP_Vols].mean(axis=1)
+        unmask_fMRI_img(thisCAP_InMask, Mask_Img, osp.join(OUT_Dir,'RT_HitMap_'+cap+'.nii'))
