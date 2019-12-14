@@ -382,81 +382,32 @@ def kalman_filter(kalmTh, kalmIn, S, fPositDerivSpike, fNegatDerivSpike):
 
     return kalmOut,S,fPositDerivSpike,fNegatDerivSpike
 
-def kalman_filter_mv(kalmTh, kalmIn, S, fPositDerivSpike, fNegatDerivSpike):
-    """ Perform Kalman Low-pass filtering and despiking
-    Based on: Koush Y., Zvyagintsev M., Dyck M., Mathiak K.A., Mathiak K. (2012)
-    Signal quality and Bayesian signal processing in neurofeedback based on 
-    real-time fMRI. Neuroimage 59:478-89
-    
-    Parameters:
-    -----------
-    kalmTh: 
-        Spike-detection Threshold
-    kalmIn:
-        Input data
-    S:
-        Parameter structure
-    fPositDerivSpike:
-        Counter for spikes with positive derivative
-    fNegatDerivSpike:
-        Counter for spikes with negative derivative
-    
-    Returns:
-    --------
-    kalmOut:
-        Filtered Output
-    S:
-        Parameter Structure
-    fPositDerivSpike:
-        Counter for spikes with positive derivative
-    fNegatDerivSpike:
-        Counter for spikes with negative derivative
-    """
-    
-    # Preset
-    Nv = kalmIn.shape[0]
-    A = np.ones(Nv,1)
-    H = np.ones(Nv,1)
-    I = np.ones(Nv,1)
-    
-    
-    # Kalman Filter
-    S['x'] = A * S['x']
-    S['P'] = ( A * S['P'] * A ) + S['Q']
-    if ((H*S['P']*H) + S['R']) > 0.0:
-        K = S['P'] * H * (1/( (H*S['P']*H) + S['R']) )
-    else:
-        K = 0
-    tmp_x  = S['x']
-    tmp_p  = S['P']
-    diff   = K * (kalmIn - (H*S['x']))
-    S['x'] = S['x'] + diff
-    S['P'] = (I - (K * H)) * S['P']
-    # Spikes identification and correction
-    if np.abs(diff) < kalmTh:
-        #print('np.abs(diff) < kalmTh')
-        kalmOut = H * S['x']
-        fNegatDerivSpike = 0;
-        fPositDerivSpike = 0;
-    else:
-        #print('np.abs(diff) > kalmTh')
-        if diff > 0:
-            if fPositDerivSpike < 1:
-                kalmOut = H * tmp_x
-                S['x'] = tmp_x
-                S['P'] = tmp_p
-                fPositDerivSpike = fPositDerivSpike + 1
-            else:
-                kalmOut = H * S['x']
-                fPositDerivSpike = 0
-        else:
-            if fNegatDerivSpike < 1:
-                kalmOut = H * tmp_x
-                S['x'] = tmp_x
-                S['P'] = tmp_p
-                fNegatDerivSpike = fNegatDerivSpike + 1
-            else:
-                kalmOut = H * S['x']
-                fNegatDerivSpike = 0
+def kalman_filter_mv(input_dict):
+    Nv = input_dict['vox'].shape[0]
+    out_d_mv    = []
+    out_fPos_mv = []
+    out_fNeg_mv = []
+    out_S_x_mv  = []
+    out_S_R_mv  = []
+    out_vox_mv  = []
+    for v in np.arange(Nv):
+        input_d = input_dict['d'][v]
+        input_ts_STD = input_dict['std'][v]
+        input_S = {'Q': input_dict['S_Q'][v],
+                   'R': input_dict['S_R'][v],
+                   'x': input_dict['S_x'][v],
+                   'P': input_dict['S_P'][v]}
+        input_fPos = input_dict['fPos'][v]
+        input_fNeg = input_dict['fNeg'][v]
+        kalmTh     = 0.9 * input_ts_STD
+        [out_d, out_S, out_fPos, out_fNeg] = kalman_filter(kalmTh, input_d,input_S, input_fPos, input_fNeg)
+        for (l,i) in zip([out_d_mv,out_fPos_mv,out_fNeg_mv,out_S_x_mv,out_S_R_mv, out_vox_mv],
+                         [out_d,   out_fPos,   out_fNeg,   out_S['x'],out_S['R'],input_dict['vox'][v]]):
+            l.append(i)
+    return [out_d_mv, out_fPos_mv, out_fNeg_mv, out_S_x_mv, out_S_R_mv, out_vox_mv]
 
-    return kalmOut,S,fPositDerivSpike,fNegatDerivSpike
+def apply_EMA_filter(a,emaIn,filtInput):
+    A            = (np.array([a,1-a])[:,np.newaxis]).T
+    EMA_filt_out = np.dot(A, np.hstack([filtInput,emaIn]).T).T
+    EMA_out      = emaIn - EMA_filt_out
+    return EMA_out,EMA_filt_out
