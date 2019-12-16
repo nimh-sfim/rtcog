@@ -40,17 +40,19 @@ from rtcap_lib import create_win, is_hit_method01
 from config import CAP_indexes, CAP_labels, CAPs_Path
 from config import Mask_Path
 from config import SVRs_Path, OUT_Dir
+from config import TEST_OUT_Prefix as OUT_Prefix
+from config import TEST_Path as Data_Path
+from config import TEST_Motion_Path as Data_Motion_Path
 n_CAPs      = len(CAP_indexes)
-
-# +
-Data_Path        = '/data/SFIMJGC_HCP7T/PRJ_rtCAPs/PrcsData/TECH07/D01_RT_Run01/TECH07_Run01_Testing.nii'
-Data_Motion_Path = '/data/SFIMJGC_HCP7T/PRJ_rtCAPs/PrcsData/TECH07/D01_RT_Run01/TECH07_Run01_Testing.Motion.1D'
+print(' + Data Path       : %s' % Data_Path)
+print(' + Data Motion Path: %s' % Data_Motion_Path)
+print(' + GM Ribbon Path  : %s' % Mask_Path)
+print(' + SVR Models Path : %s' % SVRs_Path)
 
 DONT_USE_VOLS   = 10  # No Detrending should be done on non-steady state volumes
 FIRST_VALID_VOL = 100 # It takes quite some time for detrending to become stable
 POLORT = 2
 FWHM = 6
-# -
 
 # Load Data in Memory
 CAPs_Img     = load_fMRI_file(CAPs_Path)
@@ -109,8 +111,6 @@ for t in tqdm(np.arange(Data_Nt)):
         n                = 1 # Initialize counter
         prev_iGLM        = {} # Initialization for iGML
         S_x              = np.zeros((Data_Nv, Data_Nt))
-        S_Q              = np.zeros((Data_Nv, Data_Nt))
-        S_R              = np.zeros((Data_Nv, Data_Nt))
         S_P              = np.zeros((Data_Nv, Data_Nt))
         fPositDerivSpike = np.zeros((Data_Nv, Data_Nt))
         fNegatDerivSpike = np.zeros((Data_Nv, Data_Nt))
@@ -139,7 +139,7 @@ for t in tqdm(np.arange(Data_Nt)):
     
     # 3) Low-Pass Filtering (Kalman Filter)
     if t > (Vols4Preproc[0] + 1):
-        o_data, o_fPos, o_fNeg, o_S_x, o_S_R, o_voxels   = [],[],[],[],[],[]
+        o_data, o_fPos, o_fNeg, o_S_x, o_S_P, o_voxels   = [],[],[],[],[],[]
         inputs = ({'d'   : Data_InMask_Step02[v_s:v_e,t],
                    'std' : np.std(Data_InMask_Step02[v_s:v_e,DONT_USE_VOLS:t+1], axis=1),
                    'S_x' : S_x[v_s:v_e,t-1],
@@ -156,18 +156,18 @@ for t in tqdm(np.arange(Data_Nt)):
             o_fPos.append(res[j][1])
             o_fNeg.append(res[j][2])
             o_S_x.append(res[j][3])
-            o_S_R.append(res[j][4])
+            o_S_P.append(res[j][4])
             o_voxels.append(res[j][5])
         o_data   = [item for sublist in o_data   for item in sublist]
         o_fPos   = [item for sublist in o_fPos for item in sublist]
         o_fNeg   = [item for sublist in o_fNeg for item in sublist]
         o_S_x    = [item for sublist in o_S_x for item in sublist]
-        o_S_R    = [item for sublist in o_S_R for item in sublist]
+        o_S_P    = [item for sublist in o_S_P for item in sublist]
         o_voxels = [item for sublist in o_voxels for item in sublist]
         
         Data_InMask_Step03[:,t] = o_data
         S_x[:,t]                = o_S_x
-        S_R[:,t]                = o_S_R
+        S_P[:,t]                = o_S_P
         fPositDerivSpike[:,t]   = o_fPos
         fNegatDerivSpike[:,t]   = o_fNeg
     
@@ -184,14 +184,14 @@ pool.close()
 pool.join()
 
 # +
-out = unmask_fMRI_img(Data_InMask_Step01, Mask_Img, '/data/SFIMJGC_HCP7T/PRJ_rtCAPs/PrcsData/TECH07/D01_RT_Run01/TECH07_Run01_Testing_MVema_Step01.nii')
-out = unmask_fMRI_img(Data_InMask_Step02, Mask_Img, '/data/SFIMJGC_HCP7T/PRJ_rtCAPs/PrcsData/TECH07/D01_RT_Run01/TECH07_Run01_Testing_MVema_Step02.nii')
-out = unmask_fMRI_img(Data_InMask_Step03, Mask_Img, '/data/SFIMJGC_HCP7T/PRJ_rtCAPs/PrcsData/TECH07/D01_RT_Run01/TECH07_Run01_Testing_MVema_Step03.nii')
-out = unmask_fMRI_img(Data_InMask_Step04, Mask_Img, '/data/SFIMJGC_HCP7T/PRJ_rtCAPs/PrcsData/TECH07/D01_RT_Run01/TECH07_Run01_Testing_MVema_Step04.nii')
+out = unmask_fMRI_img(Data_InMask_Step01, Mask_Img, osp.join(OUT_Dir,OUT_Prefix+'.pp_Step01.nii'))
+out = unmask_fMRI_img(Data_InMask_Step02, Mask_Img, osp.join(OUT_Dir,OUT_Prefix+'.pp_Step02.nii'))
+out = unmask_fMRI_img(Data_InMask_Step03, Mask_Img, osp.join(OUT_Dir,OUT_Prefix+'.pp_Step03.nii'))
+out = unmask_fMRI_img(Data_InMask_Step04, Mask_Img, osp.join(OUT_Dir,OUT_Prefix+'.pp_Step04.nii'))
 
 for i,lab in enumerate(nuisance_labels):
     data = Regressor_Coeffs[i,:,:]
-    out = unmask_fMRI_img(data, Mask_Img, '/data/SFIMJGC_HCP7T/PRJ_rtCAPs/PrcsData/TECH07/D01_RT_Run01/TECH07_Run01_Testing_MVema_'+lab+'.nii')
+    out = unmask_fMRI_img(data, Mask_Img, osp.join(OUT_Dir,OUT_Prefix+'.pp_Step02_'+lab+'.nii'))
 # -
 
 # ***
@@ -303,3 +303,5 @@ for cap in CAP_labels:
         print('+ CAP [%s] was hit %d times. Contributing Vols: %s' % (cap,thisCAP_hits,str(thisCAP_Vols)))
         thisCAP_InMask  = Data_InMask_dn[:,thisCAP_Vols].mean(axis=1)
         unmask_fMRI_img(thisCAP_InMask, Mask_Img, osp.join(OUT_Dir,'RT_HitMap_'+cap+'.nii'))
+
+

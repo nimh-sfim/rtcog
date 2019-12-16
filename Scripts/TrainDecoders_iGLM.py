@@ -24,6 +24,7 @@ from scipy.stats import zscore
 from sklearn.svm import SVR
 import matplotlib.pyplot as plt
 import config
+import os.path as osp
 hv.extension('bokeh')
 
 # %%capture
@@ -36,18 +37,19 @@ from rtcap_lib import kalman_filter_mv, apply_EMA_filter
 
 from config import CAP_indexes, CAP_labels, CAPs_Path
 from config import Mask_Path
-from config import SVRs_Path
+from config import SVRs_Path, OUT_Dir
+from config import TRAIN_OUT_Prefix as OUT_Prefix
+from config import TRAIN_Path as Data_Path
+from config import TRAIN_Motion_Path as Data_Motion_Path
 n_CAPs      = len(CAP_indexes)
-
-# +
-Data_Path        = '/data/SFIMJGC_HCP7T/PRJ_rtCAPs/PrcsData/TECH07/D01_RT_Run01/TECH07_Run01_Training.nii'
-Data_Motion_Path = '/data/SFIMJGC_HCP7T/PRJ_rtCAPs/PrcsData/TECH07/D01_RT_Run01/TECH07_Run01_Training.Motion.1D'
+print(' + Data Path       : %s' % Data_Path)
+print(' + Data Motion Path: %s' % Data_Motion_Path)
+print(' + GM Ribbon Path  : %s' % Mask_Path)
 
 DONT_USE_VOLS   = 10  # No Detrending should be done on non-steady state volumes
 FIRST_VALID_VOL = 100 # It takes quite some time for detrending to become stable
 POLORT = 2
 FWHM = 6
-# -
 
 # Load Data in Memory
 CAPs_Img     = load_fMRI_file(CAPs_Path)
@@ -89,85 +91,6 @@ import multiprocessing
 print("Number of cpu : ", multiprocessing.cpu_count())
 num_cores = 16
 
-# + active=""
-# Data_InMask_Step01 = np.zeros(Data_InMask.shape)
-# Data_InMask_Step02 = np.zeros(Data_InMask.shape)
-# Data_InMask_Step03 = np.zeros(Data_InMask.shape)
-# Regressor_Coeffs   = np.zeros((n_regressors,Data_Nv,Data_Nt))
-#
-# v_start = np.arange(0,Data_Nv,int(np.floor(Data_Nv/(num_cores-1)))).tolist()
-# v_end   = v_start[1:] + [Data_Nv]
-# pool    = multiprocessing.Pool(processes=num_cores)
-#
-# for t in tqdm(np.arange(Data_Nt)):
-#     if t not in Vols4Preproc:
-#         continue
-#     if t == Vols4Preproc[0]:
-#         n                = 1 # Initialize counter
-#         prev_iGLM        = {} # Initialization for iGML
-#         S_x              = np.zeros((Data_Nv, Data_Nt))
-#         S_Q              = np.zeros((Data_Nv, Data_Nt))
-#         S_R              = np.zeros((Data_Nv, Data_Nt))
-#         S_P              = np.zeros((Data_Nv, Data_Nt))
-#         fPositDerivSpike = np.zeros((Data_Nv, Data_Nt))
-#         fNegatDerivSpike = np.zeros((Data_Nv, Data_Nt))
-#         kalmThreshold    = np.zeros((Data_Nv, Data_Nt))
-#     else:
-#         n = n +1;
-#     
-#     Yn = Data_InMask[:,t][:,np.newaxis]
-#     Fn = nuisance[t,:][:,np.newaxis]
-#     
-#     # 1) Remove Nuissance Regressors from data
-#     Yn_d,prev_iGLM, Bn      = rt_regress_vol(n,Yn,Fn,prev_iGLM)
-#     Data_InMask_Step01[:,t] = Yn_d
-#     Regressor_Coeffs[:,:,t] = Bn.T
-#     
-#     if t > (Vols4Preproc[0] + 1):
-#         o_data, o_fPos, o_fNeg, o_S_x, o_S_R, o_voxels   = [],[],[],[],[],[]
-#         inputs = ({'d'   : Data_InMask_Step01[v_s:v_e,t],
-#                    'std' : np.std(Data_InMask_Step01[v_s:v_e,DONT_USE_VOLS:t+1], axis=1),
-#                    'S_x' : S_x[v_s:v_e,t-1],
-#                    'S_P' : S_P[v_s:v_e,t-1],
-#                    'S_Q' : 0.25 * np.power(np.std(Data_InMask_Step01[v_s:v_e,DONT_USE_VOLS:t+1], axis=1),2),
-#                    'S_R' : np.power(np.std(Data_InMask_Step01[v_s:v_e,DONT_USE_VOLS:t+1], axis=1),2),
-#                    'fPos': fPositDerivSpike[v_s:v_e,t-1],
-#                    'fNeg': fNegatDerivSpike[v_s:v_e,t-1],
-#                    'vox' : np.arange(v_s,v_e)}
-#                   for v_s,v_e in zip(v_start,v_end))
-#         res = pool.map(kalman_filter_mv,inputs)
-#         for j in np.arange(num_cores):
-#             o_data.append(res[j][0])
-#             o_fPos.append(res[j][1])
-#             o_fNeg.append(res[j][2])
-#             o_S_x.append(res[j][3])
-#             o_S_R.append(res[j][4])
-#             o_voxels.append(res[j][5])
-#         o_data   = [item for sublist in o_data   for item in sublist]
-#         o_fPos   = [item for sublist in o_fPos for item in sublist]
-#         o_fNeg   = [item for sublist in o_fNeg for item in sublist]
-#         o_S_x    = [item for sublist in o_S_x for item in sublist]
-#         o_S_R    = [item for sublist in o_S_R for item in sublist]
-#         o_voxels = [item for sublist in o_voxels for item in sublist]
-#         
-#         Data_InMask_Step02[:,t] = o_data
-#         S_x[:,t]                = o_S_x
-#         S_R[:,t]                = o_S_R
-#         fPositDerivSpike[:,t]   = o_fPos
-#         fNegatDerivSpike[:,t]   = o_fNeg
-#     
-#     Yn_df = Data_InMask_Step02[:,t]
-#     
-#     # 3) Smooth Image
-#     Yn_d_vol    = unmask_fMRI_img(Yn_df, Mask_Img)
-#     Yn_d_vol_sm = smooth_array(Yn_d_vol,affine=Data_Img.affine, fwhm=FWHM)
-#     Yn_sm       = mask_fMRI_img(Yn_d_vol_sm, Mask_Img)
-#     
-#     # 4) Update Global Structures
-#     Data_InMask_Step03[:,t] = Yn_sm
-# pool.close()
-# pool.join()
-
 # +
 Data_InMask_Step01 = np.zeros(Data_InMask.shape) # Data after EMA
 Data_InMask_Step02 = np.zeros(Data_InMask.shape) # Data after iGLM
@@ -185,8 +108,6 @@ for t in tqdm(np.arange(Data_Nt)):
         n                = 1 # Initialize counter
         prev_iGLM        = {} # Initialization for iGML
         S_x              = np.zeros((Data_Nv, Data_Nt))
-        S_Q              = np.zeros((Data_Nv, Data_Nt))
-        S_R              = np.zeros((Data_Nv, Data_Nt))
         S_P              = np.zeros((Data_Nv, Data_Nt))
         fPositDerivSpike = np.zeros((Data_Nv, Data_Nt))
         fNegatDerivSpike = np.zeros((Data_Nv, Data_Nt))
@@ -215,7 +136,7 @@ for t in tqdm(np.arange(Data_Nt)):
     
     # 3) Low-Pass Filtering (Kalman Filter)
     if t > (Vols4Preproc[0] + 1):
-        o_data, o_fPos, o_fNeg, o_S_x, o_S_R, o_voxels   = [],[],[],[],[],[]
+        o_data, o_fPos, o_fNeg, o_S_x, o_S_P, o_voxels   = [],[],[],[],[],[]
         inputs = ({'d'   : Data_InMask_Step02[v_s:v_e,t],
                    'std' : np.std(Data_InMask_Step02[v_s:v_e,DONT_USE_VOLS:t+1], axis=1),
                    'S_x' : S_x[v_s:v_e,t-1],
@@ -232,18 +153,18 @@ for t in tqdm(np.arange(Data_Nt)):
             o_fPos.append(res[j][1])
             o_fNeg.append(res[j][2])
             o_S_x.append(res[j][3])
-            o_S_R.append(res[j][4])
+            o_S_P.append(res[j][4])
             o_voxels.append(res[j][5])
         o_data   = [item for sublist in o_data   for item in sublist]
         o_fPos   = [item for sublist in o_fPos for item in sublist]
         o_fNeg   = [item for sublist in o_fNeg for item in sublist]
         o_S_x    = [item for sublist in o_S_x for item in sublist]
-        o_S_R    = [item for sublist in o_S_R for item in sublist]
+        o_S_P    = [item for sublist in o_S_P for item in sublist]
         o_voxels = [item for sublist in o_voxels for item in sublist]
         
         Data_InMask_Step03[:,t] = o_data
         S_x[:,t]                = o_S_x
-        S_R[:,t]                = o_S_R
+        S_P[:,t]                = o_S_P
         fPositDerivSpike[:,t]   = o_fPos
         fNegatDerivSpike[:,t]   = o_fNeg
     
@@ -260,14 +181,14 @@ pool.close()
 pool.join()
 
 # +
-out = unmask_fMRI_img(Data_InMask_Step01, Mask_Img, '/data/SFIMJGC_HCP7T/PRJ_rtCAPs/PrcsData/TECH07/D01_RT_Run01/TestMVema_Step01.nii')
-out = unmask_fMRI_img(Data_InMask_Step02, Mask_Img, '/data/SFIMJGC_HCP7T/PRJ_rtCAPs/PrcsData/TECH07/D01_RT_Run01/TestMVema_Step02.nii')
-out = unmask_fMRI_img(Data_InMask_Step03, Mask_Img, '/data/SFIMJGC_HCP7T/PRJ_rtCAPs/PrcsData/TECH07/D01_RT_Run01/TestMVema_Step03.nii')
-out = unmask_fMRI_img(Data_InMask_Step04, Mask_Img, '/data/SFIMJGC_HCP7T/PRJ_rtCAPs/PrcsData/TECH07/D01_RT_Run01/TestMVema_Step04.nii')
+out = unmask_fMRI_img(Data_InMask_Step01, Mask_Img, osp.join(OUT_Dir,OUT_Prefix+'.pp_Step01.nii'))
+out = unmask_fMRI_img(Data_InMask_Step02, Mask_Img, osp.join(OUT_Dir,OUT_Prefix+'.pp_Step02.nii'))
+out = unmask_fMRI_img(Data_InMask_Step03, Mask_Img, osp.join(OUT_Dir,OUT_Prefix+'.pp_Step03.nii'))
+out = unmask_fMRI_img(Data_InMask_Step04, Mask_Img, osp.join(OUT_Dir,OUT_Prefix+'.pp_Step04.nii'))
 
 for i,lab in enumerate(nuisance_labels):
     data = Regressor_Coeffs[i,:,:]
-    out = unmask_fMRI_img(data, Mask_Img, '/data/SFIMJGC_HCP7T/PRJ_rtCAPs/PrcsData/TECH07/D01_RT_Run01/TestMVema_'+lab+'.nii')
+    out = unmask_fMRI_img(data, Mask_Img, osp.join(OUT_Dir,OUT_Prefix+'.pp_Step02_'+lab+'.nii'))
 # -
 
 # ***

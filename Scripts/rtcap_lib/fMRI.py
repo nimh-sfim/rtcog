@@ -37,7 +37,7 @@ def mask_fMRI_img(data_img,mask_img):
     --------
     data_v: np.array [Nacquisitions, Nvoxels in mask]
     """
-    if isinstance(data_img,(nib.Nifti1Image,nib.Nifti2Image)):
+    if isinstance(data_img,(nib.Nifti1Image,nib.Nifti2Image, nib.brikhead.AFNIImage)):
         data = data_img.get_data()
     else:
         data = data_img
@@ -388,7 +388,7 @@ def kalman_filter_mv(input_dict):
     out_fPos_mv = []
     out_fNeg_mv = []
     out_S_x_mv  = []
-    out_S_R_mv  = []
+    out_S_P_mv  = []
     out_vox_mv  = []
     for v in np.arange(Nv):
         input_d = input_dict['d'][v]
@@ -401,10 +401,33 @@ def kalman_filter_mv(input_dict):
         input_fNeg = input_dict['fNeg'][v]
         kalmTh     = 0.9 * input_ts_STD
         [out_d, out_S, out_fPos, out_fNeg] = kalman_filter(kalmTh, input_d,input_S, input_fPos, input_fNeg)
-        for (l,i) in zip([out_d_mv,out_fPos_mv,out_fNeg_mv,out_S_x_mv,out_S_R_mv, out_vox_mv],
-                         [out_d,   out_fPos,   out_fNeg,   out_S['x'],out_S['R'],input_dict['vox'][v]]):
+        for (l,i) in zip([out_d_mv,out_fPos_mv,out_fNeg_mv,out_S_x_mv,out_S_P_mv, out_vox_mv],
+                         [out_d,   out_fPos,   out_fNeg,   out_S['x'],out_S['P'],input_dict['vox'][v]]):
             l.append(i)
-    return [out_d_mv, out_fPos_mv, out_fNeg_mv, out_S_x_mv, out_S_R_mv, out_vox_mv]
+    return [out_d_mv, out_fPos_mv, out_fNeg_mv, out_S_x_mv, out_S_P_mv, out_vox_mv]
+
+#def kalman_filter_mv(input_dict):
+#    Nv = input_dict['vox'].shape[0]
+#    out_d_mv    = []
+#    out_fPos_mv = []
+#    out_fNeg_mv = []
+#    out_S_x_mv  = []
+#    out_S_R_mv  = []
+#    for v in np.arange(Nv):
+#        input_d = input_dict['d'][v]
+#        input_ts_STD = input_dict['std'][v]
+#        input_S = {'Q': input_dict['S_Q'][v],
+#                   'R': input_dict['S_R'][v],
+#                   'x': input_dict['S_x'][v],
+#                   'P': input_dict['S_P'][v]}
+#        input_fPos = input_dict['fPos'][v]
+#        input_fNeg = input_dict['fNeg'][v]
+#        kalmTh     = 0.9 * input_ts_STD
+#        [out_d, out_S, out_fPos, out_fNeg] = kalman_filter(kalmTh, input_d,input_S, input_fPos, input_fNeg)
+#        for (l,i) in zip([out_d_mv,out_fPos_mv,out_fNeg_mv,out_S_x_mv,out_S_R_mv, _],
+#                         [out_d,   out_fPos,   out_fNeg,   out_S['x'],out_S['R']]):
+#            l.append(i)
+#    return [out_d_mv, out_fPos_mv, out_fNeg_mv, out_S_x_mv, out_S_R_mv]
 
 def apply_EMA_filter(a,emaIn,filtInput):
     A            = (np.array([a,1-a])[:,np.newaxis]).T
