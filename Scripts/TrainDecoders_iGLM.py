@@ -25,15 +25,18 @@ from sklearn.svm import SVR
 import matplotlib.pyplot as plt
 import config
 import os.path as osp
+import multiprocessing
 hv.extension('bokeh')
 
 # %%capture
 from tqdm.notebook import tqdm
 tqdm().pandas()
 
-from rtcap_lib import load_fMRI_file, mask_fMRI_img, rt_regress_vol 
-from rtcap_lib import gen_polort_regressors, unmask_fMRI_img, smooth_array
-from rtcap_lib import kalman_filter_mv, apply_EMA_filter
+from rtcap_lib.fMRI import load_fMRI_file, mask_fMRI_img, unmask_fMRI_img
+from rtcap_lib.rt_functions import init_iGLM, rt_regress_vol, gen_polort_regressors
+from rtcap_lib.rt_functions import init_EMA, rt_EMA_vol
+from rtcap_lib.rt_functions import init_kalman, rt_kalman_vol
+from rtcap_lib.rt_functions import rt_smooth_vol
 
 from config import CAP_indexes, CAP_labels, CAPs_Path
 from config import Mask_Path
@@ -49,7 +52,7 @@ print(' + GM Ribbon Path  : %s' % Mask_Path)
 DONT_USE_VOLS   = 10  # No Detrending should be done on non-steady state volumes
 FIRST_VALID_VOL = 100 # It takes quite some time for detrending to become stable
 POLORT = 2
-FWHM = 6
+FWHM = 4
 
 # Load Data in Memory
 CAPs_Img     = load_fMRI_file(CAPs_Path)
@@ -87,108 +90,65 @@ nuisance_DF.hvplot().opts(width=1000, legend_position='top', height=200)
 Vols4Preproc = np.arange(DONT_USE_VOLS,Data_Nt)
 print('++ Number of Volumes to pre-process [%d]: [min=%d, max=%d] (Python)' % (Vols4Preproc.shape[0], np.min(Vols4Preproc), np.max(Vols4Preproc)))
 
-import multiprocessing
-print("Number of cpu : ", multiprocessing.cpu_count())
 num_cores = 16
 
 # +
-Data_InMask_Step01 = np.zeros(Data_InMask.shape) # Data after EMA
-Data_InMask_Step02 = np.zeros(Data_InMask.shape) # Data after iGLM
-Data_InMask_Step03 = np.zeros(Data_InMask.shape) # Data after Kalman
-Data_InMask_Step04 = np.zeros(Data_InMask.shape) # Data after Smoothing
+n                  = 0
+Data_FromAFNI      = Data_InMask #Nv,Nt
+Data_EMA           = np.zeros(Data_FromAFNI.shape)
+Data_iGLM          = np.zeros(Data_FromAFNI.shape)
+Data_kalman        = np.zeros(Data_FromAFNI.shape)
+Data_smooth        = np.zeros(Data_FromAFNI.shape)
+do_EMA             = True
+do_kalman          = True
+do_smooth          = True
 Regressor_Coeffs   = np.zeros((n_regressors,Data_Nv,Data_Nt))
 
-v_start = np.arange(0,Data_Nv,int(np.floor(Data_Nv/(num_cores-1)))).tolist()
-v_end   = v_start[1:] + [Data_Nv]
 pool    = multiprocessing.Pool(processes=num_cores)
+
 for t in tqdm(np.arange(Data_Nt)):
+    # 1) Discard Non-Steady State Volumes (so they don't influence estimates)
+    # -----------------------------------------------------------------------
     if t not in Vols4Preproc:
         continue
+    
+    # 2) If this is first valid volume, do all initializations
+    # --------------------------------------------------------
     if t == Vols4Preproc[0]:
-        n                = 1 # Initialize counter
-        prev_iGLM        = {} # Initialization for iGML
-        S_x              = np.zeros((Data_Nv, Data_Nt))
-        S_P              = np.zeros((Data_Nv, Data_Nt))
-        fPositDerivSpike = np.zeros((Data_Nv, Data_Nt))
-        fNegatDerivSpike = np.zeros((Data_Nv, Data_Nt))
-        kalmThreshold    = np.zeros((Data_Nv, Data_Nt))
-        # Initialization for EMA
-        EMA_th      = 0.98
+        n, prev_iGLM = init_iGLM()
+        S_x, S_P, \
+        fPositDerivSpike, fNegatDerivSpike, kalmThreshold = init_kalman(Data_Nv,Data_Nt)
+        #S = init_kalman(Data_Nv, Data_Nt)
+        EMA_th, EMA_filt = init_EMA()
     else:
-        n = n +1;
+        n = n + 1
     
-    # 1) EMA Filter
-    if t == Vols4Preproc[0]:
-        EMA_filt_in             = Data_InMask[:,t][:,np.newaxis]
-        Data_InMask_Step01[:,t] = Data_InMask[:,t] - Data_InMask[:,t-1]
-    else:
-        [EMA_data_out, EMA_filt_out] = apply_EMA_filter(EMA_th,Data_InMask[:,t][:,np.newaxis],EMA_filt_in)
-        EMA_filt_in                  = EMA_filt_out
-        Data_InMask_Step01[:,t]      = np.squeeze(EMA_data_out)
+    # 3) EMA Filter
+    # -------------
+    Data_EMA[:,t], EMA_filt = rt_EMA_vol(n,t,EMA_th,Data_FromAFNI,EMA_filt, do_operation=do_EMA)
     
-    # 2) Remove Nuissance Regressors from data
-    Yn = Data_InMask_Step01[:,t][:,np.newaxis]
-    Fn = nuisance[t,:][:,np.newaxis]
+    # 4) iGLM
+    # -------
+    Data_iGLM[:,t],prev_iGLM, Bn = rt_regress_vol(n,Data_EMA[:,t][:,np.newaxis],nuisance[t,:][:,np.newaxis],prev_iGLM)
+    Regressor_Coeffs[:,:,t]      = Bn.T
     
-    Yn_d,prev_iGLM, Bn      = rt_regress_vol(n,Yn,Fn,prev_iGLM)
-    Data_InMask_Step02[:,t] = Yn_d
-    Regressor_Coeffs[:,:,t] = Bn.T
+    # 5) Kalman Filter
+    # ----------------
+    Data_kalman[:,t],      \
+    S_x[:,t], S_P[:,t],    \
+    fPositDerivSpike[:,t], \
+    fNegatDerivSpike[:,t] = rt_kalman_vol(n,t,Data_iGLM,
+                    S_x[:,t-1],
+                    S_P[:,t-1],
+                    fPositDerivSpike[:,t-1],
+                    fNegatDerivSpike[:,t-1], 
+                    num_cores,DONT_USE_VOLS,pool,do_operation=do_kalman)
     
-    # 3) Low-Pass Filtering (Kalman Filter)
-    if t > (Vols4Preproc[0] + 1):
-        o_data, o_fPos, o_fNeg, o_S_x, o_S_P, o_voxels   = [],[],[],[],[],[]
-        inputs = ({'d'   : Data_InMask_Step02[v_s:v_e,t],
-                   'std' : np.std(Data_InMask_Step02[v_s:v_e,DONT_USE_VOLS:t+1], axis=1),
-                   'S_x' : S_x[v_s:v_e,t-1],
-                   'S_P' : S_P[v_s:v_e,t-1],
-                   'S_Q' : 0.25 * np.power(np.std(Data_InMask_Step02[v_s:v_e,DONT_USE_VOLS:t+1], axis=1),2),
-                   'S_R' : np.power(np.std(Data_InMask_Step02[v_s:v_e,DONT_USE_VOLS:t+1], axis=1),2),
-                   'fPos': fPositDerivSpike[v_s:v_e,t-1],
-                   'fNeg': fNegatDerivSpike[v_s:v_e,t-1],
-                   'vox' : np.arange(v_s,v_e)}
-                  for v_s,v_e in zip(v_start,v_end))
-        res = pool.map(kalman_filter_mv,inputs)
-        for j in np.arange(num_cores):
-            o_data.append(res[j][0])
-            o_fPos.append(res[j][1])
-            o_fNeg.append(res[j][2])
-            o_S_x.append(res[j][3])
-            o_S_P.append(res[j][4])
-            o_voxels.append(res[j][5])
-        o_data   = [item for sublist in o_data   for item in sublist]
-        o_fPos   = [item for sublist in o_fPos for item in sublist]
-        o_fNeg   = [item for sublist in o_fNeg for item in sublist]
-        o_S_x    = [item for sublist in o_S_x for item in sublist]
-        o_S_P    = [item for sublist in o_S_P for item in sublist]
-        o_voxels = [item for sublist in o_voxels for item in sublist]
-        
-        Data_InMask_Step03[:,t] = o_data
-        S_x[:,t]                = o_S_x
-        S_P[:,t]                = o_S_P
-        fPositDerivSpike[:,t]   = o_fPos
-        fNegatDerivSpike[:,t]   = o_fNeg
-    
-    Yn_df = Data_InMask_Step03[:,t]
-    
-    # 4) Spatial Smoothing
-    Yn_d_vol    = unmask_fMRI_img(Yn_df, Mask_Img)
-    Yn_d_vol_sm = smooth_array(Yn_d_vol,affine=Data_Img.affine, fwhm=FWHM)
-    Yn_sm       = mask_fMRI_img(Yn_d_vol_sm, Mask_Img)
-    
-    # 5) Update Global Structures
-    Data_InMask_Step04[:,t] = Yn_sm
+    # 6) Spatial Smoothing
+    # --------------------
+    Data_smooth[:,t] = rt_smooth_vol(Data_kalman[:,t],Mask_Img,fwhm=FWHM,do_operation=do_smooth)
+
 pool.close()
-pool.join()
-
-# +
-out = unmask_fMRI_img(Data_InMask_Step01, Mask_Img, osp.join(OUT_Dir,OUT_Prefix+'.pp_Step01.nii'))
-out = unmask_fMRI_img(Data_InMask_Step02, Mask_Img, osp.join(OUT_Dir,OUT_Prefix+'.pp_Step02.nii'))
-out = unmask_fMRI_img(Data_InMask_Step03, Mask_Img, osp.join(OUT_Dir,OUT_Prefix+'.pp_Step03.nii'))
-out = unmask_fMRI_img(Data_InMask_Step04, Mask_Img, osp.join(OUT_Dir,OUT_Prefix+'.pp_Step04.nii'))
-
-for i,lab in enumerate(nuisance_labels):
-    data = Regressor_Coeffs[i,:,:]
-    out = unmask_fMRI_img(data, Mask_Img, osp.join(OUT_Dir,OUT_Prefix+'.pp_Step02_'+lab+'.nii'))
 # -
 
 # ***
@@ -202,7 +162,7 @@ CAPs_InMask = sc_CAPs.fit_transform(CAPs_InMask)
 # Standarize Time series in Space
 # ===============================
 sc_Data_space  = StandardScaler(with_mean=True, with_std=True)
-Data_InMask_dn = sc_Data_space.fit_transform(Data_InMask_Step04)
+Data_norm      = sc_Data_space.fit_transform(Data_smooth)
 
 # ***
 # # Generation of Traning Labels (via Linear Regression + Z-scoring)
@@ -218,7 +178,7 @@ Results['R2'] = []
 
 X_fmri = pd.DataFrame(CAPs_InMask, columns=CAP_labels)
 for vol in tqdm(Vols4Training):
-    Y_fmri = pd.Series(Data_InMask_dn[:,vol],name='V'+str(vol).zfill(4))
+    Y_fmri = pd.Series(Data_norm[:,vol],name='V'+str(vol).zfill(4))
     lm     = linear_model.LinearRegression()
     model  = lm.fit(X_fmri,Y_fmri)
     for i,cap in enumerate(CAP_labels):
@@ -253,10 +213,18 @@ SVRs    = {}
 for cap_lab in tqdm(CAP_labels):
     Training_Labels = LinReg_Zscores[cap_lab]
     mySVR = SVR(kernel='linear', C=C, epsilon=epsilon)
-    mySVR.fit(Data_InMask_dn[:,Vols4Training].T,Training_Labels)
+    mySVR.fit(Data_norm[:,Vols4Training].T,Training_Labels)
     SVRs[cap_lab] = mySVR
 
 import pickle
 pickle_out = open(SVRs_Path,"wb")
 pickle.dump(SVRs, pickle_out)
 pickle_out.close()
+
+for variable, file_suffix in zip([Data_EMA, Data_iGLM, Data_kalman, Data_smooth, Data_norm], \
+                          ['.pp01_EMA.nii','.pp02_iGLM.nii','.pp03_Kalman.nii','.pp04_Smooth.nii','.pp05_Norm.nii']):
+    out = unmask_fMRI_img(variable, Mask_Img, osp.join(OUT_Dir,OUT_Prefix+file_suffix))
+
+for i,lab in enumerate(nuisance_labels):
+    data = Regressor_Coeffs[i,:,:]
+    out = unmask_fMRI_img(data, Mask_Img, osp.join(OUT_Dir,OUT_Prefix+'.pp02_iGLM_'+lab+'.nii'))
