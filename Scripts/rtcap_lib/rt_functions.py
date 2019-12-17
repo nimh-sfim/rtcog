@@ -133,12 +133,12 @@ def rt_EMA_vol(n,t,th,data,filt_in, do_operation=True):
     if do_operation: # Apply this operation
         if n == 1:   # First step
             filt_out = data[:,t][:,np.newaxis]
-            data_out = data[:,t] - data[:,t-1] 
+            data_out = (data[:,t] - data[:,t-1])[:,np.newaxis] 
         else:        # Any other step
             data_out, filt_out = _apply_EMA_filter(th,data[:,t][:,np.newaxis],filt_in)
-            data_out = np.squeeze(data_out)
+            #data_out = np.squeeze(data_out)
     else: # Do not apply this operation
-        data_out = data_in
+        data_out = data[:,t][:,np.newaxis]
         filt_out = None
     return data_out, filt_out
 

@@ -125,8 +125,8 @@ for t in tqdm(np.arange(Data_Nt)):
     
     # 3) EMA Filter
     # -------------
-    Data_EMA[:,t], EMA_filt = rt_EMA_vol(n,t,EMA_th,Data_FromAFNI,EMA_filt, do_operation=do_EMA)
-    
+    ema_out, EMA_filt = rt_EMA_vol(n,t,EMA_th,Data_FromAFNI,EMA_filt, do_operation=do_EMA)
+    Data_EMA[:,t] = np.squeeze(ema_out)
     # 4) iGLM
     # -------
     Data_iGLM[:,t],prev_iGLM, Bn = rt_regress_vol(n,Data_EMA[:,t][:,np.newaxis],nuisance[t,:][:,np.newaxis],prev_iGLM)
@@ -228,3 +228,5 @@ for variable, file_suffix in zip([Data_EMA, Data_iGLM, Data_kalman, Data_smooth,
 for i,lab in enumerate(nuisance_labels):
     data = Regressor_Coeffs[i,:,:]
     out = unmask_fMRI_img(data, Mask_Img, osp.join(OUT_Dir,OUT_Prefix+'.pp02_iGLM_'+lab+'.nii'))
+
+
