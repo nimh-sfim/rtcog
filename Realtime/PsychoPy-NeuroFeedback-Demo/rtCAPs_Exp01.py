@@ -108,8 +108,6 @@ class DemoExperiment(object):
       print ("++ Initializing experiment stimuli")
       self.setupExperiment()
 
-
-
    def setupExperiment(self):
 
       """create the GUI for display of the demo data:
