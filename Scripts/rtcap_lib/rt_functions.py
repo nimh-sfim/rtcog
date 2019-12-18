@@ -96,7 +96,14 @@ def _iGLMVol(n,Yn,Fn,Dn,Cn,s2n):
         Bn = np.zeros((nv,nrBasFct))
     return Bn,Cn,Dn,s2n
 
-def rt_regress_vol(n,Yn,Fn,prev):
+def rt_regress_vol(n,Yn,Fn,prev, do_operation = True):
+    if not do_operation:
+        L   = Fn.shape[0]                               # Number of Regressors
+        Nv  = Yn.shape[0]
+        b_out = np.zeros((Nv,L,1))
+        p_out = {'Cn':None, 'Dn':None,'s2n':None}
+        y_out = Yn
+        return y_out, p_out, b_out
     if n == 1:
         L   = Fn.shape[0]                               # Number of Regressors
         Nv  = Yn.shape[0]
@@ -113,7 +120,7 @@ def rt_regress_vol(n,Yn,Fn,prev):
     Yn_d         = np.squeeze(Yn_d)
     
     new = {'Cn':Cn, 'Dn':Dn, 's2n': s2n}
-    return Yn_d, new, Bn
+    return Yn_d[:,np.newaxis], new, Bn[:,:,np.newaxis]
 
 
 # EMA Related Functions

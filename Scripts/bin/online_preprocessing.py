@@ -112,9 +112,12 @@ class Experiment(object):
             self.Data_smooth   = np.zeros((self.Nv,1))
             self.Data_norm     = np.zeros((self.Nv,1))
             self.nuisance      = np.zeros((self.iGLM_num_regressors,1))
+            self.iGLM_Coeffs   = np.zeros((self.Nv,self.iGLM_num_regressors,1))
             log.debug('[t=%d,n=%d] Init - Data_FromAFNI.shape %s' % (self.t, self.n, str(self.Data_FromAFNI.shape)))
             log.debug('[t=%d,n=%d] Init - Data_EMA.shape      %s' % (self.t, self.n, str(self.Data_EMA.shape)))
+            log.debug('[t=%d,n=%d] Init - Data_iGLM.shape     %s' % (self.t, self.n, str(self.Data_iGLM.shape)))
             log.debug('[t=%d,n=%d] Init - nuisance.shape      %s' % (self.t, self.n, str(self.nuisance.shape)))
+            log.debug('[t=%d,n=%d] Init - iGLM_Coeffs.shape   %s' % (self.t, self.n, str(self.iGLM_Coeffs.shape)))
             return 1
 
         # For any other vol, if still a discard volume
@@ -126,19 +129,22 @@ class Experiment(object):
             self.Data_smooth   = np.append(self.Data_smooth, np.zeros((self.Nv,1)), axis=1)
             self.Data_norm     = np.append(self.Data_norm,   np.zeros((self.Nv,1)), axis=1)
             self.nuisance      = np.append(self.nuisance,    np.zeros((self.iGLM_num_regressors,1)), axis=1)
+            self.iGLM_Coeffs   = np.append(self.iGLM_Coeffs, np.zeros((self.Nv,self.iGLM_num_regressors,1)), axis=2)
             log.debug('[t=%d,n=%d] Discard - Data_FromAFNI.shape %s' % (self.t, self.n, str(self.Data_FromAFNI.shape)))
             log.debug('[t=%d,n=%d] Discard - Data_EMA.shape      %s' % (self.t, self.n, str(self.Data_EMA.shape)))
+            log.debug('[t=%d,n=%d] Discard - Data_iGLM.shape     %s' % (self.t, self.n, str(self.Data_iGLM.shape)))
             log.debug('[t=%d,n=%d] Discard - nuisance.shape      %s' % (self.t, self.n, str(self.nuisance.shape)))
+            log.debug('[t=%d,n=%d] Discard - iGLM_Coeffs.shape   %s' % (self.t, self.n, str(self.iGLM_Coeffs.shape)))
             return 1
 
         # If we reach this point, it means we have work to do
         self.Data_FromAFNI = np.append(self.Data_FromAFNI,this_t_data[:, np.newaxis], axis=1)
-        log.debug('[t=%d,n=%d] Online - Data_FromAFNI.shape %s' % (self.t, self.n, str(self.Data_FromAFNI.shape)))
+        log.debug('[t=%d,n=%d] Online - Input - Data_FromAFNI.shape %s' % (self.t, self.n, str(self.Data_FromAFNI.shape)))
 
         # Do EMA (if needed)
         ema_data_out, self.EMA_filt = rt_EMA_vol(self.n, self.t, self.EMA_th, self.Data_FromAFNI, self.EMA_filt, do_operation = self.do_EMA)
         self.Data_EMA = np.append(self.Data_EMA, ema_data_out, axis=1)
-        log.debug('[t=%d,n=%d] Online - Data_EMA.shape      %s' % (self.t, self.n, str(self.Data_EMA.shape)))
+        log.debug('[t=%d,n=%d] Online - EMA - Data_EMA.shape      %s' % (self.t, self.n, str(self.Data_EMA.shape)))
         
         # Do iGLM (if needed)
         if self.iGLM_motion:
@@ -146,17 +152,17 @@ class Experiment(object):
         else:
             this_t_nuisance = (self.legendre_pols[self.t,:])[:,np.newaxis]
         self.nuisance = np.append(self.nuisance, this_t_nuisance, axis=1)
-        log.debug('[t=%d,n=%d] Online = nuisance.shape      %s' %  (self.t, self.n, str(self.nuisance.shape)))
+        log.debug('[t=%d,n=%d] Online - iGLM - nuisance.shape      %s' %  (self.t, self.n, str(self.nuisance.shape)))
         iGLM_data_out, self.iGLM_prev, Bn = rt_regress_vol(self.n, 
                                                            self.Data_EMA[:,self.t][:,np.newaxis],
                                                            self.nuisance[:,self.t][:,np.newaxis],
-                                                           self.iGLM_prev)
-        #                                                   do_operation = self.do_iGLM)
-        #log.debug('[t=%d,n=%d] Online - iGLM_data_out.shape  %s' % (self.t, self.n, str(iGLM_data_out.shape)))
-        #self.Data_iGLM = np.append(self.Data_iGLM, iGLM_data_out, axis=1)
+                                                           self.iGLM_prev,
+                                                           do_operation = self.do_iGLM)
+        self.Data_iGLM    = np.append(self.Data_iGLM, iGLM_data_out, axis=1)
+        self.iGLM_Coeffs  = np.append(self.iGLM_Coeffs, Bn, axis = 2) 
+        log.debug('[t=%d,n=%d] Online - iGLM - Data_iGLM.shape     %s' % (self.t, self.n, str(self.Data_iGLM.shape)))
+        log.debug('[t=%d,n=%d] Online - iGLM - iGLM_Coeffs.shape   %s' % (self.t, self.n, str(self.iGLM_Coeffs.shape)))
 
-        
-        
         # Need to return something, otherwise the program thinks the experiment ended
         return 1
 
