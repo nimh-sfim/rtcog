@@ -17,6 +17,7 @@ import logging
 from   optparse import OptionParser
 
 import numpy as np
+import pandas as pd
 
 import afniInterfaceRT as nf
 
@@ -45,14 +46,15 @@ def unpack_extra(extra):
    n_voxels = int(n_elements/8)
    aux = aux.reshape(n_voxels,8)
    #roi_id   = aux[:,0]
-   roi_i    = aux[:,1]
-   roi_j    = aux[:,2]
-   roi_k    = aux[:,3]
+   #roi_i    = aux[:,1]
+   #roi_j    = aux[:,2]
+   #roi_k    = aux[:,3]
    #roi_x    = aux[:,4]
    #roi_y    = aux[:,5]
    #roi_z    = aux[:,6]
    roi_data = aux[:,7]
-   return (roi_i,roi_j,roi_k,roi_data)
+   return roi_data
+   #return (roi_i,roi_j,roi_k,roi_data)
 
 class DemoExperiment(object):
 
@@ -62,38 +64,37 @@ class DemoExperiment(object):
       self.acq = -1
 
       # Motion Related Containers
-      self.dS    = []
-      self.dL    = []
-      self.dP    = []
-      self.roll  = []
-      self.yaw   = []
-      self.pitch = []
-      self.FD    = []
+      self.DF_motion = pd.DataFrame(columns=['dS','dL','dP','roll','pitch','yaw'])
+      self.DF_motion_path = "/data/SFIMJGC_HCP7T/PRJ_rtCAPs/PrcsData/TECH06/RTtest/Online_Motion2.pkl"
+      self.FD = []
 
       # Support Vector Regression Machines
-      SVRs_Path = "/data/SFIMJGC_HCP7T/PRJ_rtCAPs/PrcsData/TECH06/D00_OriginalData/SVRs.pkl"
+      SVRs_Path = "/data/SFIMJGC_HCP7T/PRJ_rtCAPs/PrcsData/TECH06/RTtest/Online_SVRs.pkl"
       SVRs_pickle_in = open(SVRs_Path,"rb")
       self.SVRs = pickle.load(SVRs_pickle_in)
       print('++ Support Vector Regression Objects loaded into memory')
 
       # Mask Stuff
-      self.MASK_Path = "/data/SFIMJGC_HCP7T/PRJ_rtCAPs/PrcsData/TECH06/D00_OriginalData/GMribbon_R4Feed.nii"
+      self.MASK_Path = "/data/SFIMJGC_HCP7T/PRJ_rtCAPs/PrcsData/TECH06/RTtest/GMribbon_R4Feed.nii"
       self.MASK_Img  = nib.load(self.MASK_Path)
       [self.MASK_Nx, self.MASK_Ny, self.MASK_Nz] = self.MASK_Img.shape
       self.MASK_Nv = self.MASK_Img.get_data().sum()
       self.MASK_Vector = np.reshape(self.MASK_Img.get_data(),(self.MASK_Nx*self.MASK_Ny*self.MASK_Nz),          order='F')
+      
       # CAPs Specific Information for this particular experiment
       self.CAP_Labels = ['VMed','VPol','VLat','DMN','SMot','Audi','ExCn','rFPa','lFPa']
       self.n_CAPs = len(self.CAP_Labels)
 
-      # Results from Predictions
-      self.predictions = {}
-      self.hits = []
-      self.predictions_path = '/data/SFIMJGC_HCP7T/PRJ_rtCAPs/PrcsData/TECH06/D00_OriginalData/Online_Predictions.pkl'
+      # Save Incomming Data
+      self.DF_data = None
+      self.Nvoxels = None
+      self.DF_data_path = '/data/SFIMJGC_HCP7T/PRJ_rtCAPs/PrcsData/TECH06/RTtest/Online_IncomingData2.pkl'
 
-      # dc_params = [P1, P2]
-      # P1 = dr low limit, P2 = scalar -> [0,1]
-      # result is (dr-P1)*P2  {applied in [0,1]}
+      # Results from Predictions
+      self.DF_predictions = pd.DataFrame(columns=self.CAP_Labels)
+      self.hits = []
+      self.predictions_path = '/data/SFIMJGC_HCP7T/PRJ_rtCAPs/PrcsData/TECH06/RTtest/Online_Predictions2.pkl'
+
       self.dc_params    = []
 
       self.show_data    = options.show_data
@@ -197,11 +198,18 @@ class DemoExperiment(object):
 
    def final_steps(self):
       print('++ Entering Final Steps Function.')
-      print(' + Predictions.shape: %s' % str(len(self.predictions)))
-      predictions_pickle_out = open(self.predictions_path,"wb")
-      pickle.dump(self.predictions, predictions_pickle_out)
-      predictions_pickle_out.close()
+      self.DF_predictions.to_pickle(self.predictions_path)
       print(' + Predictions saved to pickle file: %s' % self.predictions_path)
+
+      # Save Motion Estimates
+      self.DF_motion['FD'] = self.FD
+      self.DF_motion.to_pickle(self.DF_motion_path)
+      print(' + Motion saved to pickle file: %s' % self.DF_motion_path)
+
+      # Save incoming data
+      self.DF_data.to_pickle(self.DF_data_path)
+      print(' + Incoming data saved to pickle file: %s' % self.DF_data_path)
+      
 
    def compute_TR_data(self, motion, extra):
 
@@ -222,95 +230,39 @@ class DemoExperiment(object):
       """
       self.acq = self.acq + 1
       print("++ Entering compute TR data [%d]" % self.acq)
-      # The motion variable contains the current motion parameters
-      # ==========================================================
-      #print('++ Motion: %s' % str(motion))
-      # The extra variable contains all other incomming data
-      # ====================================================
-      #print('++ Extra.shape: %s' % str(len(extra)))
-
-      # 1) Extract the values in the ROI
-      [roi_i,roi_j,roi_k,current_DATA] = unpack_extra(extra)
+      # The order is as follows: [dS, dL, dP, roll, pitch, yaw]
       
+      # 1) Extract the values in the ROI
+      current_DATA = unpack_extra(extra)
+
+      # 2) Initializations that can only be done after first volume is recevied
+      if self.acq == 0:
+         self.Nvoxels = len(current_DATA)
+         self.DF_data = pd.DataFrame(columns=np.arange(self.Nvoxels))
+      self.DF_data.loc[self.acq] = current_DATA
+
       # 2) Spatially normalize
       sc = StandardScaler(with_mean=True, with_std=True)
       current_DATA = sc.fit_transform(current_DATA[:,np.newaxis])
-      #print('CURRENT DATA MEAN +/- STDV = %f +/- %f' % (current_DATA.mean(),current_DATA.std()))
+      print('CURRENT DATA Mean + std [%f +/- %f]' % (current_DATA.mean(),current_DATA.std()))
+      
       # 3) Compute FD
-      self.roll.append(motion[0])
-      self.pitch.append(motion[1])
-      self.yaw.append(motion[2])
-      self.dS.append(motion[3])
-      self.dL.append(motion[4])
-      self.dP.append(motion[5])
+      self.DF_motion.loc[self.acq] = motion
       if self.acq > 0:
-         FD = np.abs(self.dS[-1]- self.dS[-2]) + np.abs(self.dL[-1]- self.dL[-2]) + np.abs(self.dP[-1]- self.dP[-2]) + \
-              ((50 * np.pi / 180) * np.abs(self.roll[-1]- self.roll[-2])) + \
-              ((50 * np.pi / 180) * np.abs(self.pitch[-1]- self.pitch[-2])) + \
-              ((50 * np.pi / 180) * np.abs(self.yaw[-1]- self.yaw[-2]))
-         self.FD.append(FD)    
+         self.FD.append((self.DF_motion.tail(2).diff().tail(1).abs()*[1,1,1,50*np.pi/180,50*np.pi/180,50*np.pi/180]).sum(axis=1).values[0])
       else:
          self.FD.append(0)
 
-      # # 4) Compute Predictions
-      # #print(' ++ CURRENT DATA shape is %s' % str(current_DATA.shape))
-      # container = np.zeros((self.MASK_Nx,self.MASK_Ny, self.MASK_Nz))
-      # for i in np.arange(len(current_DATA)):
-      #    container[int(roi_i[i]),int(roi_j[i]), int(roi_k[i])] = current_DATA[i]
-      # current_DATA = np.reshape(container,(self.MASK_Nx*self.MASK_Ny*self.MASK_Nz), order='F')
-      # current_DATA = current_DATA[self.MASK_Vector == 1]
-      # print('CURRENT DATA MEAN +/- STDV = %f +/- %f' % (current_DATA.mean(),current_DATA.std()))
-      # current_DATA = current_DATA[:,np.newaxis]
-      # print('CURRENT DATA SHAPE %s' % str(current_DATA.shape))
-      # #Img = new_img_like(self.MASK_Path, container)
-      # #Img.to_filename('/data/SFIMJGC_HCP7T/PRJ_rtCAPs/PrcsData/TECH06/RTtest/TEST'+str(self.acq).zfill(4)+'.nii')
-
+      # 4) Compute Predictions
       aux_pred = []
       for cap_idx,cap_lab in enumerate(self.CAP_Labels):
          aux_pred.append(self.SVRs[cap_lab].predict(current_DATA.T)[0])
-      self.predictions[self.acq] = aux_pred
+      self.DF_predictions.loc[self.acq] = aux_pred
       print('Predictions %s' % str(aux_pred))
 
       # 5) Compute Matches
 
-      ### #print('++ Extra: %s' % str(roi_data))
-      ### if self.acq == 0:
-      ###   print('SAVING TO DISK')
-      ###   Nx = int(max(roi_i)+1)
-      ###   Ny = int(max(roi_j)+1)
-      ###   Nz = int(max(roi_k)+1)
-      ###   print('Data Dimensions [%d,%d,%d]' % (Nx,Ny,Nz))
-      ###   print('ROI Data Shape [%s]' % str(roi_data.shape))
-      ###   DATA = np.reshape(roi_data,(Nx,Ny,Nz), order='F')
-      ###   MASK_PATH = '/data/SFIMJGC_HCP7T/PRJ_rtCAPs/PrcsData/TECH06/RTtest/ALLv.nii'
-      ###   Img = new_img_like(MASK_PATH,DATA)
-      ###   Img.to_filename('/data/SFIMJGC_HCP7T/PRJ_rtCAPs/PrcsData/TECH06/RTtest/VOL'+str(self.acq).zfill(4)+'.nii')
-      
-      # # case 'motion': send all motion
-      # if rec.data_choice == 'motion':
-      #     if rti.nread > 0:
-      #         return 0, [rti.motion[ind][rti.nread - 1] for ind in range(6)]
-      #     else:
-      #         return -1, []
-
-      # # case 'motion_norm': send Euclidean norm of motion params
-      # #                     --> sqrt(sum of squared motion params)
-      # elif rec.data_choice == 'motion_norm':
-      #     if rti.nread > 0:
-      #         motion = [rti.motion[ind][rti.nread - 1] for ind in range(6)]
-      #         return 0  # , [UTIL.euclidean_norm(motion)]
-      #     else:
-      #         return -1, []
-
-      # # case 'all_extras': send all extra data
-      # elif rec.data_choice == 'all_extras':
-      #     if rti.nextra > 0:
-      #         return 0, [rti.extras[i][rti.nread - 1] for i in range(rti.nextra)]
-      #     else:
-      #         return -1, []
-
-      # # case 'diff_ratio': (a-b)/(abs(a)+abs(b))
-      # elif rec.data_choice == 'diff_ratio':
+      # Original code
       
       npairs = len(extra) // 2
       print(npairs)
