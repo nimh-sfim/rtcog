@@ -21,3 +21,10 @@ Scripts/rtcap_lib/__pycache__/svr_methods.cpython-36.pyc
 Scripts/__pycache__/config.cpython-36.pyc
 Realtime/PsychoPy-NeuroFeedback-Demo/__pycache__/rtCAPs_Exp01.cpython-36.pyc
 Realtime/PsychoPy-NeuroFeedback-Demo/__pycache__/demoExpt.cpython-36.pyc
+Scripts/afni_lib/__pycache__/receiver.cpython-36.pyc
+Scripts/afni_lib/__pycache__/realtime.cpython-36.pyc
+Scripts/afni_lib/__pycache__/__init__.cpython-36.pyc
+Scripts/afniInterfaceRT/__pycache__/__init__.cpython-36.pyc
+Scripts/afniInterfaceRT/__pycache__/experiment.cpython-36.pyc
+Scripts/afniInterfaceRT/__pycache__/realtime.cpython-36.pyc
+Scripts/afniInterfaceRT/__pycache__/receiver.cpython-36.pyc

@@ -1,4 +1,4 @@
-name: rtCAP
+name: rtCAP-psychopy
 channels:
   - conda-forge
   - defaults
@@ -93,6 +93,7 @@ dependencies:
   - pip=19.3.1=py37_0
   - prometheus_client=0.7.1=py_0
   - prompt_toolkit=2.0.10=py_0
+  - psychopy
   - ptyprocess=0.6.0=py37_0
   - pycparser=2.19=py37_0
   - pyct=0.4.6=py37_0
@@ -135,5 +136,9 @@ dependencies:
   - zipp=0.6.0=py_0
   - zlib=1.2.11=h1de35cc_3
   - zstd=1.3.7=h5bba6e5_0
-prefix: /opt/anaconda3/envs/rtCAP
+  - pip:
+     - psychtoolbox
+     - pygame
+     - pyparallel
+prefix: /opt/anaconda3/envs/rtCAP-psychopy
 

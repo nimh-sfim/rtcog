@@ -7,7 +7,7 @@ import platform
 # import datetime
 
 log = logging.getLogger(__name__)
-log.setLevel(logging.CRITICAL)
+# log.setLevel(logging.CRITICAL)
 # dateTimeString = datetime.datetime.now().strftime("-%Y-%m-%d-%H-%M-%S")
 # logging.basicConfig(filename='receiver' + dateTimeString + '.log')
 
@@ -86,7 +86,7 @@ class ReceiverInterface(object):
 
       """return 0 to continue, 1 on valid termination, -1 on error"""
 
-      log.info("++ Entering process_one_TR()")
+      log.debug("++ Entering process_one_TR()")
 
       motion, extra = self.RTI.read_TR_data()
       if not motion:

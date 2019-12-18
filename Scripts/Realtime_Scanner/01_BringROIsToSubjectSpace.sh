@@ -163,7 +163,12 @@ fi
        -expr 'a*b*step(abs(c))' \
        -prefix GMribbon_R4Feed.nii
 
-
+# Alternative GM
+3dcalc -a ./Segsy/Classes+orig. -expr 'equals(a,2)' -prefix rm.GMribbon_C_R4Feed.nii
+3dmask_tool -input rm.GMribbon_C_R4Feed.nii -prefix rm.GMribbon_C_R4Feed.nii -overwrite -dilate_inputs 2 -2
+3dAllineate -final NN -input rm.GMribbon_C_R4Feed.nii -1Dmatrix_apply Anat2REF.Xaff12.1D -master EPIREF+orig. -prefix GMribbon_C_R4Feed.nii
+3dcalc -a GMribbon_C_R4Feed.nii -b EPIREF.mask_R4Feed.nii -c 'Frontier2013_CAPs_R4Feed.nii[0]' -expr 'a*b*step(abs(c))' -prefix GMribbon_C_R4Feed.nii -overwrite
+rm rm.GMribbon_C_R4Feed.nii
 #3dAllineate -final NN -overwrite \
 #            -input          ${ROIFILEPREFIX}_ZSCORED.nii         \
 #            -1Dmatrix_apply MNI2REF.Xaff12.1D  \
