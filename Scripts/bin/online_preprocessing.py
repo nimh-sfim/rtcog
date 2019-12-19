@@ -8,12 +8,15 @@ from   optparse import OptionParser
 import logging as log
 import numpy as np
 import multiprocessing
+import os.path as osp
 
 sys.path.append("../")
-from afni_lib import ReceiverInterface
+from afni_lib.receiver import ReceiverInterface
 from rtcap_lib.core import unpack_extra
-from rtcap_lib.rt_functions import rt_EMA_vol, rt_regress_vol, rt_kalman_vol
+from rtcap_lib.rt_functions import rt_EMA_vol, rt_regress_vol, rt_kalman_vol, rt_smooth_vol
 from rtcap_lib.rt_functions import gen_polort_regressors
+from rtcap_lib.fMRI import load_fMRI_file, unmask_fMRI_img
+
 # ----------------------------------------------------------------------
 # globals
 #log = logging.getLogger(__name__)
@@ -72,8 +75,10 @@ class Experiment(object):
         self.nuisance      = None
         if self.iGLM_motion:
             self.iGLM_num_regressors = self.iGLM_polort + 6
+            self.nuisance_labels = ['Polort'+str(i) for i in np.arange(self.iGLM_polort)] + ['roll','pitch','yaw','dS','dL','dP']
         else:
             self.iGLM_num_regressors = self.iGLM_polort
+            self.nuisance_labels = ['Polort'+str(i) for i in np.arange(self.iGLM_polort)]
 
         self.S_x              = None
         self.S_P              = None
@@ -83,6 +88,23 @@ class Experiment(object):
 
         self.EMA_th   = 0.98
         self.EMA_filt = None
+
+        self.mask_path  = options.mask_path
+        self.out_dir    = options.out_dir
+        self.out_prefix = options.out_prefix 
+
+        # Load Mask - Necessary for smoothing
+        if self.do_smooth and self.mask_path is None:
+            log.error('   Experiment_init_ - Smoothing requires a mask. Provide a mask or disable smoothing operation.')
+            sys.exit(-1)
+        
+        if self.mask_path is None:
+            self.mask_img = None
+        else:
+            self.mask_img  = load_fMRI_file(self.mask_path)
+            self.mask_Nv = np.sum(self.mask_img.get_data())
+            log.debug('  Experiment_init_ - Number of Voxels in user-provided mask: %d' % self.mask_Nv)
+
         
 
         # Create Legendre Polynomial regressors
@@ -113,6 +135,10 @@ class Experiment(object):
         # If first volume, then create empty structures and call it a day (TR)
         if self.t == 0:
             self.Nv            = len(this_t_data)
+            if self.do_smooth:
+                if self.mask_Nv != self.Nv:
+                    log.error('Discrepancy across masks [data Nv = %d, mask Nv = %d]' % (self.Nv, self.mask_Nv) )
+                    sys.exit(-1)
             self.Data_FromAFNI = np.array(this_t_data[:,np.newaxis])
             self.Data_EMA      = np.zeros((self.Nv,1))
             self.Data_iGLM     = np.zeros((self.Nv,1))
@@ -214,7 +240,45 @@ class Experiment(object):
         self.fNegatDerivSpike = np.append(self.fNegatDerivSpike, fNeg_out, axis=1)
         log.debug('[t=%d,n=%d] Online - iGLM - Data_kalman.shape     %s' % (self.t, self.n, str(self.Data_kalman.shape)))
 
+        # Do Spatial Smoothing (if needed)
+        # ================================
+        smooth_out = rt_smooth_vol(self.Data_kalman[:,self.t], self.mask_img, fwhm = self.FWHM, do_operation = self.do_smooth)
+        self.Data_smooth = np.append(self.Data_smooth, smooth_out, axis=1)
+        log.debug('[t=%d,n=%d] Online - Smooth - Data_smooth.shape   %s' % (self.t, self.n, str(self.Data_smooth.shape)))
+
         # Need to return something, otherwise the program thinks the experiment ended
+        return 1
+
+    def final_steps(self):
+        if self.mask_img is None:
+            log.warning(' final_steps = No outputs generated due to lack of mask.')
+            return 1
+        
+        log.debug(' final_steps - About to write outputs to disk.')
+        out_vars   = [self.Data_norm]
+        out_labels = ['.pp_']
+        if self.do_EMA:
+            out_vars.append(self.Data_EMA)
+            out_labels.append('.pp_EMA.nii')
+        if self.do_iGLM:
+            out_vars.append(self.Data_iGLM)
+            out_labels.append('.pp_iGLM.nii')
+        if self.do_kalman:
+            out_vars.append(self.Data_kalman)
+            out_labels.append('.pp_LPfilter.nii')
+        if self.do_smooth:
+            out_vars.append(self.Data_smooth)
+            out_labels.append('.pp_Smooth.nii')
+        for variable, file_suffix in zip(out_vars, out_labels):
+            out = unmask_fMRI_img(variable, self.mask_img, osp.join(self.out_dir,self.out_prefix+file_suffix))
+
+        if self.do_iGLM:
+            for i,lab in enumerate(self.nuisance_labels):
+                data = self.iGLM_Coeffs[:,i,:]
+                out = unmask_fMRI_img(data, self.mask_img, osp.join(self.out_dir,self.out_prefix+'.pp_iGLM_'+lab+'.nii'))    
+
+        
+
         return 1
 
 def processExperimentOptions (self, options=None):
@@ -235,17 +299,20 @@ def processExperimentOptions (self, options=None):
     parser.add_option("-S", "--show_data", action="store_true",
             help="display received data in terminal if this option is specified")
     
-    parser.add_option("--no_ema",    help="De-activate EMA Filtering Step",          dest="do_EMA",    default=True, action="store_false")
-    parser.add_option("--no_iglm",   help="De-activate iGLM Denoising Step",         dest="do_iGLM",   default=True, action="store_false")
-    parser.add_option("--no_kalman", help="De-activate Kalman Low-Pass Filter Step", dest="do_kalman", default=True, action="store_false")
-    parser.add_option("--no_smooth", help="De-activate Spatial Smoothing Step",      dest="do_smooth", default=True, action="store_false")
-    parser.add_option("--fwhm",   help="FWHM for Spatial Smoothing in [mm]",         dest="FWHM",      default=4.0, action="store", type="float")
-    parser.add_option("--polort", help="Order of Legengre Polynomials for iGLM",     dest="iGLM_polort",default=2, action="store", type="int")
-    parser.add_option("--no_iglm_motion", help="Do not use 6 motion parameters in iGLM",     dest="iGLM_motion",default=True, action="store_false")
-    parser.add_option("--discard", help="Number of volumes to discard (they won't enter the iGLM step)",     dest="discard",default=10, action="store", type="int")
-    parser.add_option("--nvols", help="Number of expected volumes (for legendre pols only)", dest="nvols",default=500, action="store", type="int")
-    parser.add_option("--tr", help="Repetition time [sec]", dest="tr",default=1.0, action="store", type="float")
-    parser.add_option("--ncores", help="Number of cores to use in the parallel processing part of the code", dest="n_cores", action="store",type="float", default=10)
+    parser.add_option("--no_ema",    help="De-activate EMA Filtering Step",              dest="do_EMA",      default=True, action="store_false")
+    parser.add_option("--no_iglm",   help="De-activate iGLM Denoising Step",             dest="do_iGLM",     default=True, action="store_false")
+    parser.add_option("--no_kalman", help="De-activate Kalman Low-Pass Filter Step",     dest="do_kalman",   default=True, action="store_false")
+    parser.add_option("--no_smooth", help="De-activate Spatial Smoothing Step",          dest="do_smooth",   default=True, action="store_false")
+    parser.add_option("--fwhm",      help="FWHM for Spatial Smoothing in [mm]",          dest="FWHM",        default=4.0, action="store", type="float")
+    parser.add_option("--polort",     help="Order of Legengre Polynomials for iGLM",     dest="iGLM_polort", default=2, action="store", type="int")
+    parser.add_option("--no_iglm_motion", help="Do not use 6 motion parameters in iGLM", dest="iGLM_motion", default=True, action="store_false")
+    parser.add_option("--discard",    help="Number of volumes to discard (they won't enter the iGLM step)",  default=10, dest="discard", action="store", type="int")
+    parser.add_option("--nvols",      help="Number of expected volumes (for legendre pols only)", dest="nvols",default=500, action="store", type="int")
+    parser.add_option("--tr",         help="Repetition time [sec]", dest="tr",default=1.0, action="store", type="float")
+    parser.add_option("--ncores",     help="Number of cores to use in the parallel processing part of the code", dest="n_cores", action="store",type="float", default=10)
+    parser.add_option("--mask",       help="Mask necessary for smoothing operation", dest="mask_path", action="store", type="str", default=None)
+    parser.add_option("--out_dir",    help="Output directory",   dest="out_dir",    action="store", type="str", default="./")
+    parser.add_option("--out_prefix", help="Prefix for outputs", dest="out_prefix", action="store", type="str", default="online_preproc")
     
     return parser.parse_args(options)
 
@@ -271,7 +338,7 @@ def main():
     # set receiver callback
     # At this point Receiver is still basically an empty container
     receiver.compute_TR_data  = experiment.compute_TR_data
-    #receiver.final_steps      = demo.final_steps
+    receiver.final_steps      = experiment.final_steps
 
     # prepare for incoming connections
     log.info('5) Prepare for Incoming Connections...')

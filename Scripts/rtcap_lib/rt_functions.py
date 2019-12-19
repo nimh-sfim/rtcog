@@ -396,4 +396,4 @@ def rt_smooth_vol(data_arr,mask_img,fwhm=4,do_operation=True):
         x_sm_v = mask_fMRI_img(x_sm, mask_img)
     else:
         x_sm_v = data_arr
-    return x_sm_v
+    return x_sm_v[:, np.newaxis]
