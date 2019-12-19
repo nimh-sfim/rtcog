@@ -100,6 +100,7 @@ Data_iGLM          = np.zeros(Data_FromAFNI.shape)
 Data_kalman        = np.zeros(Data_FromAFNI.shape)
 Data_smooth        = np.zeros(Data_FromAFNI.shape)
 do_EMA             = True
+do_iGLM            = True
 do_kalman          = True
 do_smooth          = True
 Regressor_Coeffs   = np.zeros((n_regressors,Data_Nv,Data_Nt))
@@ -129,20 +130,23 @@ for t in tqdm(np.arange(Data_Nt)):
     Data_EMA[:,t] = np.squeeze(ema_out)
     # 4) iGLM
     # -------
-    Data_iGLM[:,t],prev_iGLM, Bn = rt_regress_vol(n,Data_EMA[:,t][:,np.newaxis],nuisance[t,:][:,np.newaxis],prev_iGLM)
+    iGLM_out,prev_iGLM, Bn = rt_regress_vol(n,Data_EMA[:,t][:,np.newaxis],nuisance[t,:][:,np.newaxis],prev_iGLM, do_operation=do_iGLM)
     Regressor_Coeffs[:,:,t]      = Bn.T
+    Data_iGLM[:,t] = np.squeeze(iGLM_out)
     
     # 5) Kalman Filter
     # ----------------
-    Data_kalman[:,t],      \
-    S_x[:,t], S_P[:,t],    \
-    fPositDerivSpike[:,t], \
-    fNegatDerivSpike[:,t] = rt_kalman_vol(n,t,Data_iGLM,
+    klm_data_out, Sx_out, SP_out, fPos_out, fNeg_out = rt_kalman_vol(n,t,Data_iGLM,
                     S_x[:,t-1],
                     S_P[:,t-1],
                     fPositDerivSpike[:,t-1],
                     fNegatDerivSpike[:,t-1], 
                     num_cores,DONT_USE_VOLS,pool,do_operation=do_kalman)
+    Data_kalman[:,t] = np.squeeze(klm_data_out)
+    S_x[:,t]         = np.squeeze(Sx_out)
+    S_P[:,t]         = np.squeeze(SP_out)
+    fPositDerivSpike[:,t] = np.squeeze(fPos_out)
+    fNegatDerivSpike[:,t] = np.squeeze(fNeg_out)
     
     # 6) Spatial Smoothing
     # --------------------

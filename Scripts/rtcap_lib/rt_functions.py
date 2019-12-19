@@ -4,7 +4,9 @@ from scipy.special import legendre
 from scipy import ndimage
 import itertools
 from numpy.linalg import cholesky, inv
+import logging as log
 
+log.basicConfig(format='[%(levelname)s]: %(message)s', level=log.DEBUG)
 def init_iGLM():
     return 1, {}
 
@@ -263,8 +265,13 @@ def _kalman_filter_mv(input_dict):
 
 def rt_kalman_vol(n,t,data,S_x,S_P,fPositDerivSpike,fNegatDerivSpike,num_cores,DONT_USE_VOLS,pool,do_operation=True):
     if n > 2 and do_operation==True:
+        #log.debug('[t=%d,n=%d] rt_kalman_vol - Time to do some math' % (t, n))
+        #log.debug('[t=%d,n=%d] rt_kalman_vol - Num Cores = %d' % (t, n, num_cores))
+        #log.debug('[t=%d,n=%d] rt_kalman_vol - Input Data Dimensions %s' % (t, n, str(data.shape)))
         v_start = np.arange(0,data.shape[0],int(np.floor(data.shape[0]/(num_cores-1)))).tolist()
         v_end   = v_start[1:] + [data.shape[0]]
+        #log.debug('[t=%d,n=%d] rt_kalman_vol - v_start %s' % (t, n, str(v_start)))
+        #log.debug('[t=%d,n=%d] rt_kalman_vol - v_end   %s' % (t, n, str(v_end)))
         o_data, o_fPos, o_fNeg = [],[],[]
         o_S_x, o_S_P           = [],[]
         data_std               = np.std(data[:,DONT_USE_VOLS:t+1], axis=1)
@@ -279,9 +286,10 @@ def rt_kalman_vol(n,t,data,S_x,S_P,fPositDerivSpike,fNegatDerivSpike,num_cores,D
                    'fNeg': fNegatDerivSpike[v_s:v_e],
                    'vox' : np.arange(v_s,v_e)}
                   for v_s,v_e in zip(v_start,v_end))
-        
+        #log.debug('[t=%d,n=%d] rt_kalman_vol - About to go parallel with %d cores' % (t, n, num_cores))
         res = pool.map(_kalman_filter_mv,inputs)
-        
+        #log.debug('[t=%d,n=%d] rt_kalman_vol - All parallel operationsc completed.' % (t, n))
+
         for j in np.arange(num_cores):
             o_data.append(res[j][0])
             o_fPos.append(res[j][1])
@@ -289,12 +297,13 @@ def rt_kalman_vol(n,t,data,S_x,S_P,fPositDerivSpike,fNegatDerivSpike,num_cores,D
             o_S_x.append(res[j][3])
             o_S_P.append(res[j][4])
         
-        o_data = list(itertools.chain(*o_data))
-        o_fPos = list(itertools.chain(*o_fPos))
-        o_fNeg = list(itertools.chain(*o_fNeg))
-        o_S_x  = list(itertools.chain(*o_S_x))
-        o_S_P  = list(itertools.chain(*o_S_P))
+        o_data = np.array(list(itertools.chain(*o_data)))[:,np.newaxis]
+        o_fPos = np.array(list(itertools.chain(*o_fPos)))[:,np.newaxis]
+        o_fNeg = np.array(list(itertools.chain(*o_fNeg)))[:,np.newaxis]
+        o_S_x  = np.array(list(itertools.chain(*o_S_x)))[:,np.newaxis]
+        o_S_P  = np.array(list(itertools.chain(*o_S_P)))[:,np.newaxis]
         
+        #log.debug('[t=%d,n=%d] rt_kalman_vol - o_data.shape = %s' % (t, n, str(o_data.shape)))
         #o_data   = [item for sublist in o_data   for item in sublist]
         #o_fPos   = [item for sublist in o_fPos for item in sublist]
         #o_fNeg   = [item for sublist in o_fNeg for item in sublist]
@@ -303,8 +312,9 @@ def rt_kalman_vol(n,t,data,S_x,S_P,fPositDerivSpike,fNegatDerivSpike,num_cores,D
         
         out     = [ o_data, o_S_x, o_S_P, o_fPos, o_fNeg ]
     else:
+        #log.debug('[t=%d,n=%d] rt_kalman_vol - Skip this pass. Return empty containsers.' % (t, n))
         [Nv,Nt] = data.shape
-        out     = [np.zeros(Nv) for i in np.arange(5)]
+        out     = [np.zeros((Nv,1)) for i in np.arange(5)]
     return out
 
 # Smoothing Functions
