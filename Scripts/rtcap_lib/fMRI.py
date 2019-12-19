@@ -1,7 +1,7 @@
 import nibabel as nib
 import numpy as np
 
-def load_fMRI_file(path):
+def load_fMRI_file(path, verbose=False):
     """ Load fMRI Dataset
     
     Parameters:
@@ -15,9 +15,11 @@ def load_fMRI_file(path):
         Image structure with data, affine, etc.
     """
     img = nib.load(path)
+    if verbose:
+        print('++ Loaded Data [%s] has dimensions [%s].' % (path, str(img.header.get_data_shape())))
     return img
 
-def mask_fMRI_img(data_img,mask_img):
+def mask_fMRI_img(data_img,mask_img, verbose=False):
     """ Converts NiftiImage into vectorized numpy array [Nv,Nt]
     It is an equivalent to nilearn mask_img, but I needed to 
     implement this becuase of the issues with ordering going from
@@ -52,7 +54,8 @@ def mask_fMRI_img(data_img,mask_img):
         data_v = np.reshape(data,(d_x*d_y*d_z,d_t), order='F')
         data_v = data_v.astype('float64')
         data_v = data_v[mask_v==1,:]
-    
+    if verbose:
+        print(' ++ Output Array Dimensions [%s]' % str(data_v.shape))
     return data_v
 
 def unmask_fMRI_img(data, mask_img, out_path=None):
