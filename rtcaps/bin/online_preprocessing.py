@@ -23,7 +23,7 @@ from rtcap_lib.fMRI import load_fMRI_file, unmask_fMRI_img
 # globals
 #log = logging.getLogger(__name__)
 #log.setLevel(logging.DEBUG)
-log.basicConfig(format='[%(levelname)s]: %(message)s', level=log.DEBUG)
+log.basicConfig(format='[%(levelname)s]: %(message)s', level=log.CRITICAL)
 g_help_string = """
 =============================================================================
 online_preprocessing.py - program for online preprocessing data provided via 
@@ -75,6 +75,7 @@ class Experiment(object):
         self.iGLM_motion   = options.iGLM_motion
         self.iGLM_polort   = options.iGLM_polort
         self.nuisance      = None
+        
         if self.iGLM_motion:
             self.iGLM_num_regressors = self.iGLM_polort + 6
             self.nuisance_labels = ['Polort'+str(i) for i in np.arange(self.iGLM_polort)] + ['roll','pitch','yaw','dS','dL','dP']
@@ -257,7 +258,7 @@ class Experiment(object):
         
         log.debug(' final_steps - About to write outputs to disk.')
         out_vars   = [self.Data_norm]
-        out_labels = ['.pp_']
+        out_labels = ['.pp_Zscore.nii']
         if self.do_EMA:
             out_vars.append(self.Data_EMA)
             out_labels.append('.pp_EMA.nii')
