@@ -20,3 +20,9 @@ rtcaps/afni_lib/__pycache__
 rtcaps/notebooks/*.ipynb
 rtcaps/Realtime_Scanner/Not_Used
 rtcaps/60min_Preproc
+Scripts/60min_Preproc/
+Scripts/Realtime_Scanner/Not_Used/
+Scripts/Realtime_Scanner/afni_start.sh
+Scripts/TechScans/
+Scripts/Testing_Scripts/
+psychopy-env.yml
