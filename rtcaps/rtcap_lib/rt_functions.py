@@ -6,7 +6,7 @@ import itertools
 from numpy.linalg import cholesky, inv
 import logging as log
 
-log.basicConfig(format='[%(levelname)s]: %(message)s', level=log.DEBUG)
+log.basicConfig(format='[%(levelname)s]: %(message)s', level=log.CRITICAL)
 def init_iGLM():
     return 1, {}
 
