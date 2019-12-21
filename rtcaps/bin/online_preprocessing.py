@@ -8,10 +8,12 @@ from   optparse import OptionParser
 import logging as log
 import numpy as np
 import multiprocessing
+multiprocessing.set_start_method('spawn', True)
 import os.path as osp
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-sys.path.append("../")
 from afni_lib.receiver import ReceiverInterface
+#from afni_lib.receiver import ReceiverInterface
 from rtcap_lib.core import unpack_extra
 from rtcap_lib.rt_functions import rt_EMA_vol, rt_regress_vol, rt_kalman_vol, rt_smooth_vol
 from rtcap_lib.rt_functions import gen_polort_regressors
@@ -119,7 +121,6 @@ class Experiment(object):
         else:
             self.pool = None
 
-        
     def compute_TR_data(self, motion, extra):
         # Update t (it always does)
         self.t = self.t + 1
