@@ -3,8 +3,13 @@ import ntpath
 import os.path as osp
 import sys
 import numpy as np
-
+import pandas as pd
+from sklearn import linear_model
+from scipy.stats import zscore
+from sklearn.svm import SVR
+import pickle
 from optparse import OptionParser
+import matplotlib.pyplot as plt
 
 log.basicConfig(format='[%(levelname)s]: %(message)s', level=log.DEBUG)
 sys.path.insert(0, osp.abspath(osp.join(osp.dirname(__file__), '..')))
@@ -59,49 +64,64 @@ class Program(object):
     
     def generate_training_labels(self):
         self.vols4training = np.arange(self.nvols_discard, self.data_nt)
-        print(self.vols4training)
         log.debug('Number of volumes for training [%d]: [min=%d, max=%d] (Python)' % (self.vols4training.shape[0], np.min(self.vols4training), np.max(self.vols4training)))
-        
-        data = self.data_img.get_data()
 
         # Initialize Results Structure
         results = {}
         for cap in self.caps_labels:
             results[cap] = []
-        results['R2'] = []
+        self.lm_R2 = []
 
         # Perform linear regression 
         X_fmri = pd.DataFrame(self.caps_masked, columns=self.caps_labels)
         for vol in tqdm(self.vols4training):
-            Y_fmri = pd.Series(self.data[:,vol], name='V'+str(vol).zfill(4))
+            Y_fmri = pd.Series(self.data_masked[:,vol], name='V'+str(vol).zfill(4))
             lm     = linear_model.LinearRegression()
             model  = lm.fit(X_fmri, Y_fmri)
-            for i, cap in enumerate(self.cap_labels):
-                results[cap].append(lm_coef_[i])
-            results['R2'].append(lm.score(X_fmri, Y_fmri))
+            for i, cap in enumerate(self.caps_labels):
+                results[cap].append(lm.coef_[i])
+            #results['R2'].append(lm.score(X_fmri, Y_fmri))
+            self.lm_R2.append(lm.score(X_fmri, Y_fmri))
         
         lm_results = pd.DataFrame(results)
-        lm_results['TR'] = self.vols4training
+        #lm_results['TR'] = self.vols4training
 
         # Z-score the results from the linear regression
-        [LR_Nt, LR_Ncaps]    = LinReg_Results[CAP_labels].shape
-        All_LinReg           = LinReg_Results[CAP_labels]
-        All_LinReg           = All_LinReg.values.reshape(LR_Ncaps*LR_Nt, order='F')
-        All_LinReg_Z         = zscore(All_LinReg)
-        All_LinReg_Z         = All_LinReg_Z.reshape((LR_Nt,LR_Ncaps), order='F')
-        LinReg_Zscores       = pd.DataFrame(All_LinReg_Z, columns=CAP_labels, index=LinReg_Results.index)
-        LinReg_Zscores['TR'] = Vols4Training
-        LinReg_Zscores.hvplot(legend='top', label='Z-scored training labels', x='TR').opts(width=1500)
-
+        [lmr_nt, lmr_ncaps] = lm_results.shape
+        lm_results_flat     = lm_results
+        lm_results_flat     = lm_results_flat.values.reshape(lmr_ncaps*lmr_nt, order='F')
+        lm_results_flat_Z   = zscore(lm_results_flat)
+        lm_results_flat_Z   = lm_results_flat_Z.reshape((lmr_nt,lmr_ncaps), order='F')
+        self.lm_res_z       = pd.DataFrame(lm_results_flat_Z, columns=self.caps_labels, index=lm_results.index)
+        #self.lm_res_z['TR'] = self.vols4training
+        
 
     def train_svrs(self):
         for cap_lab in tqdm(self.caps_labels):
-            Training_Labels = LinReg_Zscores[cap_lab]
-            mySVR = SVR(kernel='linear', C=C, epsilon=epsilon)
-            mySVR.fit(Data_norm[:,Vols4Training].T,Training_Labels)
-            SVRs[cap_lab] = mySVR
-        
+            Training_Labels = self.lm_res_z[cap_lab]
+            mySVR = SVR(kernel='linear', C=self.C, epsilon=self.epsilon)
+            mySVR.fit(self.data_masked[:,self.vols4training].T,Training_Labels)
+            self.SVRs[cap_lab] = mySVR
+        return 1
 
+    def save_results(self):
+        pickle_out = open(self.out_path,"wb")
+        pickle.dump(self.SVRs, pickle_out)
+        pickle_out.close()
+        log.info('   Trained SVR models saved to %s' % self.out_path)
+        a = np.random.rand(100)
+        fig = plt.figure(figsize=(20,5))
+        plt.subplot(211)
+        plt.plot(self.vols4training,self.lm_R2)
+        plt.ylabel('R2 (Linear Regression)')
+        plt.subplot(212)
+        plt.plot(self.lm_res_z)
+        plt.xlabel('Time [TRs]')
+        plt.ylabel('Z-Score')
+        plt.legend(self.caps_labels)
+        plt.savefig(osp.join(self.out_dir,'online_trainSVRs_R2.png'), dpi=200, layout='tight')
+        log.info('   Saved Label Computation Results to [%s]' % osp.join(self.out_dir,'online_trainSVRs_R2.png'))
+        return 1
 
 def processProgramOptions(options):
     usage = "%prog [options]"
@@ -137,18 +157,26 @@ def main():
         sys.exit(-1)
     
     # 3) Initialize Progrma Object
+    log.info('2) Initializing Program Object...')
     program = Program(opts)
 
     # 4) Load Datasets into memory
+    log.info('3) Load all data into memory...')
     program.load_datasets()
 
     # 5) Generate Training labels via Linear Regression + Z-scoring
+    log.info('4) Generate traning labels...')
     program.generate_training_labels()
 
     # 5) Train the SVRs
+    log.info('5) Train SVRs...')
     program.train_svrs()
+
+    # 6) Save results to disk
+    log.info('6) Save results to disk...')
+    program.save_results()
     
-    
+    return 1
     
 if __name__ == '__main__':
    sys.exit(main())
