@@ -8,22 +8,22 @@ from   optparse import OptionParser
 import logging as log
 import numpy as np
 import multiprocessing
-multiprocessing.set_start_method('spawn', True)
+#multiprocessing.set_start_method('spawn', True)
 import os.path as osp
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from afni_lib.receiver import ReceiverInterface
 #from afni_lib.receiver import ReceiverInterface
 from rtcap_lib.core import unpack_extra
-from rtcap_lib.rt_functions import rt_EMA_vol, rt_regress_vol, rt_kalman_vol, rt_smooth_vol
+from rtcap_lib.rt_functions import rt_EMA_vol, rt_regress_vol, rt_kalman_vol, rt_smooth_vol, rt_snorm_vol
 from rtcap_lib.rt_functions import gen_polort_regressors
 from rtcap_lib.fMRI import load_fMRI_file, unmask_fMRI_img
 
 # ----------------------------------------------------------------------
 # globals
 #log = logging.getLogger(__name__)
-#log.setLevel(logging.DEBUG)
-log.basicConfig(format='[%(levelname)s]: %(message)s', level=log.DEBUG)
+log.basicConfig(format='[%(levelname)s]: POP %(message)s', level=log.DEBUG)
+
 g_help_string = """
 =============================================================================
 online_preprocessing.py - program for online preprocessing data provided via 
@@ -67,6 +67,7 @@ class Experiment(object):
         self.do_iGLM       = options.do_iGLM      # Should we do iGLM
         self.do_kalman     = options.do_kalman    # Should we do Low Pass Filter
         self.do_smooth     = options.do_smooth    # Should we do Spatial Filtering
+        self.do_snorm      = options.do_snorm     # Should we do Spatial Z-scoring per volume
         self.FWHM          = options.FWHM         # FWHM for Spatial Smoothing in [mm]
         
         self.nvols_discard = options.discard      # Number of volumes to discard from any analysis (won't enter pre-processing)
@@ -75,6 +76,7 @@ class Experiment(object):
         self.iGLM_motion   = options.iGLM_motion
         self.iGLM_polort   = options.iGLM_polort
         self.nuisance      = None
+        
         if self.iGLM_motion:
             self.iGLM_num_regressors = self.iGLM_polort + 6
             self.nuisance_labels = ['Polort'+str(i) for i in np.arange(self.iGLM_polort)] + ['roll','pitch','yaw','dS','dL','dP']
@@ -156,6 +158,7 @@ class Experiment(object):
             log.debug('[t=%d,n=%d] Init - Data_FromAFNI.shape %s' % (self.t, self.n, str(self.Data_FromAFNI.shape)))
             log.debug('[t=%d,n=%d] Init - Data_EMA.shape      %s' % (self.t, self.n, str(self.Data_EMA.shape)))
             log.debug('[t=%d,n=%d] Init - Data_iGLM.shape     %s' % (self.t, self.n, str(self.Data_iGLM.shape)))
+            log.debug('[t=%d,n=%d] Init - Data_norm.shape     %s' % (self.t, self.n, str(self.Data_norm.shape)))
             log.debug('[t=%d,n=%d] Init - nuisance.shape      %s' % (self.t, self.n, str(self.nuisance.shape)))
             log.debug('[t=%d,n=%d] Init - iGLM_Coeffs.shape   %s' % (self.t, self.n, str(self.iGLM_Coeffs.shape)))
             log.debug('[t=%d,n=%d] Init - S_x.shape           %s' % (self.t, self.n, str(self.S_x.shape)))
@@ -184,6 +187,7 @@ class Experiment(object):
             log.debug('[t=%d,n=%d] Discard - Data_FromAFNI.shape %s' % (self.t, self.n, str(self.Data_FromAFNI.shape)))
             log.debug('[t=%d,n=%d] Discard - Data_EMA.shape      %s' % (self.t, self.n, str(self.Data_EMA.shape)))
             log.debug('[t=%d,n=%d] Discard - Data_iGLM.shape     %s' % (self.t, self.n, str(self.Data_iGLM.shape)))
+            log.debug('[t=%d,n=%d] Discard - Data_norm.shape     %s' % (self.t, self.n, str(self.Data_norm.shape)))
             log.debug('[t=%d,n=%d] Discard - nuisance.shape      %s' % (self.t, self.n, str(self.nuisance.shape)))
             log.debug('[t=%d,n=%d] Discard - iGLM_Coeffs.shape   %s' % (self.t, self.n, str(self.iGLM_Coeffs.shape)))
             log.debug('[t=%d,n=%d] Discard - S_x.shape           %s' % (self.t, self.n, str(self.S_x.shape)))
@@ -247,6 +251,11 @@ class Experiment(object):
         self.Data_smooth = np.append(self.Data_smooth, smooth_out, axis=1)
         log.debug('[t=%d,n=%d] Online - Smooth - Data_smooth.shape   %s' % (self.t, self.n, str(self.Data_smooth.shape)))
 
+        # Do Spatial Normalization (if needed)
+        # ====================================
+        norm_out = rt_snorm_vol(self.Data_smooth[:,self.t], do_operation=self.do_snorm)
+        self.Data_norm = np.append(self.Data_norm, norm_out, axis=1)
+        log.debug('[t=%d,n=%d] Online - Smooth - Data_norm.shape   %s' % (self.t, self.n, str(self.Data_norm.shape)))
         # Need to return something, otherwise the program thinks the experiment ended
         return 1
 
@@ -257,7 +266,7 @@ class Experiment(object):
         
         log.debug(' final_steps - About to write outputs to disk.')
         out_vars   = [self.Data_norm]
-        out_labels = ['.pp_']
+        out_labels = ['.pp_Zscore.nii']
         if self.do_EMA:
             out_vars.append(self.Data_EMA)
             out_labels.append('.pp_EMA.nii')
@@ -304,6 +313,7 @@ def processExperimentOptions (self, options=None):
     parser.add_option("--no_iglm",   help="De-activate iGLM Denoising Step",             dest="do_iGLM",     default=True, action="store_false")
     parser.add_option("--no_kalman", help="De-activate Kalman Low-Pass Filter Step",     dest="do_kalman",   default=True, action="store_false")
     parser.add_option("--no_smooth", help="De-activate Spatial Smoothing Step",          dest="do_smooth",   default=True, action="store_false")
+    parser.add_option("--no_snorm",  help="De-activate per-volume spartial Z-Scoring",   dest="do_snorm",   default=True, action="store_false")
     parser.add_option("--fwhm",      help="FWHM for Spatial Smoothing in [mm]",          dest="FWHM",        default=4.0, action="store", type="float")
     parser.add_option("--polort",     help="Order of Legengre Polynomials for iGLM",     dest="iGLM_polort", default=2, action="store", type="int")
     parser.add_option("--no_iglm_motion", help="Do not use 6 motion parameters in iGLM", dest="iGLM_motion", default=True, action="store_false")
