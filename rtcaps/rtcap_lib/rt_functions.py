@@ -7,7 +7,7 @@ from numpy.linalg import cholesky, inv
 import logging as log
 from sklearn.preprocessing import StandardScaler
 
-log.basicConfig(format='[%(levelname)s]: %(message)s', level=log.CRITICAL)
+log.basicConfig(format='[%(levelname)s]: %(message)s', level=log.DEBUG)
 def init_iGLM():
     return 1, {}
 
