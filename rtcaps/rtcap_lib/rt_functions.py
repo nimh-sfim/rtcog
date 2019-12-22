@@ -5,6 +5,7 @@ from scipy import ndimage
 import itertools
 from numpy.linalg import cholesky, inv
 import logging as log
+from sklearn.preprocessing import StandardScaler
 
 log.basicConfig(format='[%(levelname)s]: %(message)s', level=log.CRITICAL)
 def init_iGLM():
@@ -397,3 +398,11 @@ def rt_smooth_vol(data_arr,mask_img,fwhm=4,do_operation=True):
     else:
         x_sm_v = data_arr
     return x_sm_v[:, np.newaxis]
+
+# Spatial Z-scoring Function
+# ==========================
+def rt_snorm_vol(data, do_operation=True):
+    data = data[:,np.newaxis]
+    sc  = StandardScaler(with_mean=True, with_std=True)
+    out = sc.fit_transform(data)
+    return out

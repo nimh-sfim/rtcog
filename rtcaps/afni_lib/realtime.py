@@ -17,7 +17,7 @@ import socket
 # import datetime
 
 log = logging.getLogger(__name__)
-log.setLevel(logging.CRITICAL)
+log.setLevel(logging.ERROR)
 # dateTimeString = datetime.datetime.now().strftime("-%Y-%m-%d-%H-%M-%S") 
 # logging.basicConfig(filename='realtime' + dateTimeString + '.log')
 
