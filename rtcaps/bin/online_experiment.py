@@ -14,7 +14,7 @@ from optparse import OptionParser
 
 import numpy as np
 import multiprocessing
-#multiprocessing.set_start_method('spawn', True)
+multiprocessing.set_start_method('spawn', True)
 import os.path as osp
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), 
@@ -342,7 +342,7 @@ class Experiment(object):
         # ========================
         if (self.t >= self.start_vol) and self.hit_dowin:
             vols_in_win       = (np.arange(self.t-4,self.t)+1)[::-1]
-            out_data_windowed = self.Data_norm[:,vols_in_win] * self.hit_win_weights
+            out_data_windowed = np.dot(self.Data_norm[:,vols_in_win], self.hit_win_weights)
             self.Data_wind    = np.append(self.Data_wind, out_data_windowed, axis = 1)
         else:
             self.Data_wind    = np.append(self.Data_wind, norm_out, axis =1)

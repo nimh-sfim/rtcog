@@ -27,11 +27,11 @@ from rtcap_lib.fMRI import load_fMRI_file, unmask_fMRI_img
 #log = logging.getLogger(__name__)
 #log.basicConfig(format='[%(levelname)s]: POP %(message)s', level=log.DEBUG)
 log     = logging.getLogger("online_preproc")
-log.setLevel(logging.DEBUG)
+log.setLevel(logging.INFO)
 log_fmt = logging.Formatter('[%(levelname)s - Main]: %(message)s')
 log_ch  = logging.StreamHandler()
 log_ch.setFormatter(log_fmt)
-log_ch.setLevel(logging.DEBUG)
+log_ch.setLevel(logging.INFO)
 log.addHandler(log_ch)
 
 g_help_string = """
