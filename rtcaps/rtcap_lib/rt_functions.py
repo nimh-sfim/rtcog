@@ -4,10 +4,16 @@ from scipy.special import legendre
 from scipy import ndimage
 import itertools
 from numpy.linalg import cholesky, inv
-import logging as log
+import logging
 from sklearn.preprocessing import StandardScaler
-
-log.basicConfig(format='[%(levelname)s]: %(message)s', level=log.DEBUG)
+log     = logging.getLogger("rt_functions")
+log.setLevel(logging.WARNING)
+log_fmt = logging.Formatter('[%(levelname)s - rt_functions]: %(message)s')
+log_ch  = logging.StreamHandler()
+log_ch.setFormatter(log_fmt)
+log_ch.setLevel(logging.WARNING)
+log.addHandler(log_ch)
+#log.basicConfig(format='[%(levelname)s]: %(message)s', level=log.DEBUG)
 def init_iGLM():
     return 1, {}
 
@@ -405,4 +411,13 @@ def rt_snorm_vol(data, do_operation=True):
     data = data[:,np.newaxis]
     sc  = StandardScaler(with_mean=True, with_std=True)
     out = sc.fit_transform(data)
+    return out
+
+# Decoding Functions
+# ==================
+def rt_svrscore_vol(data, SVRs, caps_labels):
+    out = []
+    for cap_lab in caps_labels:
+        out.append(SVRs[cap_lab].predict(data[:,np.newaxis].T)[0])
+    out = np.array(out)[:,np.newaxis]
     return out

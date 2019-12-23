@@ -149,8 +149,6 @@ class DemoExperiment(object):
 
       self.exptWindow.flip()
 
-
-
    def runExperiment (self, data):
 
       """
@@ -208,7 +206,6 @@ class DemoExperiment(object):
       self.DF_data.to_pickle(self.DF_data_path)
       print(' + Incoming data saved to pickle file: %s' % self.DF_data_path)
       
-
    def compute_TR_data(self, motion, extra):
 
       """If writing to the serial port, this is the main function to compute

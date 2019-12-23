@@ -1,5 +1,12 @@
 import numpy as np
-
+import logging
+log     = logging.getLogger("svr_methods")
+log.setLevel(logging.DEBUG)
+log_fmt = logging.Formatter('[%(levelname)s - svr_methods]: %(message)s')
+log_ch  = logging.StreamHandler()
+log_ch.setFormatter(log_fmt)
+log_ch.setLevel(logging.DEBUG)
+log.addHandler(log_ch)
 def is_hit_method01(vol, CAP_labels, hit_opts, SVRscores, rtPredictions, Vol_LastQEnded):
     pred_this_vol = SVRscores.loc[vol]        # SVR scores for this volume
     # 1) See how many CAPs have score > z_th
@@ -28,3 +35,28 @@ def is_hit_method01(vol, CAP_labels, hit_opts, SVRscores, rtPredictions, Vol_Las
         hit = None
     
     return matches, hit
+
+def is_hit_rt01(t,caps_labels,svrscores,hit_thr,hit_wl):
+    hit = None
+    this_t_svrscores = svrscores[:,t] 
+    log.debug('is_hit_rt01 - this_t_svrscores: ' + ', '.join(f'{f:.2f}' for f in this_t_svrscores))
+    this_t_nmatches  = np.sum(this_t_svrscores > hit_thr)
+    log.debug('is_hit_rt01 - this_t_nmatches %d' % this_t_nmatches)
+    # Obtain list of CAPs with svrscore > th at this given t volume
+    if this_t_nmatches > 0:
+        this_t_matches = [caps_labels[i] for i in np.where(this_t_svrscores > hit_thr)[0]]
+    else:
+        this_t_matches = None
+    
+    # I will consider this volume a hit, only if a single CAP is above threshold
+    if this_t_nmatches == 1:
+        this_t_hit   = this_t_matches[0]         # CAP with svrscore > thresh for volume (t)
+        above_thr    = np.repeat(False,hit_wl-1) # Container with False for all previous volumes (whether or not the CAP was also a hit)
+        for ii,tt in enumerate(np.arange(t-hit_wl+1, t)):
+            aux_svrscores = svrscores[:,tt]
+            aux_matches   = [caps_labels[i] for i in np.where(aux_svrscores > hit_thr)[0]]
+            if this_t_hit in aux_matches:
+                above_thr[ii] = True
+        if np.all(above_thr):
+            hit = this_t_hit
+    return hit

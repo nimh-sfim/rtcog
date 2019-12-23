@@ -1,4 +1,7 @@
-import logging as log
+import logging
+mpl_logger = logging.getLogger('matplotlib')
+mpl_logger.setLevel(logging.WARNING)
+
 import ntpath
 import os.path as osp
 import sys
@@ -11,7 +14,14 @@ import pickle
 from optparse import OptionParser
 import matplotlib.pyplot as plt
 
-log.basicConfig(format='[%(levelname)s]: %(message)s', level=log.DEBUG)
+#log.basicConfig(format='[%(levelname)s]: %(message)s', level=log.DEBUG)
+log     = logging.getLogger("trainSVRs")
+log_fmt = logging.Formatter('[%(levelname)s - Main]: %(message)s')
+log_ch  = logging.StreamHandler()
+log_ch.setFormatter(log_fmt)
+log_ch.setLevel(logging.DEBUG)
+log.addHandler(log_ch)
+
 sys.path.insert(0, osp.abspath(osp.join(osp.dirname(__file__), '..')))
 
 from tqdm import tqdm
@@ -27,18 +37,15 @@ class Program(object):
         self.mask_path = opts.mask_path
         self.data_path = opts.data_path
         self.nvols_discard = opts.nvols_discard
-        # Ensure out_path points to a file within an existing dir.
-        if osp.isdir(opts.out_path):
-            log.error('Output Path is a dir, not a filename. Please correct.')
+        # Ensure outdir points to a file within an existing dir.
+        if not osp.isdir(opts.outdir):
+            log.error('Output directory does not exist. Please correct.')
             sys.exit(-1)
-        out_dir, out_file = ntpath.split(opts.out_path)
-        if not osp.exists(out_dir):
-            log.error('Output Path does not exists. Please correct.')
-            sys.exit(-1)
-        self.out_dir  = out_dir
-        self.out_file = out_file
-        self.out_path = opts.out_path
-        if osp.exists(opts.out_path):
+        self.outdir = opts.outdir
+        self.prefix = opts.prefix
+        self.outpkl = osp.join(self.outdir,self.prefix+".pkl")
+        self.outpng = osp.join(self.outdir,self.prefix+".png")
+        if osp.exists(self.outpkl):
             log.warning('Output File does exists. File will be overwritten.')
 
         # Ensure CAPs file exists
@@ -105,10 +112,10 @@ class Program(object):
         return 1
 
     def save_results(self):
-        pickle_out = open(self.out_path,"wb")
+        pickle_out = open(self.outpkl,"wb")
         pickle.dump(self.SVRs, pickle_out)
         pickle_out.close()
-        log.info('   Trained SVR models saved to %s' % self.out_path)
+        log.info('   Trained SVR models saved to %s' % self.outpkl)
         a = np.random.rand(100)
         fig = plt.figure(figsize=(20,5))
         plt.subplot(211)
@@ -119,8 +126,8 @@ class Program(object):
         plt.xlabel('Time [TRs]')
         plt.ylabel('Z-Score')
         plt.legend(self.caps_labels)
-        plt.savefig(osp.join(self.out_dir,'online_trainSVRs_R2.png'), dpi=200, layout='tight')
-        log.info('   Saved Label Computation Results to [%s]' % osp.join(self.out_dir,'online_trainSVRs_R2.png'))
+        plt.savefig(self.outpng, dpi=200, layout='tight')
+        log.info('   Saved Label Computation Results to [%s]' % self.outpng)
         return 1
 
 def processProgramOptions(options):
@@ -131,9 +138,10 @@ def processProgramOptions(options):
     parser = OptionParser(usage = usage, description = description)
     parser.add_option("-d","--data", action="store", type="str", dest="data_path", default=None, help="path to training dataset")
     parser.add_option("-m","--mask", action="store", type="str", dest="mask_path", default=None, help="path to mask")
-    parser.add_option("-o","--out",  action="store", type="str", dest="out_path",  default=None, help="path to output PKL file")
+    parser.add_option("-o","--outdir",  action="store", type="str", dest="outdir",  default=None, help="output directory")
     parser.add_option("-c","--caps", action="store", type="str", dest="caps_path", default=None, help="path to caps template")
     parser.add_option("--discard",   action="store", type="int", dest="nvols_discard",   default=100,  help="number of volumes")
+    parser.add_option("-p","--prefix", action="store", type="str", dest="prefix", default="svr", help="prefix for output file")
     return parser.parse_args(options)
 
 def main():
@@ -149,8 +157,8 @@ def main():
     if opts.data_path is None:
         log.error('Training data is missing. Please provide one.')
         sys.exit(-1)
-    if opts.out_path is None:
-        log.error('Output path is missing. Please provide one.')
+    if opts.outdir is None:
+        log.error('Output directory is missing. Please provide one.')
         sys.exit(-1)
     if opts.caps_path is None:
         log.error('Path to CAPs templates is missing. Please provide one.')
