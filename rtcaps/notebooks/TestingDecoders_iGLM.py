@@ -23,6 +23,8 @@ import hvplot.pandas
 from scipy.stats import zscore
 from sklearn.svm import SVR
 import matplotlib.pyplot as plt
+import sys, os
+sys.path.insert(0, os.path.abspath('../'))
 import config
 import pickle
 import os.path as osp

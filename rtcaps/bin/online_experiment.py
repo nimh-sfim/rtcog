@@ -1,55 +1,53 @@
 #!/usr/bin/env python
 
 # python3 status: compatible
-
-import sys, os
-import signal, time
-from   optparse import OptionParser
 import logging
 mpl_logger = logging.getLogger('matplotlib')
 mpl_logger.setLevel(logging.WARNING)
 
+import sys
+import os
+import signal
+import time
+import pickle
+from optparse import OptionParser
+
 import numpy as np
 import multiprocessing
-#multiprocessing.set_start_method('spawn', True)
+multiprocessing.set_start_method('spawn', True)
 import os.path as osp
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), 
+                '..')))
 
 from afni_lib.receiver import ReceiverInterface
-#from afni_lib.receiver import ReceiverInterface
+# from afni_lib.receiver import ReceiverInterface
 from rtcap_lib.core import unpack_extra
-from rtcap_lib.rt_functions import rt_EMA_vol, rt_regress_vol, rt_kalman_vol, rt_smooth_vol, rt_snorm_vol
+from rtcap_lib.rt_functions import rt_EMA_vol, rt_regress_vol, rt_kalman_vol 
+from rtcap_lib.rt_functions import rt_smooth_vol, rt_snorm_vol, rt_svrscore_vol
 from rtcap_lib.rt_functions import gen_polort_regressors
 from rtcap_lib.fMRI import load_fMRI_file, unmask_fMRI_img
+from rtcap_lib.core import create_win
+from rtcap_lib.svr_methods  import is_hit_rt01
+
+# Check if Psychopy is available (will move to a funcion later)
+try:
+    from psychopy import visual
+    psychopyInstalled = 1
+except ImportError:
+    psychopyInstalled = 0
 
 # ----------------------------------------------------------------------
 # globals
-#log = logging.getLogger(__name__)
-#log.basicConfig(format='[%(levelname)s]: POP %(message)s', level=log.DEBUG)
-log     = logging.getLogger("online_preproc")
+# log = logging.getLogger(__name__)
+# log.basicConfig(format='[%(levelname)s]: POP %(message)s', level=log.DEBUG)
+log     = logging.getLogger("online_experiment")
 log.setLevel(logging.INFO)
 log_fmt = logging.Formatter('[%(levelname)s - Main]: %(message)s')
 log_ch  = logging.StreamHandler()
 log_ch.setFormatter(log_fmt)
 log_ch.setLevel(logging.INFO)
 log.addHandler(log_ch)
-
-g_help_string = """`
-=============================================================================
-online_preprocessing.py - program for online preprocessing data provided via 
-TCP connection. Included pre-processing steps: 1) EMA Filter, Incremental GLM,
-Kalman Low-Pass Filter, Spatial Smoothing.
-
-------------------------------------------
-   Options:
-   
-=============================================================================
-"""
-g_history = """
-   0.1  Dec 12, 2019 : added support for pre-processing online
-"""
-
-g_version = "online_preprocessing.py version 1.0, December 12, 2019"
 
 # ----------------------------------------------------------------------
 # In this module, handing signals and options.  Try to keep other
@@ -80,8 +78,23 @@ class Experiment(object):
         self.do_snorm      = options.do_snorm     # Should we do Spatial Z-scoring per volume
         self.FWHM          = options.FWHM         # FWHM for Spatial Smoothing in [mm]
         
-        self.nvols_discard = options.discard      # Number of volumes to discard from any analysis (won't enter pre-processing)
+        self.nvols_discard = options.discard   # Number of volumes to discard from any analysis (won't enter pre-processing)
+        
+        # Decoder-related initializations
+        self.start_vol     = options.start_vol # First volume to do decoding on.
+        self.hit_method    = "method01"
+        self.hit_zth       = 2
+        self.hit_v4hit     = 2
+        self.hit_dowin     = True
+        self.hit_domot     = False
+        self.hit_wl        = 4
+        if self.hit_dowin:
+            self.hit_win_weights = create_win(self.hit_wl)
+        self.hit_method_func = None
+        if self.hit_method == "method01":
+            self.hit_method_func = is_hit_rt01
 
+        # iGLM-related initializations
         self.iGLM_prev     = {}
         self.iGLM_motion   = options.iGLM_motion
         self.iGLM_polort   = options.iGLM_polort
@@ -94,15 +107,18 @@ class Experiment(object):
             self.iGLM_num_regressors = self.iGLM_polort
             self.nuisance_labels = ['Polort'+str(i) for i in np.arange(self.iGLM_polort)]
 
+        # Low-pass (kalman) Filter-related initializations
         self.S_x              = None
         self.S_P              = None
         self.fPositDerivSpike = None
         self.fNegatDerivSpike = None
         self.kalmThreshold    = None
 
+        # EMA Filter-related initializations
         self.EMA_th   = 0.98
         self.EMA_filt = None
 
+        # Smoothing & Output-related initalizations
         self.mask_path  = options.mask_path
         self.out_dir    = options.out_dir
         self.out_prefix = options.out_prefix 
@@ -119,11 +135,9 @@ class Experiment(object):
             self.mask_Nv = np.sum(self.mask_img.get_data())
             log.debug('  Experiment_init_ - Number of Voxels in user-provided mask: %d' % self.mask_Nv)
 
-        
-
         # Create Legendre Polynomial regressors
         if self.iGLM_polort > -1:
-            self.legendre_pols = gen_polort_regressors(self.iGLM_polort,self.Nt)
+            self.legendre_pols = gen_polort_regressors(self.iGLM_polort, self.Nt)
         else:
             self.legendre_pols = None
 
@@ -133,7 +147,55 @@ class Experiment(object):
         else:
             self.pool = None
 
+        # if SVR models missing, then end program
+        if options.svr_path is None:
+            log.error('SVR Model not provided. Program will exit.')
+            sys.exit(-1)
+        if not osp.exists(options.svr_path):
+            log.error('SVR Model File does not exists. Please correct.')
+            sys.exit(-1)
+        self.svr_path = options.svr_path
+        try:
+            SVRs_pickle_in = open(self.svr_path, "rb")
+            self.SVRs = pickle.load(SVRs_pickle_in)
+        except OSError as ose:
+            log.error('SVR Model File opening threw OSError Exception.')
+            log.error(traceback.format_exc(ose))
+            sys.exit(-1)
+        except Exception as e:
+            log.error('SVR Model File opening threw generic Exception.')
+            log.error(traceback.format_exc(e))
+            sys.exit(-1)
+        self.Ncaps = len(self.SVRs.keys())
+        self.caps_labels = list(self.SVRs.keys())
+        log.info('List of CAPs to be tested: %s' % str(self.caps_labels))
+
+    def setup_experiment(self, options):
+        self.fullscreen = options.fscreen
+        self.screen_size = [512, 288]
+        self.allowGUI   = False
+        if self.fullscreen:
+            self.ewin = visual.Window(fullscr=self.fullscreen, allowGUI=self.allowGUI)
+        else:
+            self.ewin = visual.Window(self.screen_size, allowGUI=self.allowGUI)
+        self.gen_inst_msg = visual.TextStim(self.ewin,
+                            text = "Please focus on the crosshair and let your mind wander freely.", 
+                            bold = True,
+                            pos = (0.0,0.5))
+        self.crosshair = visual.TextStim(self.ewin,
+                            text="+",
+                            bold=True,
+                            pos=(0.0,0.0),
+                            height=.5)
+        self.gen_inst_msg.draw()
+        self.crosshair.draw()
+        self.ewin.flip()
+    
+
     def compute_TR_data(self, motion, extra):
+        msg = visual.TextStim(self.ewin, text="%d" % self.t)
+        msg.draw()
+        self.ewin.flip()
         # Update t (it always does)
         self.t = self.t + 1
         # Update n (only if not longer a discard volume)
@@ -143,9 +205,7 @@ class Experiment(object):
         log.info(' - Time point [t=%d, n=%d]' % (self.t, self.n))
         
         # Read Data from socket
-        # this_t_data = unpack_extra(extra)
-        # log.error('type(EXTRA): %s' % str(type(extra)))
-        this_t_data = np.array(extra) #[:,np.newaxis]
+        this_t_data = unpack_extra(extra)
         
         # If first volume, then create empty structures and call it a day (TR)
         if self.t == 0:
@@ -160,17 +220,22 @@ class Experiment(object):
             self.Data_kalman   = np.zeros((self.Nv,1))
             self.Data_smooth   = np.zeros((self.Nv,1))
             self.Data_norm     = np.zeros((self.Nv,1))
+            self.Data_wind     = np.zeros((self.Nv,1))
             self.nuisance      = np.zeros((self.iGLM_num_regressors,1))
             self.iGLM_Coeffs   = np.zeros((self.Nv,self.iGLM_num_regressors,1))
             self.S_x           = np.zeros((self.Nv,1))
             self.S_P           = np.zeros((self.Nv,1))
             self.fPositDerivSpike = np.zeros((self.Nv, 1))
             self.fNegatDerivSpike = np.zeros((self.Nv, 1))
+            self.hits             = np.zeros((self.Ncaps, 1))
+            self.svrscores        = np.zeros((self.Ncaps, 1))
+
             #self.kalmThreshold    = np.zeros((self.Nv,1))
             log.debug('[t=%d,n=%d] Init - Data_FromAFNI.shape %s' % (self.t, self.n, str(self.Data_FromAFNI.shape)))
             log.debug('[t=%d,n=%d] Init - Data_EMA.shape      %s' % (self.t, self.n, str(self.Data_EMA.shape)))
             log.debug('[t=%d,n=%d] Init - Data_iGLM.shape     %s' % (self.t, self.n, str(self.Data_iGLM.shape)))
             log.debug('[t=%d,n=%d] Init - Data_norm.shape     %s' % (self.t, self.n, str(self.Data_norm.shape)))
+            log.debug('[t=%d,n=%d] Init - Data_wind.shape     %s' % (self.t, self.n, str(self.Data_wind.shape)))
             log.debug('[t=%d,n=%d] Init - nuisance.shape      %s' % (self.t, self.n, str(self.nuisance.shape)))
             log.debug('[t=%d,n=%d] Init - iGLM_Coeffs.shape   %s' % (self.t, self.n, str(self.iGLM_Coeffs.shape)))
             log.debug('[t=%d,n=%d] Init - S_x.shape           %s' % (self.t, self.n, str(self.S_x.shape)))
@@ -188,6 +253,7 @@ class Experiment(object):
             self.Data_kalman   = np.append(self.Data_kalman, np.zeros((self.Nv,1)), axis=1)
             self.Data_smooth   = np.append(self.Data_smooth, np.zeros((self.Nv,1)), axis=1)
             self.Data_norm     = np.append(self.Data_norm,   np.zeros((self.Nv,1)), axis=1)
+            self.Data_wind     = np.append(self.Data_wind,   np.zeros((self.Nv,1)), axis=1)
             self.nuisance      = np.append(self.nuisance,    np.zeros((self.iGLM_num_regressors,1)), axis=1)
             self.iGLM_Coeffs   = np.append(self.iGLM_Coeffs, np.zeros((self.Nv,self.iGLM_num_regressors,1)), axis=2)
             self.S_x           = np.append(self.S_x,         np.zeros((self.Nv,1)),   axis=1)
@@ -195,11 +261,13 @@ class Experiment(object):
             self.fPositDerivSpike = np.append(self.fPositDerivSpike,         np.zeros((self.Nv,1)),   axis=1)
             self.fNegatDerivSpike = np.append(self.fNegatDerivSpike,         np.zeros((self.Nv,1)),   axis=1)
             #self.kalmThreshold    = np.append(self.kalmThreshold,         np.zeros((self.Nv,1)),   axis=1)
-
+            self.hits      = np.append(self.hits,      np.zeros((self.Ncaps,1)),  axis=1)
+            self.svrscores = np.append(self.svrscores, np.zeros((self.Ncaps,1)), axis=1)
             log.debug('[t=%d,n=%d] Discard - Data_FromAFNI.shape %s' % (self.t, self.n, str(self.Data_FromAFNI.shape)))
             log.debug('[t=%d,n=%d] Discard - Data_EMA.shape      %s' % (self.t, self.n, str(self.Data_EMA.shape)))
             log.debug('[t=%d,n=%d] Discard - Data_iGLM.shape     %s' % (self.t, self.n, str(self.Data_iGLM.shape)))
             log.debug('[t=%d,n=%d] Discard - Data_norm.shape     %s' % (self.t, self.n, str(self.Data_norm.shape)))
+            log.debug('[t=%d,n=%d] Discard - Data_wind.shape     %s' % (self.t, self.n, str(self.Data_wind.shape)))
             log.debug('[t=%d,n=%d] Discard - nuisance.shape      %s' % (self.t, self.n, str(self.nuisance.shape)))
             log.debug('[t=%d,n=%d] Discard - iGLM_Coeffs.shape   %s' % (self.t, self.n, str(self.iGLM_Coeffs.shape)))
             log.debug('[t=%d,n=%d] Discard - S_x.shape           %s' % (self.t, self.n, str(self.S_x.shape)))
@@ -250,6 +318,7 @@ class Experiment(object):
                                                                         self.nvols_discard,
                                                                         self.pool,
                                                                         do_operation = self.do_kalman)
+        
         self.Data_kalman      = np.append(self.Data_kalman, klm_data_out, axis = 1)
         self.S_x              = np.append(self.S_x, Sx_out, axis=1)
         self.S_P              = np.append(self.S_P, SP_out, axis=1)
@@ -259,26 +328,58 @@ class Experiment(object):
 
         # Do Spatial Smoothing (if needed)
         # ================================
-        smooth_out = rt_smooth_vol(self.Data_kalman[:,self.t], self.mask_img, fwhm = self.FWHM, do_operation = self.do_smooth)
+        smooth_out       = rt_smooth_vol(self.Data_kalman[:,self.t], self.mask_img, fwhm = self.FWHM, do_operation = self.do_smooth)
         self.Data_smooth = np.append(self.Data_smooth, smooth_out, axis=1)
         log.debug('[t=%d,n=%d] Online - Smooth - Data_smooth.shape   %s' % (self.t, self.n, str(self.Data_smooth.shape)))
 
         # Do Spatial Normalization (if needed)
         # ====================================
-        norm_out = rt_snorm_vol(self.Data_smooth[:,self.t], do_operation=self.do_snorm)
+        norm_out       = rt_snorm_vol(self.Data_smooth[:,self.t], do_operation=self.do_snorm)
         self.Data_norm = np.append(self.Data_norm, norm_out, axis=1)
         log.debug('[t=%d,n=%d] Online - Smooth - Data_norm.shape   %s' % (self.t, self.n, str(self.Data_norm.shape)))
+
+        # Do Windowing (if needed)
+        # ========================
+        if (self.t >= self.start_vol) and self.hit_dowin:
+            vols_in_win       = (np.arange(self.t-4,self.t)+1)[::-1]
+            out_data_windowed = np.dot(self.Data_norm[:,vols_in_win], self.hit_win_weights)
+            self.Data_wind    = np.append(self.Data_wind, out_data_windowed, axis = 1)
+        else:
+            self.Data_wind    = np.append(self.Data_wind, norm_out, axis =1)
+
+        # Compute SVR scores (if needed)
+        # ==============================
+        if self.t < self.start_vol:   # We don't want to start decoding before iGLM is stable.
+            self.svrscores = np.append(self.svrscores, np.zeros((self.Ncaps,1)), axis=1)
+        else:
+            this_t_svrscores = rt_svrscore_vol(self.Data_wind[:, self.t], self.SVRs, self.caps_labels)
+            self.svrscores   = np.append(self.svrscores, this_t_svrscores, axis=1)
+        log.debug('[t=%d,n=%d] Online - SVRs - svrscores.shape   %s' % (self.t, self.n, str(self.svrscores.shape)))
+
+        # Compute Hits (if needed)
+        # ========================
+        # MISSING: Don't do this if before 100 vols
+        hit = self.hit_method_func(self.t,
+                                   self.caps_labels,
+                                   self.svrscores,
+                                   self.hit_zth,
+                                   self.hit_wl)
+        self.hits = np.append(self.hits, np.zeros((self.Ncaps,1)), axis=1)
+        if hit != None:
+            log.info('[t=%d,n=%d] CAP hit [%s]' % (self.t,self.n, hit))
+            self.hits[self.caps_labels.index(hit),self.t] = 1
+
         # Need to return something, otherwise the program thinks the experiment ended
         return 1
-
+    
     def final_steps(self):
         if self.mask_img is None:
             log.warning(' final_steps = No outputs generated due to lack of mask.')
             return 1
         
         log.debug(' final_steps - About to write outputs to disk.')
-        out_vars   = [self.Data_norm]
-        out_labels = ['.pp_Zscore.nii']
+        out_vars   = [self.Data_norm, self.Data_wind]
+        out_labels = ['.pp_Zscore.nii','.pp_ExpWin.nii']
         if self.do_EMA:
             out_vars.append(self.Data_EMA)
             out_labels.append('.pp_EMA.nii')
@@ -299,8 +400,10 @@ class Experiment(object):
                 data = self.iGLM_Coeffs[:,i,:]
                 out = unmask_fMRI_img(data, self.mask_img, osp.join(self.out_dir,self.out_prefix+'.pp_iGLM_'+lab+'.nii'))    
 
-        
-
+        np.save(osp.join(self.out_dir,self.out_prefix+'.svrscores'),self.svrscores)
+        log.info('Saved svrscores to %s' % osp.join(self.out_dir,self.out_prefix+'.svrscores'))
+        np.save(osp.join(self.out_dir,self.out_prefix+'.hits'), self.hits)
+        log.info('Saved hits info to %s' % osp.join(self.out_dir,self.out_prefix+'.hits'))
         return 1
 
 def processExperimentOptions (self, options=None):
@@ -330,21 +433,15 @@ def processExperimentOptions (self, options=None):
     parser.add_option("--polort",     help="Order of Legengre Polynomials for iGLM",     dest="iGLM_polort", default=2, action="store", type="int")
     parser.add_option("--no_iglm_motion", help="Do not use 6 motion parameters in iGLM", dest="iGLM_motion", default=True, action="store_false")
     parser.add_option("--discard",    help="Number of volumes to discard (they won't enter the iGLM step)",  default=10, dest="discard", action="store", type="int")
+    parser.add_option("--start",      help="Volume when decoding should start. When we think iGLM is sufficient_stable", default=100, dest="start_vol", action="store", type="int")
     parser.add_option("--nvols",      help="Number of expected volumes (for legendre pols only)", dest="nvols",default=500, action="store", type="int")
-<<<<<<< HEAD
     parser.add_option("--tr",         help="Repetition time [sec]", dest="tr",default=1.0, action="store", type="float")
-    parser.add_option("--ncores",     help="Number of cores to use in the parallel processing part of the code", dest="n_cores", action="store",type="int", default=10)
+    parser.add_option("--ncores",     help="Number of cores to use in the parallel processing part of the code", dest="n_cores", action="store",type="int", default=8)
     parser.add_option("--mask",       help="Mask necessary for smoothing operation", dest="mask_path", action="store", type="str", default=None)
     parser.add_option("--out_dir",    help="Output directory",   dest="out_dir",    action="store", type="str", default="./")
     parser.add_option("--out_prefix", help="Prefix for outputs", dest="out_prefix", action="store", type="str", default="online_preproc")
-=======
-    parser.add_option("--tr",         help="Repetition time [sec]",                      dest="tr",default=1.0, action="store", type="float")
-    parser.add_option("--ncores",     help="Number of cores to use in the parallel processing part of the code", dest="n_cores", action="store",type="int", default=10)
-    parser.add_option("--mask",       help="Mask necessary for smoothing operation",     dest="mask_path", action="store", type="str", default=None)
-    parser.add_option("--out_dir",    help="Output directory",                           dest="out_dir",    action="store", type="str", default="./")
-    parser.add_option("--out_prefix", help="Prefix for outputs",                         dest="out_prefix", action="store", type="str", default="online_preproc")
->>>>>>> 1bbd366e2d967167930779c89332c49332162ef6
-    
+    parser.add_option("--svr_path",   help="Path to pre-trained SVR models", dest="svr_path", action="store", type="str", default=None)
+    parser.add_option("--no_fscreen", help="Do not use full screen", dest="fscreen", action="store_false", default=True) 
     return parser.parse_args(options)
 
 def main():
@@ -356,14 +453,18 @@ def main():
     log.info('2) Instantiating Experiment Object...')
     experiment = Experiment(opts)
 
+    # 3) Initiate GUI (Psychopy Screen)
+    log.info('3) Initializing Psychopy Experiment...')
+    experiment.setup_experiment(opts)
+
     # 2) Start Communications
-    log.info('3) Opening Communication Channel...')
+    log.info('4) Opening Communication Channel...')
     receiver = ReceiverInterface(port=opts.tcp_port, show_data=opts.show_data)
     if not receiver:
         return 1
 
     # set signal handlers and look for data
-    log.info('4) Setting Signal Handlers...')
+    log.info('5) Setting Signal Handlers...')
     receiver.set_signal_handlers()  # require signal to exit
 
     # set receiver callback
@@ -372,7 +473,7 @@ def main():
     receiver.final_steps      = experiment.final_steps
 
     # prepare for incoming connections
-    log.info('5) Prepare for Incoming Connections...')
+    log.info('6) Prepare for Incoming Connections...')
     if receiver.RTI.open_incoming_socket():
         return 1
 
@@ -383,7 +484,7 @@ def main():
     #     receiver.close_data_ports()
     # return -1   
     #Vinai's alternative
-    log.info('6) Here we go...')
+    log.info('7) Here we go...')
     rv = receiver.process_one_run()
     return rv
 
