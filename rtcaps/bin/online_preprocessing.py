@@ -27,11 +27,11 @@ from rtcap_lib.fMRI import load_fMRI_file, unmask_fMRI_img
 #log = logging.getLogger(__name__)
 #log.basicConfig(format='[%(levelname)s]: POP %(message)s', level=log.DEBUG)
 log     = logging.getLogger("online_preproc")
-log.setLevel(logging.INFO)
+log.setLevel(logging.WARNING)
 log_fmt = logging.Formatter('[%(levelname)s - Main]: %(message)s')
 log_ch  = logging.StreamHandler()
 log_ch.setFormatter(log_fmt)
-log_ch.setLevel(logging.INFO)
+log_ch.setLevel(logging.WARNING)
 log.addHandler(log_ch)
 
 g_help_string = """`
@@ -331,19 +331,11 @@ def processExperimentOptions (self, options=None):
     parser.add_option("--no_iglm_motion", help="Do not use 6 motion parameters in iGLM", dest="iGLM_motion", default=True, action="store_false")
     parser.add_option("--discard",    help="Number of volumes to discard (they won't enter the iGLM step)",  default=10, dest="discard", action="store", type="int")
     parser.add_option("--nvols",      help="Number of expected volumes (for legendre pols only)", dest="nvols",default=500, action="store", type="int")
-<<<<<<< HEAD
-    parser.add_option("--tr",         help="Repetition time [sec]", dest="tr",default=1.0, action="store", type="float")
-    parser.add_option("--ncores",     help="Number of cores to use in the parallel processing part of the code", dest="n_cores", action="store",type="int", default=10)
-    parser.add_option("--mask",       help="Mask necessary for smoothing operation", dest="mask_path", action="store", type="str", default=None)
-    parser.add_option("--out_dir",    help="Output directory",   dest="out_dir",    action="store", type="str", default="./")
-    parser.add_option("--out_prefix", help="Prefix for outputs", dest="out_prefix", action="store", type="str", default="online_preproc")
-=======
     parser.add_option("--tr",         help="Repetition time [sec]",                      dest="tr",default=1.0, action="store", type="float")
     parser.add_option("--ncores",     help="Number of cores to use in the parallel processing part of the code", dest="n_cores", action="store",type="int", default=10)
     parser.add_option("--mask",       help="Mask necessary for smoothing operation",     dest="mask_path", action="store", type="str", default=None)
     parser.add_option("--out_dir",    help="Output directory",                           dest="out_dir",    action="store", type="str", default="./")
     parser.add_option("--out_prefix", help="Prefix for outputs",                         dest="out_prefix", action="store", type="str", default="online_preproc")
->>>>>>> 1bbd366e2d967167930779c89332c49332162ef6
     
     return parser.parse_args(options)
 

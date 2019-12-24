@@ -26,3 +26,8 @@ Scripts/Realtime_Scanner/afni_start.sh
 Scripts/TechScans/
 Scripts/Testing_Scripts/
 psychopy-env.yml
+rtcaps/bin/profile*txt
+.ipynb_checkpoints/kl_devel-checkpoint.ipynb
+rtcaps/bin/a.txt
+a.pkl.npy
+kl_devel.ipynb
