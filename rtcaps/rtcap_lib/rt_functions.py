@@ -7,11 +7,11 @@ from numpy.linalg import cholesky, inv
 import logging
 from sklearn.preprocessing import StandardScaler
 log     = logging.getLogger("rt_functions")
-log.setLevel(logging.WARNING)
+log.setLevel(logging.INFO)
 log_fmt = logging.Formatter('[%(levelname)s - rt_functions]: %(message)s')
 log_ch  = logging.StreamHandler()
 log_ch.setFormatter(log_fmt)
-log_ch.setLevel(logging.WARNING)
+log_ch.setLevel(logging.INFO)
 log.addHandler(log_ch)
 #log.basicConfig(format='[%(levelname)s]: %(message)s', level=log.DEBUG)
 def init_iGLM():
@@ -272,13 +272,17 @@ def _kalman_filter_mv(input_dict):
 
 def rt_kalman_vol(n,t,data,S_x,S_P,fPositDerivSpike,fNegatDerivSpike,num_cores,DONT_USE_VOLS,pool,do_operation=True):
     if n > 2 and do_operation==True:
-        #log.debug('[t=%d,n=%d] rt_kalman_vol - Time to do some math' % (t, n))
-        #log.debug('[t=%d,n=%d] rt_kalman_vol - Num Cores = %d' % (t, n, num_cores))
-        #log.debug('[t=%d,n=%d] rt_kalman_vol - Input Data Dimensions %s' % (t, n, str(data.shape)))
-        v_start = np.arange(0,data.shape[0],int(np.floor(data.shape[0]/(num_cores-1)))).tolist()
-        v_end   = v_start[1:] + [data.shape[0]]
-        #log.debug('[t=%d,n=%d] rt_kalman_vol - v_start %s' % (t, n, str(v_start)))
-        #log.debug('[t=%d,n=%d] rt_kalman_vol - v_end   %s' % (t, n, str(v_end)))
+        log.debug('[t=%d,n=%d] rt_kalman_vol - Time to do some math' % (t, n))
+        log.debug('[t=%d,n=%d] rt_kalman_vol - Num Cores = %d' % (t, n, num_cores))
+        log.debug('[t=%d,n=%d] rt_kalman_vol - Input Data Dimensions %s' % (t, n, str(data.shape)))
+        #v_start = np.arange(0,data.shape[0],int(np.floor(data.shape[0]/(num_cores-1)))).tolist()
+        #v_start = np.arange(0,data.shape[0],int(np.floor(data.shape[0]/(num_cores)))).tolist()
+        #v_end   = v_start[1:] + [data.shape[0]]
+        v_groups = [int(i) for i in np.linspace(0,data.shape[0],num_cores+1)]
+        v_start  = v_groups[:-1]
+        v_end = v_groups[1:]
+        log.debug('[t=%d,n=%d] rt_kalman_vol - v_start %s' % (t, n, str(v_start)))
+        log.debug('[t=%d,n=%d] rt_kalman_vol - v_end   %s' % (t, n, str(v_end)))
         o_data, o_fPos, o_fNeg = [],[],[]
         o_S_x, o_S_P           = [],[]
         data_std               = np.std(data[:,DONT_USE_VOLS:t+1], axis=1)
@@ -293,9 +297,9 @@ def rt_kalman_vol(n,t,data,S_x,S_P,fPositDerivSpike,fNegatDerivSpike,num_cores,D
                    'fNeg': fNegatDerivSpike[v_s:v_e],
                    'vox' : np.arange(v_s,v_e)}
                   for v_s,v_e in zip(v_start,v_end))
-        #log.debug('[t=%d,n=%d] rt_kalman_vol - About to go parallel with %d cores' % (t, n, num_cores))
+        log.debug('[t=%d,n=%d] rt_kalman_vol - About to go parallel with %d cores' % (t, n, num_cores))
         res = pool.map(_kalman_filter_mv,inputs)
-        #log.debug('[t=%d,n=%d] rt_kalman_vol - All parallel operationsc completed.' % (t, n))
+        log.debug('[t=%d,n=%d] rt_kalman_vol - All parallel operationsc completed.' % (t, n))
 
         for j in np.arange(num_cores):
             o_data.append(res[j][0])

@@ -27,11 +27,11 @@ from rtcap_lib.fMRI import load_fMRI_file, unmask_fMRI_img
 #log = logging.getLogger(__name__)
 #log.basicConfig(format='[%(levelname)s]: POP %(message)s', level=log.DEBUG)
 log     = logging.getLogger("online_preproc")
-log.setLevel(logging.WARNING)
+log.setLevel(logging.INFO)
 log_fmt = logging.Formatter('[%(levelname)s - Main]: %(message)s')
 log_ch  = logging.StreamHandler()
 log_ch.setFormatter(log_fmt)
-log_ch.setLevel(logging.WARNING)
+log_ch.setLevel(logging.INFO)
 log.addHandler(log_ch)
 
 g_help_string = """`
@@ -150,6 +150,7 @@ class Experiment(object):
         # If first volume, then create empty structures and call it a day (TR)
         if self.t == 0:
             self.Nv            = len(this_t_data)
+            log.info('Number of Voxels Nv=%d' % self.Nv)
             if self.do_smooth:
                 if self.mask_Nv != self.Nv:
                     log.error('Discrepancy across masks [data Nv = %d, mask Nv = %d]' % (self.Nv, self.mask_Nv) )
