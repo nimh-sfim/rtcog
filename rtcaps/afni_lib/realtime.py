@@ -278,18 +278,18 @@ class RTInterface(object):
       log.debug('-- hello version is %d' % self.version)
 
       # and deal with the version number
-
+      log.debug('** version is %d' % self.version)
       if self.version == 0:
          pass        # we're good to go
 
-      elif self.version == 1 or self.version == 2:
+      elif self.version == 1 or self.version == 2 or self.version == 3:
 
          # ------------------------------------------------------------
          # read the next 4-byte int to determine the number of extra data
          # values received each TR
          #    version 1: receive num_extra int over socket
          #    version 2: receive num_voxels (for 8 vals each) int over socket
-
+         #    version 3: receive num_voxels (for 1 vals each) int over socket
          ilist = self.read_ints_from_socket(1)
          if ilist is None:
             return 1
@@ -298,8 +298,10 @@ class RTInterface(object):
             log.warning('** received invalid num_extra = %d' % ilist[0])
          elif self.version == 1:
             self.nextra = ilist[0]
-         else:  # version = 2
+         elif self.version == 2:
             self.nextra = ilist[0] * 8
+         else:  # version = 3
+            self.nextra = ilist[0]
 
          log.debug('-- num extra = %d' % self.nextra)
 
