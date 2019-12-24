@@ -22,7 +22,7 @@ from rtcap_lib.fMRI import load_fMRI_file, unmask_fMRI_img
 # ----------------------------------------------------------------------
 # globals
 #log = logging.getLogger(__name__)
-log.basicConfig(format='[%(levelname)s]: POP %(message)s', level=log.DEBUG)
+log.basicConfig(format='[%(levelname)s]: POP %(message)s', level=log.WARNING)
 
 g_help_string = """
 =============================================================================
@@ -133,7 +133,9 @@ class Experiment(object):
         log.info(' - Time point [t=%d, n=%d]' % (self.t, self.n))
         
         # Read Data from socket
-        this_t_data = unpack_extra(extra)
+        # this_t_data = unpack_extra(extra)
+        # log.error('type(EXTRA): %s' % str(type(extra)))
+        this_t_data = np.array(extra) #[:,np.newaxis]
         
         # If first volume, then create empty structures and call it a day (TR)
         if self.t == 0:
@@ -320,7 +322,7 @@ def processExperimentOptions (self, options=None):
     parser.add_option("--discard",    help="Number of volumes to discard (they won't enter the iGLM step)",  default=10, dest="discard", action="store", type="int")
     parser.add_option("--nvols",      help="Number of expected volumes (for legendre pols only)", dest="nvols",default=500, action="store", type="int")
     parser.add_option("--tr",         help="Repetition time [sec]", dest="tr",default=1.0, action="store", type="float")
-    parser.add_option("--ncores",     help="Number of cores to use in the parallel processing part of the code", dest="n_cores", action="store",type="float", default=10)
+    parser.add_option("--ncores",     help="Number of cores to use in the parallel processing part of the code", dest="n_cores", action="store",type="int", default=10)
     parser.add_option("--mask",       help="Mask necessary for smoothing operation", dest="mask_path", action="store", type="str", default=None)
     parser.add_option("--out_dir",    help="Output directory",   dest="out_dir",    action="store", type="str", default="./")
     parser.add_option("--out_prefix", help="Prefix for outputs", dest="out_prefix", action="store", type="str", default="online_preproc")
