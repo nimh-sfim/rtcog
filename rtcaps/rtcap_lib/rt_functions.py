@@ -309,10 +309,10 @@ def rt_kalman_vol(n,t,data,S_x,S_P,fPositDerivSpike,fNegatDerivSpike,num_cores,D
             o_S_P.append(res[j][4])
         
         o_data = np.array(list(itertools.chain(*o_data)))[:,np.newaxis]
-        o_fPos = np.array(list(itertools.chain(*o_fPos)))[:,np.newaxis]
-        o_fNeg = np.array(list(itertools.chain(*o_fNeg)))[:,np.newaxis]
-        o_S_x  = np.array(list(itertools.chain(*o_S_x)))[:,np.newaxis]
-        o_S_P  = np.array(list(itertools.chain(*o_S_P)))[:,np.newaxis]
+        o_fPos = list(itertools.chain(*o_fPos))#[:,np.newaxis]
+        o_fNeg = list(itertools.chain(*o_fNeg))#[:,np.newaxis]
+        o_S_x  = list(itertools.chain(*o_S_x))#[:,np.newaxis]
+        o_S_P  = list(itertools.chain(*o_S_P))#[:,np.newaxis]
         
         #log.debug('[t=%d,n=%d] rt_kalman_vol - o_data.shape = %s' % (t, n, str(o_data.shape)))
         #o_data   = [item for sublist in o_data   for item in sublist]
@@ -325,7 +325,8 @@ def rt_kalman_vol(n,t,data,S_x,S_P,fPositDerivSpike,fNegatDerivSpike,num_cores,D
     else:
         #log.debug('[t=%d,n=%d] rt_kalman_vol - Skip this pass. Return empty containsers.' % (t, n))
         [Nv,Nt] = data.shape
-        out     = [np.zeros((Nv,1)) for i in np.arange(5)]
+        out = [np.zeros((Nv,1)), [0]*Nv, [0]*Nv,[0]*Nv,[0]*Nv]
+        #out     = [np.zeros((Nv,1)) for i in np.arange(5)]
     return out
 
 # Smoothing Functions

@@ -64,10 +64,13 @@ class Experiment(object):
         self.TR            = options.tr      # TR [seconds]
         self.n_cores       = options.n_cores # Number of cores for the multiprocessing part of the code
         self.Data_FromAFNI = None            # np.array [Nv,Nt] for incoming data
-        self.Data_EMA      = None            # np.array [Nv,Nt] for data after EMA  step
+        self.save_ema      = opts.save_ema
+        self.save_smooth   = opts.save_smooth
+
+        if self.save_ema: self.Data_EMA      = None            # np.array [Nv,Nt] for data after EMA  step
         self.Data_iGLM     = None            # np.array [Nv,Nt] for data after iGLM step
         self.Data_kalma    = None            # np.array [Nv,Nt] for data after low-pass step
-        self.Data_smooth   = None            # np.array [Nv,Nt] for data after spatial smoothing
+        if self.save_smooth: self.Data_smooth   = None            # np.array [Nv,Nt] for data after spatial smoothing
         self.Data_norm     = None            # np.array [Nv,Nt] for data after spatial normalization (spatial z-score)
         self.iGLM_Coeffs   = None            # np.array [Nregressor, Nv, Nt] for beta coefficients for all regressors
         
@@ -215,10 +218,10 @@ class Experiment(object):
                     log.error('Discrepancy across masks [data Nv = %d, mask Nv = %d]' % (self.Nv, self.mask_Nv) )
                     sys.exit(-1)
             self.Data_FromAFNI = np.array(this_t_data[:,np.newaxis])
-            self.Data_EMA      = np.zeros((self.Nv,1))
+            if self.save_ema: self.Data_EMA = np.zeros((self.Nv,1))
             self.Data_iGLM     = np.zeros((self.Nv,1))
             self.Data_kalman   = np.zeros((self.Nv,1))
-            self.Data_smooth   = np.zeros((self.Nv,1))
+            if self.save_smooth: self.Data_smooth   = np.zeros((self.Nv,1))
             self.Data_norm     = np.zeros((self.Nv,1))
             self.Data_wind     = np.zeros((self.Nv,1))
             self.nuisance      = np.zeros((self.iGLM_num_regressors,1))
@@ -232,7 +235,7 @@ class Experiment(object):
 
             #self.kalmThreshold    = np.zeros((self.Nv,1))
             log.debug('[t=%d,n=%d] Init - Data_FromAFNI.shape %s' % (self.t, self.n, str(self.Data_FromAFNI.shape)))
-            log.debug('[t=%d,n=%d] Init - Data_EMA.shape      %s' % (self.t, self.n, str(self.Data_EMA.shape)))
+            if self.save_ema: log.debug('[t=%d,n=%d] Init - Data_EMA.shape      %s' % (self.t, self.n, str(self.Data_EMA.shape)))
             log.debug('[t=%d,n=%d] Init - Data_iGLM.shape     %s' % (self.t, self.n, str(self.Data_iGLM.shape)))
             log.debug('[t=%d,n=%d] Init - Data_norm.shape     %s' % (self.t, self.n, str(self.Data_norm.shape)))
             log.debug('[t=%d,n=%d] Init - Data_wind.shape     %s' % (self.t, self.n, str(self.Data_wind.shape)))
@@ -248,10 +251,10 @@ class Experiment(object):
         # For any other vol, if still a discard volume
         if self.n == 0:
             self.Data_FromAFNI = np.append(self.Data_FromAFNI,this_t_data[:, np.newaxis], axis=1)
-            self.Data_EMA      = np.append(self.Data_EMA,    np.zeros((self.Nv,1)), axis=1)
+            if self.save_ema: self.Data_EMA      = np.append(self.Data_EMA,    np.zeros((self.Nv,1)), axis=1)
             self.Data_iGLM     = np.append(self.Data_iGLM,   np.zeros((self.Nv,1)), axis=1)
             self.Data_kalman   = np.append(self.Data_kalman, np.zeros((self.Nv,1)), axis=1)
-            self.Data_smooth   = np.append(self.Data_smooth, np.zeros((self.Nv,1)), axis=1)
+            if self.save_smooth: self.Data_smooth   = np.append(self.Data_smooth, np.zeros((self.Nv,1)), axis=1)
             self.Data_norm     = np.append(self.Data_norm,   np.zeros((self.Nv,1)), axis=1)
             self.Data_wind     = np.append(self.Data_wind,   np.zeros((self.Nv,1)), axis=1)
             self.nuisance      = np.append(self.nuisance,    np.zeros((self.iGLM_num_regressors,1)), axis=1)
@@ -264,7 +267,7 @@ class Experiment(object):
             self.hits      = np.append(self.hits,      np.zeros((self.Ncaps,1)),  axis=1)
             self.svrscores = np.append(self.svrscores, np.zeros((self.Ncaps,1)), axis=1)
             log.debug('[t=%d,n=%d] Discard - Data_FromAFNI.shape %s' % (self.t, self.n, str(self.Data_FromAFNI.shape)))
-            log.debug('[t=%d,n=%d] Discard - Data_EMA.shape      %s' % (self.t, self.n, str(self.Data_EMA.shape)))
+            if self.save_ema: log.debug('[t=%d,n=%d] Discard - Data_EMA.shape      %s' % (self.t, self.n, str(self.Data_EMA.shape)))
             log.debug('[t=%d,n=%d] Discard - Data_iGLM.shape     %s' % (self.t, self.n, str(self.Data_iGLM.shape)))
             log.debug('[t=%d,n=%d] Discard - Data_norm.shape     %s' % (self.t, self.n, str(self.Data_norm.shape)))
             log.debug('[t=%d,n=%d] Discard - Data_wind.shape     %s' % (self.t, self.n, str(self.Data_wind.shape)))
@@ -284,8 +287,9 @@ class Experiment(object):
         # Do EMA (if needed)
         # ==================
         ema_data_out, self.EMA_filt = rt_EMA_vol(self.n, self.t, self.EMA_th, self.Data_FromAFNI, self.EMA_filt, do_operation = self.do_EMA)
-        self.Data_EMA = np.append(self.Data_EMA, ema_data_out, axis=1)
-        log.debug('[t=%d,n=%d] Online - EMA - Data_EMA.shape      %s' % (self.t, self.n, str(self.Data_EMA.shape)))
+        if self.save_ema:
+            self.Data_EMA = np.append(self.Data_EMA, ema_data_out, axis=1)
+            log.debug('[t=%d,n=%d] Online - EMA - Data_EMA.shape      %s' % (self.t, self.n, str(self.Data_EMA.shape)))
         
         # Do iGLM (if needed)
         # ===================
@@ -296,7 +300,7 @@ class Experiment(object):
         self.nuisance = np.append(self.nuisance, this_t_nuisance, axis=1)
         log.debug('[t=%d,n=%d] Online - iGLM - nuisance.shape      %s' %  (self.t, self.n, str(self.nuisance.shape)))
         iGLM_data_out, self.iGLM_prev, Bn = rt_regress_vol(self.n, 
-                                                           self.Data_EMA[:,self.t][:,np.newaxis],
+                                                           ema_data_out[:,np.newaxis],
                                                            self.nuisance[:,self.t][:,np.newaxis],
                                                            self.iGLM_prev,
                                                            do_operation = self.do_iGLM)
@@ -329,12 +333,13 @@ class Experiment(object):
         # Do Spatial Smoothing (if needed)
         # ================================
         smooth_out       = rt_smooth_vol(self.Data_kalman[:,self.t], self.mask_img, fwhm = self.FWHM, do_operation = self.do_smooth)
-        self.Data_smooth = np.append(self.Data_smooth, smooth_out, axis=1)
-        log.debug('[t=%d,n=%d] Online - Smooth - Data_smooth.shape   %s' % (self.t, self.n, str(self.Data_smooth.shape)))
+        is self.save_smooth:
+            self.Data_smooth = np.append(self.Data_smooth, smooth_out, axis=1)
+            log.debug('[t=%d,n=%d] Online - Smooth - Data_smooth.shape   %s' % (self.t, self.n, str(self.Data_smooth.shape)))
 
         # Do Spatial Normalization (if needed)
         # ====================================
-        norm_out       = rt_snorm_vol(self.Data_smooth[:,self.t], do_operation=self.do_snorm)
+        norm_out       = rt_snorm_vol(smooth_out, do_operation=self.do_snorm)
         self.Data_norm = np.append(self.Data_norm, norm_out, axis=1)
         log.debug('[t=%d,n=%d] Online - Smooth - Data_norm.shape   %s' % (self.t, self.n, str(self.Data_norm.shape)))
 
@@ -442,6 +447,9 @@ def processExperimentOptions (self, options=None):
     parser.add_option("--out_prefix", help="Prefix for outputs", dest="out_prefix", action="store", type="str", default="online_preproc")
     parser.add_option("--svr_path",   help="Path to pre-trained SVR models", dest="svr_path", action="store", type="str", default=None)
     parser.add_option("--no_fscreen", help="Do not use full screen", dest="fscreen", action="store_false", default=True) 
+    parser.add_option("--save_ema",    help="Save 4D EMA dataset",     dest="save_ema",   default=False, action="store_true")
+    parser.add_option("--save_smooth", help="Save 4D Smooth dataset",     dest="save_smooth",   default=False, action="store_true")
+
     return parser.parse_args(options)
 
 def main():
