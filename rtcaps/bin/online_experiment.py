@@ -333,7 +333,7 @@ class Experiment(object):
         # Do Spatial Smoothing (if needed)
         # ================================
         smooth_out       = rt_smooth_vol(self.Data_kalman[:,self.t], self.mask_img, fwhm = self.FWHM, do_operation = self.do_smooth)
-        is self.save_smooth:
+        if self.save_smooth:
             self.Data_smooth = np.append(self.Data_smooth, smooth_out, axis=1)
             log.debug('[t=%d,n=%d] Online - Smooth - Data_smooth.shape   %s' % (self.t, self.n, str(self.Data_smooth.shape)))
 

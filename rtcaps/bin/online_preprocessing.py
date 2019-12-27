@@ -17,7 +17,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 
 from afni_lib.receiver import ReceiverInterface
 #from afni_lib.receiver import ReceiverInterface
-from rtcap_lib.core import unpack_extra
+from rtcap_lib.core import unpack_extra, welford
 from rtcap_lib.rt_functions import rt_EMA_vol, rt_regress_vol, rt_kalman_vol, rt_smooth_vol, rt_snorm_vol
 from rtcap_lib.rt_functions import gen_polort_regressors
 from rtcap_lib.fMRI import load_fMRI_file, unmask_fMRI_img
@@ -69,14 +69,18 @@ class Experiment(object):
         self.save_smooth   = options.save_smooth
         self.save_kalman   = options.save_kalman
         self.save_iGLM     = options.save_iglm
+        self.save_orig     = options.save_orig
+        self.welford_S     = None
+        self.welford_M     = None
+        self.welford_std   = None
         self.Data_FromAFNI = None            # np.array [Nv,Nt] for incoming data
-        if self.save_ema: self.Data_EMA      = None            # np.array [Nv,Nt] for data after EMA  step
-        self.Data_iGLM     = None            # np.array [Nv,Nt] for data after iGLM step
+        if self.save_ema:    self.Data_EMA      = None            # np.array [Nv,Nt] for data after EMA  step
+        if self.save_iGLM:   self.Data_iGLM     = None            # np.array [Nv,Nt] for data after iGLM step
         if self.save_kalman: self.Data_kalman   = None            # np.array [Nv,Nt] for data after low-pass step
         if self.save_smooth: self.Data_smooth   = None            # np.array [Nv,Nt] for data after spatial smoothing
+        if self.save_iGLM:   self.iGLM_Coeffs   = None            # np.array [Nregressor, Nv, Nt] for beta coefficients for all regressors
         self.Data_norm     = None            # np.array [Nv,Nt] for data after spatial normalization (spatial z-score)
-        if self.save_iGLM: self.iGLM_Coeffs   = None            # np.array [Nregressor, Nv, Nt] for beta coefficients for all regressors
-        
+
         self.do_EMA        = options.do_EMA       # Should we do EMA
         self.do_iGLM       = options.do_iGLM      # Should we do iGLM
         self.do_kalman     = options.do_kalman    # Should we do Low Pass Filter
@@ -140,6 +144,7 @@ class Experiment(object):
     def compute_TR_data(self, motion, extra):
         # Update t (it always does)
         self.t = self.t + 1
+
         # Update n (only if not longer a discard volume)
         if self.t > self.nvols_discard - 1:
             self.n = self.n + 1
@@ -147,75 +152,70 @@ class Experiment(object):
         log.info(' - Time point [t=%d, n=%d]' % (self.t, self.n))
         
         # Read Data from socket
-        # this_t_data = unpack_extra(extra)
-        # log.error('type(EXTRA): %s' % str(type(extra)))
-        this_t_data = np.array(extra) #[:,np.newaxis]
+        this_t_data = np.array(extra)
         
         # If first volume, then create empty structures and call it a day (TR)
         if self.t == 0:
             self.Nv            = len(this_t_data)
             log.info('Number of Voxels Nv=%d' % self.Nv)
+            self.welford_M   = np.zeros(self.Nv)
+            self.welford_S   = np.zeros(self.Nv)
+            self.welford_std = np.zeros(self.Nv)
             if self.do_smooth:
                 if self.mask_Nv != self.Nv:
                     log.error('Discrepancy across masks [data Nv = %d, mask Nv = %d]' % (self.Nv, self.mask_Nv) )
                     sys.exit(-1)
             self.Data_FromAFNI = np.array(this_t_data[:,np.newaxis])
-            if self.save_ema: self.Data_EMA      = np.zeros((self.Nv,1))
-            self.Data_iGLM     = np.zeros((self.Nv,1))
+            if self.save_ema:    self.Data_EMA      = np.zeros((self.Nv,1))
+            if self.save_iGLM:   self.Data_iGLM     = np.zeros((self.Nv,1))
             if self.save_kalman: self.Data_kalman   = np.zeros((self.Nv,1))
             if self.save_smooth: self.Data_smooth   = np.zeros((self.Nv,1))
             self.Data_norm     = np.zeros((self.Nv,1))
-            #self.nuisance      = np.zeros((self.iGLM_num_regressors,1))
             if self.save_iGLM:   self.iGLM_Coeffs   = np.zeros((self.Nv,self.iGLM_num_regressors,1))
-            self.S_x           = [0]*self.Nv #np.zeros((self.Nv))
-            self.S_P           = [0]*self.Nv #np.zeros((self.Nv))
-            self.fPositDerivSpike = [0]*self.Nv #np.zeros((self.Nv))
-            self.fNegatDerivSpike = [0]*self.Nv #np.zeros((self.Nv))
-            #self.kalmThreshold    = np.zeros((self.Nv,1))
-            log.debug('[t=%d,n=%d] Init - Data_FromAFNI.shape %s' % (self.t, self.n, str(self.Data_FromAFNI.shape)))
-            if self.save_ema: log.debug('[t=%d,n=%d] Init - Data_EMA.shape      %s' % (self.t, self.n, str(self.Data_EMA.shape)))
-            log.debug('[t=%d,n=%d] Init - Data_iGLM.shape     %s' % (self.t, self.n, str(self.Data_iGLM.shape)))
+            self.S_x           = [0]*self.Nv 
+            self.S_P           = [0]*self.Nv 
+            self.fPositDerivSpike = [0]*self.Nv 
+            self.fNegatDerivSpike = [0]*self.Nv
+            if self.save_orig:   log.debug('[t=%d,n=%d] Init - Data_FromAFNI.shape %s' % (self.t, self.n, str(self.Data_FromAFNI.shape)))
+            if self.save_ema:    log.debug('[t=%d,n=%d] Init - Data_EMA.shape      %s' % (self.t, self.n, str(self.Data_EMA.shape)))
+            if self.save_iGLM:   log.debug('[t=%d,n=%d] Init - Data_iGLM.shape     %s' % (self.t, self.n, str(self.Data_iGLM.shape)))
+            if self.save_kalman: log.debug('[t=%d,n=%d] Init - Data_kalman.shape   %s' % (self.t, self.n, str(self.Data_kalman.shape)))
             log.debug('[t=%d,n=%d] Init - Data_norm.shape     %s' % (self.t, self.n, str(self.Data_norm.shape)))
-            #log.debug('[t=%d,n=%d] Init - nuisance.shape      %s' % (self.t, self.n, str(self.nuisance.shape)))
             if self.save_iGLM: log.debug('[t=%d,n=%d] Init - iGLM_Coeffs.shape   %s' % (self.t, self.n, str(self.iGLM_Coeffs.shape)))
-            #log.debug('[t=%d,n=%d] Init - S_x.shape           %s' % (self.t, self.n, str(self.S_x.shape)))
-            #log.debug('[t=%d,n=%d] Init - S_P.shape           %s' % (self.t, self.n, str(self.S_P.shape)))
-            #log.debug('[t=%d,n=%d] Init - fPos.shape          %s' % (self.t, self.n, str(self.fPositDerivSpike.shape)))
-            #log.debug('[t=%d,n=%d] Init - fNeg.shape          %s' % (self.t, self.n, str(self.fNegatDerivSpike.shape)))
-            #log.debug('[t=%d,n=%d] Init - kalmanTh.shape      %s' % (self.t, self.n, str(self.kalmThreshold.shape)))
             return 1
 
         # For any other vol, if still a discard volume
         if self.n == 0:
-            self.Data_FromAFNI = np.append(self.Data_FromAFNI,this_t_data[:, np.newaxis], axis=1)
-            if self.save_ema: self.Data_EMA      = np.append(self.Data_EMA,    np.zeros((self.Nv,1)), axis=1)
-            self.Data_iGLM     = np.append(self.Data_iGLM,   np.zeros((self.Nv,1)), axis=1)
-            if self.save_kalman: self.Data_kalman   = np.append(self.Data_kalman, np.zeros((self.Nv,1)), axis=1)
-            if self.save_smooth: self.Data_smooth   = np.append(self.Data_smooth, np.zeros((self.Nv,1)), axis=1)
+            if self.save_orig: 
+                self.Data_FromAFNI = np.append(self.Data_FromAFNI,this_t_data[:, np.newaxis], axis=1)
+            else:
+                self.Data_FromAFNI = np.hstack((self.Data_FromAFNI[:,-1][:,np.newaxis],this_t_data[:, np.newaxis]))  # Only keep this one and previous
+            if self.save_ema:  self.Data_EMA      = np.append(self.Data_EMA,    np.zeros((self.Nv,1)), axis=1)
+            if self.save_iGLM: self.Data_iGLM     = np.append(self.Data_iGLM,   np.zeros((self.Nv,1)), axis=1)
+            if self.save_kalman: self.Data_kalman = np.append(self.Data_kalman, np.zeros((self.Nv,1)), axis=1)
+            if self.save_smooth: self.Data_smooth = np.append(self.Data_smooth, np.zeros((self.Nv,1)), axis=1)
             self.Data_norm     = np.append(self.Data_norm,   np.zeros((self.Nv,1)), axis=1)
-            #self.nuisance      = np.append(self.nuisance,    np.zeros((self.iGLM_num_regressors,1)), axis=1)
             if self.save_iGLM: self.iGLM_Coeffs   = np.append(self.iGLM_Coeffs, np.zeros((self.Nv,self.iGLM_num_regressors,1)), axis=2)
-            #self.S_x           = np.append(self.S_x,         np.zeros((self.Nv,1)),   axis=1)
-            #self.S_P           = np.append(self.S_P,         np.zeros((self.Nv,1)),   axis=1)
-            #self.fPositDerivSpike = np.append(self.fPositDerivSpike,         np.zeros((self.Nv,1)),   axis=1)
-            #self.fNegatDerivSpike = np.append(self.fNegatDerivSpike,         np.zeros((self.Nv,1)),   axis=1)
-            #self.kalmThreshold    = np.append(self.kalmThreshold,         np.zeros((self.Nv,1)),   axis=1)
-
+            
             log.debug('[t=%d,n=%d] Discard - Data_FromAFNI.shape %s' % (self.t, self.n, str(self.Data_FromAFNI.shape)))
-            if self.save_ema: log.debug('[t=%d,n=%d] Discard - Data_EMA.shape      %s' % (self.t, self.n, str(self.Data_EMA.shape)))
-            log.debug('[t=%d,n=%d] Discard - Data_iGLM.shape     %s' % (self.t, self.n, str(self.Data_iGLM.shape)))
+            if self.save_ema:    log.debug('[t=%d,n=%d] Discard - Data_EMA.shape      %s' % (self.t, self.n, str(self.Data_EMA.shape)))
+            if self.save_iGLM:   log.debug('[t=%d,n=%d] Discard - Data_iGLM.shape     %s' % (self.t, self.n, str(self.Data_iGLM.shape)))
+            if self.save_kalman: log.debug('[t=%d,n=%d] Discard - Data_kalman.shape   %s' % (self.t, self.n, str(self.Data_kalman.shape)))
             log.debug('[t=%d,n=%d] Discard - Data_norm.shape     %s' % (self.t, self.n, str(self.Data_norm.shape)))
-            #log.debug('[t=%d,n=%d] Discard - nuisance.shape      %s' % (self.t, self.n, str(self.nuisance.shape)))
             if self.save_iGLM: log.debug('[t=%d,n=%d] Discard - iGLM_Coeffs.shape   %s' % (self.t, self.n, str(self.iGLM_Coeffs.shape)))
-            #log.debug('[t=%d,n=%d] Discard - S_x.shape           %s' % (self.t, self.n, str(self.S_x.shape)))
-            #log.debug('[t=%d,n=%d] Discard - S_P.shape           %s' % (self.t, self.n, str(self.S_P.shape)))
-            #log.debug('[t=%d,n=%d] Discard - fPos.shape          %s' % (self.t, self.n, str(self.fPositDerivSpike.shape)))
-            #log.debug('[t=%d,n=%d] Discard - fNeg.shape          %s' % (self.t, self.n, str(self.fNegatDerivSpike.shape)))
-            #log.debug('[t=%d,n=%d] Discard - kalmanTh.shape      %s' % (self.t, self.n, str(self.kalmThreshold.shape)))
             return 1
 
+        # Compute running mean and running std with welford
+        self.welford_M, self.welford_S, self.weldord_std = welford(self.n, this_t_data, self.welford_M, self.welford_S)
+        log.debug('[t=%d,n=%d] Online - Input - welford_M.shape %s' % (self.t, self.n, str(self.welford_M.shape)))
+        log.debug('[t=%d,n=%d] Online - Input - welford_S.shape %s' % (self.t, self.n, str(self.welford_S.shape)))
+        log.debug('[t=%d,n=%d] Online - Input - welford_std.shape %s' % (self.t, self.n, str(self.welford_std.shape)))
+
         # If we reach this point, it means we have work to do
-        self.Data_FromAFNI = np.append(self.Data_FromAFNI,this_t_data[:, np.newaxis], axis=1)
+        if self.save_orig:
+            self.Data_FromAFNI = np.append(self.Data_FromAFNI,this_t_data[:, np.newaxis], axis=1)
+        else:
+            self.Data_FromAFNI = np.hstack((self.Data_FromAFNI[:,-1][:,np.newaxis],this_t_data[:, np.newaxis]))  # Only keep this one and previous
         log.debug('[t=%d,n=%d] Online - Input - Data_FromAFNI.shape %s' % (self.t, self.n, str(self.Data_FromAFNI.shape)))
 
         # Do EMA (if needed)
@@ -232,37 +232,34 @@ class Experiment(object):
             this_t_nuisance = np.concatenate((self.legendre_pols[self.t,:],motion))[:,np.newaxis]
         else:
             this_t_nuisance = (self.legendre_pols[self.t,:])[:,np.newaxis]
-        #self.nuisance = np.append(self.nuisance, this_t_nuisance, axis=1)
-        #log.debug('[t=%d,n=%d] Online - iGLM - nuisance.shape      %s' %  (self.t, self.n, str(self.nuisance.shape)))
         iGLM_data_out, self.iGLM_prev, Bn = rt_regress_vol(self.n, 
                                                            ema_data_out,
                                                            this_t_nuisance, #[:,np.newaxis],
                                                            self.iGLM_prev,
                                                            do_operation = self.do_iGLM)
-        self.Data_iGLM    = np.append(self.Data_iGLM, iGLM_data_out, axis=1)
-        if self.save_iGLM: self.iGLM_Coeffs  = np.append(self.iGLM_Coeffs, Bn, axis = 2) 
-        log.debug('[t=%d,n=%d] Online - iGLM - Data_iGLM.shape     %s' % (self.t, self.n, str(self.Data_iGLM.shape)))
-        if self.save_iGLM: log.debug('[t=%d,n=%d] Online - iGLM - iGLM_Coeffs.shape   %s' % (self.t, self.n, str(self.iGLM_Coeffs.shape)))
+        if self.save_iGLM: 
+            self.Data_iGLM    = np.append(self.Data_iGLM, iGLM_data_out, axis=1)
+            self.iGLM_Coeffs  = np.append(self.iGLM_Coeffs, Bn, axis = 2) 
+            log.debug('[t=%d,n=%d] Online - iGLM - Data_iGLM.shape     %s' % (self.t, self.n, str(self.Data_iGLM.shape)))
+            log.debug('[t=%d,n=%d] Online - iGLM - iGLM_Coeffs.shape   %s' % (self.t, self.n, str(self.iGLM_Coeffs.shape)))
 
         # Do Kalman Low-Pass Filter (if needed)
         # =====================================
         klm_data_out, self.S_x, self.S_P, self.fPositDerivSpike, self.fNegatDerivSpike = rt_kalman_vol(self.n,
                                                                         self.t,
-                                                                        self.Data_iGLM,
+                                                                        iGLM_data_out,
+                                                                        self.weldord_std,
                                                                         self.S_x,
                                                                         self.S_P,
                                                                         self.fPositDerivSpike,
                                                                         self.fNegatDerivSpike,
                                                                         self.n_cores,
-                                                                        self.nvols_discard,
                                                                         self.pool,
                                                                         do_operation = self.do_kalman)
-        if self.save_kalman: self.Data_kalman      = np.append(self.Data_kalman, klm_data_out, axis = 1)
-        #self.S_x              = np.append(self.S_x, Sx_out, axis=1)
-        #self.S_P              = np.append(self.S_P, SP_out, axis=1)
-        #self.fPositDerivSpike = np.append(self.fPositDerivSpike, fPos_out, axis=1)
-        #self.fNegatDerivSpike = np.append(self.fNegatDerivSpike, fNeg_out, axis=1)
-        if self.save_kalman: log.debug('[t=%d,n=%d] Online - iGLM - Data_kalman.shape     %s' % (self.t, self.n, str(self.Data_kalman.shape)))
+        log.debug('[t=%d,n=%d] Online - Kalman - klm_data_out     %s' % (self.t, self.n, str(klm_data_out.shape)))                                                                
+        if self.save_kalman: 
+            self.Data_kalman      = np.append(self.Data_kalman, klm_data_out, axis = 1)
+            log.debug('[t=%d,n=%d] Online - Kalman - Data_kalman.shape     %s' % (self.t, self.n, str(self.Data_kalman.shape)))
 
         # Do Spatial Smoothing (if needed)
         # ================================
@@ -291,7 +288,7 @@ class Experiment(object):
         if self.do_EMA and self.save_ema:
             out_vars.append(self.Data_EMA)
             out_labels.append('.pp_EMA.nii')
-        if self.do_iGLM:
+        if self.do_iGLM and self.save_iGLM:
             out_vars.append(self.Data_iGLM)
             out_labels.append('.pp_iGLM.nii')
         if self.do_kalman and self.save_kalman:
@@ -349,7 +346,8 @@ def processExperimentOptions (self, options=None):
     parser.add_option("--save_kalman", help="Save 4D Smooth dataset",     dest="save_kalman",   default=False, action="store_true")
     parser.add_option("--save_smooth", help="Save 4D Smooth dataset",     dest="save_smooth",   default=False, action="store_true")
     parser.add_option("--save_iglm  ", help="Save 4D iGLM datasets",     dest="save_iglm",   default=False, action="store_true")
-   
+    parser.add_option("--save_orig"  , help="Save 4D with incoming data", dest="save_orig", default=False, action="store_true")
+
     return parser.parse_args(options)
 
 def main():
