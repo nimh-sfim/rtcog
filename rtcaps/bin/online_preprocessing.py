@@ -27,11 +27,11 @@ from rtcap_lib.fMRI import load_fMRI_file, unmask_fMRI_img
 #log = logging.getLogger(__name__)
 #log.basicConfig(format='[%(levelname)s]: POP %(message)s', level=log.DEBUG)
 log     = logging.getLogger("online_preproc")
-log.setLevel(logging.INFO)
+log.setLevel(logging.DEBUG)
 log_fmt = logging.Formatter('[%(levelname)s - Main]: %(message)s')
 log_ch  = logging.StreamHandler()
 log_ch.setFormatter(log_fmt)
-log_ch.setLevel(logging.INFO)
+log_ch.setLevel(logging.DEBUG)
 log.addHandler(log_ch)
 
 g_help_string = """`
@@ -212,13 +212,13 @@ class Experiment(object):
 
         # If we reach this point, it means we have work to do
         self.Data_FromAFNI = np.append(self.Data_FromAFNI,this_t_data[:, np.newaxis], axis=1)
-        log.debug('[t=%d,n=%d] Online - Input - Data_FromAFNI.shape %s' % (self.t, self.n, str(self.Data_FromAFNI.shape)))
+        #log.debug('[t=%d,n=%d] Online - Input - Data_FromAFNI.shape %s' % (self.t, self.n, str(self.Data_FromAFNI.shape)))
 
         # Do EMA (if needed)
         # ==================
         ema_data_out, self.EMA_filt = rt_EMA_vol(self.n, self.t, self.EMA_th, self.Data_FromAFNI, self.EMA_filt, do_operation = self.do_EMA)
         self.Data_EMA = np.append(self.Data_EMA, ema_data_out, axis=1)
-        log.debug('[t=%d,n=%d] Online - EMA - Data_EMA.shape      %s' % (self.t, self.n, str(self.Data_EMA.shape)))
+        #log.debug('[t=%d,n=%d] Online - EMA - Data_EMA.shape      %s' % (self.t, self.n, str(self.Data_EMA.shape)))
         
         # Do iGLM (if needed)
         # ===================
@@ -227,7 +227,7 @@ class Experiment(object):
         else:
             this_t_nuisance = (self.legendre_pols[self.t,:])[:,np.newaxis]
         self.nuisance = np.append(self.nuisance, this_t_nuisance, axis=1)
-        log.debug('[t=%d,n=%d] Online - iGLM - nuisance.shape      %s' %  (self.t, self.n, str(self.nuisance.shape)))
+        #log.debug('[t=%d,n=%d] Online - iGLM - nuisance.shape      %s' %  (self.t, self.n, str(self.nuisance.shape)))
         iGLM_data_out, self.iGLM_prev, Bn = rt_regress_vol(self.n, 
                                                            self.Data_EMA[:,self.t][:,np.newaxis],
                                                            self.nuisance[:,self.t][:,np.newaxis],
@@ -235,11 +235,18 @@ class Experiment(object):
                                                            do_operation = self.do_iGLM)
         self.Data_iGLM    = np.append(self.Data_iGLM, iGLM_data_out, axis=1)
         self.iGLM_Coeffs  = np.append(self.iGLM_Coeffs, Bn, axis = 2) 
-        log.debug('[t=%d,n=%d] Online - iGLM - Data_iGLM.shape     %s' % (self.t, self.n, str(self.Data_iGLM.shape)))
-        log.debug('[t=%d,n=%d] Online - iGLM - iGLM_Coeffs.shape   %s' % (self.t, self.n, str(self.iGLM_Coeffs.shape)))
+        #log.debug('[t=%d,n=%d] Online - iGLM - Data_iGLM.shape     %s' % (self.t, self.n, str(self.Data_iGLM.shape)))
+        #log.debug('[t=%d,n=%d] Online - iGLM - iGLM_Coeffs.shape   %s' % (self.t, self.n, str(self.iGLM_Coeffs.shape)))
 
         # Do Kalman Low-Pass Filter (if needed)
         # =====================================
+        log.debug('[t=%d,n=%d] ========================   KALMAN   ==================================================')
+        log.debug('[t=%d,n=%d] Online - Kalman_PRE - Data_iGLM           %s' % (self.t, self.n, str(self.Data_iGLM.shape)))
+        log.debug('[t=%d,n=%d] Online - Kalman_PRE - S_x[:,self.t - 1]   %s' % (self.t, self.n, str(self.S_x[:,self.t - 1].shape)))
+        log.debug('[t=%d,n=%d] Online - Kalman_PRE - S_P[:,self.t - 1]   %s' % (self.t, self.n, str(self.S_P[:,self.t - 1].shape)))
+        log.debug('[t=%d,n=%d] Online - Kalman_PRE - fPos[:, self.t - 1] %s' % (self.t, self.n, str(self.fPositDerivSpike[:, self.t - 1].shape)))
+        log.debug('[t=%d,n=%d] Online - Kalman_PRE - fNeg[:, self.t - 1] %s' % (self.t, self.n, str(self.fNegatDerivSpike[:, self.t - 1].shape)))
+        
         klm_data_out, Sx_out, SP_out, fPos_out, fNeg_out = rt_kalman_vol(self.n,
                                                                         self.t,
                                                                         self.Data_iGLM,
@@ -256,7 +263,12 @@ class Experiment(object):
         self.S_P              = np.append(self.S_P, SP_out, axis=1)
         self.fPositDerivSpike = np.append(self.fPositDerivSpike, fPos_out, axis=1)
         self.fNegatDerivSpike = np.append(self.fNegatDerivSpike, fNeg_out, axis=1)
-        log.debug('[t=%d,n=%d] Online - iGLM - Data_kalman.shape     %s' % (self.t, self.n, str(self.Data_kalman.shape)))
+        log.debug('[t=%d,n=%d] Online - Kalman_POST - klm_data_out %s' % (self.t, self.n, str(klm_data_out.shape)))
+        log.debug('[t=%d,n=%d] Online - Kalman_POST - Data_kalman  %s' % (self.t, self.n, str(self.Data_kalman.shape)))
+        log.debug('[t=%d,n=%d] Online - Kalman_POST - S_x          %s' % (self.t, self.n, str(self.S_x.shape)))
+        log.debug('[t=%d,n=%d] Online - Kalman_POST - S_P          %s' % (self.t, self.n, str(self.S_P.shape)))
+        log.debug('[t=%d,n=%d] Online - Kalman_POST - fPos         %s' % (self.t, self.n, str(self.fPositDerivSpike.shape)))
+        log.debug('[t=%d,n=%d] Online - Kalman_POST - fNeg         %s' % (self.t, self.n, str(self.fNegatDerivSpike.shape)))
 
         # Do Spatial Smoothing (if needed)
         # ================================
