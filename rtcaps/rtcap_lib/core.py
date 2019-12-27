@@ -25,3 +25,26 @@ def unpack_extra(extra):
    roi_data = aux[:,7]
    return roi_data
    #return (roi_i,roi_j,roi_k,roi_data)
+
+# Incremental Mean and StDev
+# https://www.embeddedrelated.com/showarticle/785.php
+# def welford(x_array):
+#    k = 0 
+#    M = 0
+#    S = 0
+#    for x in x_array:
+#        k += 1
+#        Mnext = M + (x - M) / k
+#        S = S + (x - M)*(x - Mnext)
+#        M = Mnext
+#    return (M, S/(k-1))
+
+def welford(k,x,M,S):
+   # inputs np.array(Nv,)
+   Mnext = M + (x-M)/k
+   Snext = S + (x-M)*(x-Mnext)
+   if k == 1:
+      std = np.zeros(x.shape[0])
+   else:
+      std = np.sqrt(Snext/(k-1))
+   return Mnext, Snext, std

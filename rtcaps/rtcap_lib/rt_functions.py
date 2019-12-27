@@ -148,13 +148,13 @@ def _apply_EMA_filter(a,emaIn,filtInput):
 def rt_EMA_vol(n,t,th,data,filt_in, do_operation=True):
     if do_operation: # Apply this operation
         if n == 1:   # First step
-            filt_out = data[:,t][:,np.newaxis]
-            data_out = (data[:,t] - data[:,t-1])[:,np.newaxis] 
+            filt_out = data[:,-1][:,np.newaxis]
+            data_out = (data[:,-1] - data[:,-2])[:,np.newaxis] 
         else:        # Any other step
-            data_out, filt_out = _apply_EMA_filter(th,data[:,t][:,np.newaxis],filt_in)
+            data_out, filt_out = _apply_EMA_filter(th,data[:,-1][:,np.newaxis],filt_in)
             #data_out = np.squeeze(data_out)
     else: # Do not apply this operation
-        data_out = data[:,t][:,np.newaxis]
+        data_out = data[:,-1][:,np.newaxis]
         filt_out = None
     return data_out, filt_out
 
@@ -270,14 +270,12 @@ def _kalman_filter_mv(input_dict):
             l.append(i)
     return [out_d_mv, out_fPos_mv, out_fNeg_mv, out_S_x_mv, out_S_P_mv, out_vox_mv]
 
-def rt_kalman_vol(n,t,data,S_x,S_P,fPositDerivSpike,fNegatDerivSpike,num_cores,DONT_USE_VOLS,pool,do_operation=True):
+def rt_kalman_vol(n,t,data,data_std,S_x,S_P,fPositDerivSpike,fNegatDerivSpike,num_cores,pool,do_operation=True):
+    [Nv,_] = data.shape
     if n > 2 and do_operation==True:
         log.debug('[t=%d,n=%d] rt_kalman_vol - Time to do some math' % (t, n))
         log.debug('[t=%d,n=%d] rt_kalman_vol - Num Cores = %d' % (t, n, num_cores))
         log.debug('[t=%d,n=%d] rt_kalman_vol - Input Data Dimensions %s' % (t, n, str(data.shape)))
-        #v_start = np.arange(0,data.shape[0],int(np.floor(data.shape[0]/(num_cores-1)))).tolist()
-        #v_start = np.arange(0,data.shape[0],int(np.floor(data.shape[0]/(num_cores)))).tolist()
-        #v_end   = v_start[1:] + [data.shape[0]]
         v_groups = [int(i) for i in np.linspace(0,data.shape[0],num_cores+1)]
         v_start  = v_groups[:-1]
         v_end = v_groups[1:]
@@ -285,9 +283,8 @@ def rt_kalman_vol(n,t,data,S_x,S_P,fPositDerivSpike,fNegatDerivSpike,num_cores,D
         log.debug('[t=%d,n=%d] rt_kalman_vol - v_end   %s' % (t, n, str(v_end)))
         o_data, o_fPos, o_fNeg = [],[],[]
         o_S_x, o_S_P           = [],[]
-        data_std               = np.std(data[:,DONT_USE_VOLS:t+1], axis=1)
         data_std_sq            = np.power(data_std,2) 
-        inputs = ({'d'   : data[v_s:v_e,t],
+        inputs = ({'d'   : data[v_s:v_e],
                    'std' : data_std[v_s:v_e],
                    'S_x' : S_x[v_s:v_e],
                    'S_P' : S_P[v_s:v_e],
@@ -308,24 +305,18 @@ def rt_kalman_vol(n,t,data,S_x,S_P,fPositDerivSpike,fNegatDerivSpike,num_cores,D
             o_S_x.append(res[j][3])
             o_S_P.append(res[j][4])
         
-        o_data = np.array(list(itertools.chain(*o_data)))[:,np.newaxis]
-        o_fPos = np.array(list(itertools.chain(*o_fPos)))[:,np.newaxis]
-        o_fNeg = np.array(list(itertools.chain(*o_fNeg)))[:,np.newaxis]
-        o_S_x  = np.array(list(itertools.chain(*o_S_x)))[:,np.newaxis]
-        o_S_P  = np.array(list(itertools.chain(*o_S_P)))[:,np.newaxis]
+        o_data = np.reshape(list(itertools.chain(*o_data)), newshape=(Nv,1))
+        o_fPos = np.reshape(list(itertools.chain(*o_fPos)), newshape=(Nv,))
+        o_fNeg = np.reshape(list(itertools.chain(*o_fNeg)), newshape=(Nv,))
+        o_S_x  = np.reshape(list(itertools.chain(*o_S_x)), newshape=(Nv,))
+        o_S_P  = np.reshape(list(itertools.chain(*o_S_P)), newshape=(Nv,))
         
-        #log.debug('[t=%d,n=%d] rt_kalman_vol - o_data.shape = %s' % (t, n, str(o_data.shape)))
-        #o_data   = [item for sublist in o_data   for item in sublist]
-        #o_fPos   = [item for sublist in o_fPos for item in sublist]
-        #o_fNeg   = [item for sublist in o_fNeg for item in sublist]
-        #o_S_x    = [item for sublist in o_S_x for item in sublist]
-        #o_S_P    = [item for sublist in o_S_P for item in sublist]
         
         out     = [ o_data, o_S_x, o_S_P, o_fPos, o_fNeg ]
     else:
         #log.debug('[t=%d,n=%d] rt_kalman_vol - Skip this pass. Return empty containsers.' % (t, n))
-        [Nv,Nt] = data.shape
-        out     = [np.zeros((Nv,1)) for i in np.arange(5)]
+        #out = [np.zeros((Nv,1)), [0]*Nv, [0]*Nv,[0]*Nv,[0]*Nv]
+        out = [np.zeros((Nv,1)), np.zeros(Nv),np.zeros(Nv),np.zeros(Nv),np.zeros(Nv)]
     return out
 
 # Smoothing Functions
