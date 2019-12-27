@@ -283,7 +283,6 @@ def rt_kalman_vol(n,t,data,data_std,S_x,S_P,fPositDerivSpike,fNegatDerivSpike,nu
         log.debug('[t=%d,n=%d] rt_kalman_vol - v_end   %s' % (t, n, str(v_end)))
         o_data, o_fPos, o_fNeg = [],[],[]
         o_S_x, o_S_P           = [],[]
-        #data_std               = np.std(data[:,DONT_USE_VOLS:t+1], axis=1)
         data_std_sq            = np.power(data_std,2) 
         inputs = ({'d'   : data[v_s:v_e],
                    'std' : data_std[v_s:v_e],
@@ -306,24 +305,18 @@ def rt_kalman_vol(n,t,data,data_std,S_x,S_P,fPositDerivSpike,fNegatDerivSpike,nu
             o_S_x.append(res[j][3])
             o_S_P.append(res[j][4])
         
-        o_data = np.reshape(list(itertools.chain(*o_data)), newshape=(Nv,1))#[:,np.newaxis]
-        o_fPos = list(itertools.chain(*o_fPos))#[:,np.newaxis]
-        o_fNeg = list(itertools.chain(*o_fNeg))#[:,np.newaxis]
-        o_S_x  = list(itertools.chain(*o_S_x))#[:,np.newaxis]
-        o_S_P  = list(itertools.chain(*o_S_P))#[:,np.newaxis]
+        o_data = np.reshape(list(itertools.chain(*o_data)), newshape=(Nv,1))
+        o_fPos = np.reshape(list(itertools.chain(*o_fPos)), newshape=(Nv,))
+        o_fNeg = np.reshape(list(itertools.chain(*o_fNeg)), newshape=(Nv,))
+        o_S_x  = np.reshape(list(itertools.chain(*o_S_x)), newshape=(Nv,))
+        o_S_P  = np.reshape(list(itertools.chain(*o_S_P)), newshape=(Nv,))
         
-        #log.debug('[t=%d,n=%d] rt_kalman_vol - o_data.shape = %s' % (t, n, str(o_data.shape)))
-        #o_data   = [item for sublist in o_data   for item in sublist]
-        #o_fPos   = [item for sublist in o_fPos for item in sublist]
-        #o_fNeg   = [item for sublist in o_fNeg for item in sublist]
-        #o_S_x    = [item for sublist in o_S_x for item in sublist]
-        #o_S_P    = [item for sublist in o_S_P for item in sublist]
         
         out     = [ o_data, o_S_x, o_S_P, o_fPos, o_fNeg ]
     else:
         #log.debug('[t=%d,n=%d] rt_kalman_vol - Skip this pass. Return empty containsers.' % (t, n))
-        out = [np.zeros((Nv,1)), [0]*Nv, [0]*Nv,[0]*Nv,[0]*Nv]
-        #out     = [np.zeros((Nv,1)) for i in np.arange(5)]
+        #out = [np.zeros((Nv,1)), [0]*Nv, [0]*Nv,[0]*Nv,[0]*Nv]
+        out = [np.zeros((Nv,1)), np.zeros(Nv),np.zeros(Nv),np.zeros(Nv),np.zeros(Nv)]
     return out
 
 # Smoothing Functions

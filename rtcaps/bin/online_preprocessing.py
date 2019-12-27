@@ -172,10 +172,10 @@ class Experiment(object):
             if self.save_smooth: self.Data_smooth   = np.zeros((self.Nv,1))
             self.Data_norm     = np.zeros((self.Nv,1))
             if self.save_iGLM:   self.iGLM_Coeffs   = np.zeros((self.Nv,self.iGLM_num_regressors,1))
-            self.S_x           = [0]*self.Nv 
-            self.S_P           = [0]*self.Nv 
-            self.fPositDerivSpike = [0]*self.Nv 
-            self.fNegatDerivSpike = [0]*self.Nv
+            self.S_x           = np.zeros(self.Nv) #[0]*self.Nv 
+            self.S_P           = np.zeros(self.Nv) #[0]*self.Nv 
+            self.fPositDerivSpike = np.zeros(self.Nv) #[0]*self.Nv 
+            self.fNegatDerivSpike = np.zeros(self.Nv) #[0]*self.Nv
             if self.save_orig:   log.debug('[t=%d,n=%d] Init - Data_FromAFNI.shape %s' % (self.t, self.n, str(self.Data_FromAFNI.shape)))
             if self.save_ema:    log.debug('[t=%d,n=%d] Init - Data_EMA.shape      %s' % (self.t, self.n, str(self.Data_EMA.shape)))
             if self.save_iGLM:   log.debug('[t=%d,n=%d] Init - Data_iGLM.shape     %s' % (self.t, self.n, str(self.Data_iGLM.shape)))
@@ -245,6 +245,14 @@ class Experiment(object):
 
         # Do Kalman Low-Pass Filter (if needed)
         # =====================================
+        log.debug('[t=%d,n=%d] ========================   KALMAN   ==================================================')
+        #log.debug('[t=%d,n=%d] Online - Kalman_PRE - Data_iGLM           %s' % (self.t, self.n, str(self.Data_iGLM.shape)))
+        log.debug('[t=%d,n=%d] Online - Kalman_PRE - S_x[:,self.t - 1]   %s' % (self.t, self.n, str(self.S_x.shape)))
+        log.debug('[t=%d,n=%d] Online - Kalman_PRE - S_P[:,self.t - 1]   %s' % (self.t, self.n, str(self.S_P.shape)))
+        log.debug('[t=%d,n=%d] Online - Kalman_PRE - fPos[:, self.t - 1] %s' % (self.t, self.n, str(self.fPositDerivSpike.shape)))
+        log.debug('[t=%d,n=%d] Online - Kalman_PRE - fNeg[:, self.t - 1] %s' % (self.t, self.n, str(self.fNegatDerivSpike.shape)))
+        
+
         klm_data_out, self.S_x, self.S_P, self.fPositDerivSpike, self.fNegatDerivSpike = rt_kalman_vol(self.n,
                                                                         self.t,
                                                                         iGLM_data_out,
@@ -256,7 +264,17 @@ class Experiment(object):
                                                                         self.n_cores,
                                                                         self.pool,
                                                                         do_operation = self.do_kalman)
-        log.debug('[t=%d,n=%d] Online - Kalman - klm_data_out     %s' % (self.t, self.n, str(klm_data_out.shape)))                                                                
+        
+        
+        log.debug('[t=%d,n=%d] Online - Kalman_POST - klm_data_out %s' % (self.t, self.n, str(klm_data_out.shape)))
+        #log.debug('[t=%d,n=%d] Online - Kalman_POST - Data_kalman  %s' % (self.t, self.n, str(self.Data_kalman.shape)))
+        log.debug('[t=%d,n=%d] Online - Kalman_POST - S_x          %s' % (self.t, self.n, str(self.S_x.shape)))
+        log.debug('[t=%d,n=%d] Online - Kalman_POST - S_P          %s' % (self.t, self.n, str(self.S_P.shape)))
+        log.debug('[t=%d,n=%d] Online - Kalman_POST - fPos         %s' % (self.t, self.n, str(self.fPositDerivSpike.shape)))
+        log.debug('[t=%d,n=%d] Online - Kalman_POST - fNeg         %s' % (self.t, self.n, str(self.fNegatDerivSpike.shape)))
+
+        
+        ###log.debug('[t=%d,n=%d] Online - Kalman - klm_data_out     %s' % (self.t, self.n, str(klm_data_out.shape)))                                                                
         if self.save_kalman: 
             self.Data_kalman      = np.append(self.Data_kalman, klm_data_out, axis = 1)
             log.debug('[t=%d,n=%d] Online - Kalman - Data_kalman.shape     %s' % (self.t, self.n, str(self.Data_kalman.shape)))
