@@ -23,15 +23,13 @@ from rtcap_lib.rt_functions import gen_polort_regressors
 from rtcap_lib.fMRI import load_fMRI_file, unmask_fMRI_img
 
 # ----------------------------------------------------------------------
-# globals
-#log = logging.getLogger(__name__)
-#log.basicConfig(format='[%(levelname)s]: POP %(message)s', level=log.DEBUG)
+# Default Login Options:
 log     = logging.getLogger("online_preproc")
-log.setLevel(logging.INFO)
 log_fmt = logging.Formatter('[%(levelname)s - Main]: %(message)s')
 log_ch  = logging.StreamHandler()
 log_ch.setFormatter(log_fmt)
-log_ch.setLevel(logging.INFO)
+#log_ch.setLevel(logging.INFO)
+log.setLevel(logging.INFO)
 log.addHandler(log_ch)
 
 g_help_string = """`
@@ -59,6 +57,14 @@ g_version = "online_preprocessing.py version 1.0, December 12, 2019"
 class Experiment(object):
     
     def __init__(self, options):
+
+        self.silent        = options.silent
+        self.debug         = options.debug
+        if self.debug:
+            log.setLevel(logging.DEBUG)
+        if self.silent:
+            log.setLevel(logging.CRITICAL)
+
         self.n             = 0               # Counter for number of volumes pre-processed (Start = 1)
         self.t             = -1              # Counter for number of received volumes (Start = 0)
         self.Nv            = None            # Number of voxels in data mask
@@ -70,6 +76,15 @@ class Experiment(object):
         self.save_kalman   = options.save_kalman
         self.save_iGLM     = options.save_iglm
         self.save_orig     = options.save_orig
+        self.save_all      = options.save_all
+        
+        if self.save_all:
+            self.save_orig   = True
+            self.save_ema    = True
+            self.save_iGLM   = True
+            self.save_kalman = True
+            self.save_smooth = True
+
         self.welford_S     = None
         self.welford_M     = None
         self.welford_std   = None
@@ -207,21 +222,21 @@ class Experiment(object):
 
         # Compute running mean and running std with welford
         self.welford_M, self.welford_S, self.weldord_std = welford(self.n, this_t_data, self.welford_M, self.welford_S)
-        log.debug('[t=%d,n=%d] Online - Input - welford_M.shape %s' % (self.t, self.n, str(self.welford_M.shape)))
-        log.debug('[t=%d,n=%d] Online - Input - welford_S.shape %s' % (self.t, self.n, str(self.welford_S.shape)))
-        log.debug('[t=%d,n=%d] Online - Input - welford_std.shape %s' % (self.t, self.n, str(self.welford_std.shape)))
+        #log.debug('[t=%d,n=%d] Online - Input - welford_M.shape %s' % (self.t, self.n, str(self.welford_M.shape)))
+        #log.debug('[t=%d,n=%d] Online - Input - welford_S.shape %s' % (self.t, self.n, str(self.welford_S.shape)))
+        #log.debug('[t=%d,n=%d] Online - Input - welford_std.shape %s' % (self.t, self.n, str(self.welford_std.shape)))
 
         # If we reach this point, it means we have work to do
         if self.save_orig:
             self.Data_FromAFNI = np.append(self.Data_FromAFNI,this_t_data[:, np.newaxis], axis=1)
         else:
             self.Data_FromAFNI = np.hstack((self.Data_FromAFNI[:,-1][:,np.newaxis],this_t_data[:, np.newaxis]))  # Only keep this one and previous
-        log.debug('[t=%d,n=%d] Online - Input - Data_FromAFNI.shape %s' % (self.t, self.n, str(self.Data_FromAFNI.shape)))
+            log.debug('[t=%d,n=%d] Online - Input - Data_FromAFNI.shape %s' % (self.t, self.n, str(self.Data_FromAFNI.shape)))
 
         # Do EMA (if needed)
         # ==================
         ema_data_out, self.EMA_filt = rt_EMA_vol(self.n, self.t, self.EMA_th, self.Data_FromAFNI, self.EMA_filt, do_operation = self.do_EMA)
-        log.debug('[t=%d,n=%d] Online - EMA - ema_data_out.shape      %s' % (self.t, self.n, str(ema_data_out.shape)))
+        #log.debug('[t=%d,n=%d] Online - EMA - ema_data_out.shape      %s' % (self.t, self.n, str(ema_data_out.shape)))
         if self.save_ema: 
             self.Data_EMA = np.append(self.Data_EMA, ema_data_out, axis=1)
             log.debug('[t=%d,n=%d] Online - EMA - Data_EMA.shape      %s' % (self.t, self.n, str(self.Data_EMA.shape)))
@@ -234,7 +249,7 @@ class Experiment(object):
             this_t_nuisance = (self.legendre_pols[self.t,:])[:,np.newaxis]
         iGLM_data_out, self.iGLM_prev, Bn = rt_regress_vol(self.n, 
                                                            ema_data_out,
-                                                           this_t_nuisance, #[:,np.newaxis],
+                                                           this_t_nuisance,
                                                            self.iGLM_prev,
                                                            do_operation = self.do_iGLM)
         if self.save_iGLM: 
@@ -245,13 +260,12 @@ class Experiment(object):
 
         # Do Kalman Low-Pass Filter (if needed)
         # =====================================
-        log.debug('[t=%d,n=%d] ========================   KALMAN   ==================================================')
+        #log.debug('[t=%d,n=%d] ========================   KALMAN   ==================================================')
         #log.debug('[t=%d,n=%d] Online - Kalman_PRE - Data_iGLM           %s' % (self.t, self.n, str(self.Data_iGLM.shape)))
-        log.debug('[t=%d,n=%d] Online - Kalman_PRE - S_x[:,self.t - 1]   %s' % (self.t, self.n, str(self.S_x.shape)))
-        log.debug('[t=%d,n=%d] Online - Kalman_PRE - S_P[:,self.t - 1]   %s' % (self.t, self.n, str(self.S_P.shape)))
-        log.debug('[t=%d,n=%d] Online - Kalman_PRE - fPos[:, self.t - 1] %s' % (self.t, self.n, str(self.fPositDerivSpike.shape)))
-        log.debug('[t=%d,n=%d] Online - Kalman_PRE - fNeg[:, self.t - 1] %s' % (self.t, self.n, str(self.fNegatDerivSpike.shape)))
-        
+        #log.debug('[t=%d,n=%d] Online - Kalman_PRE - S_x[:,self.t - 1]   %s' % (self.t, self.n, str(self.S_x.shape)))
+        #log.debug('[t=%d,n=%d] Online - Kalman_PRE - S_P[:,self.t - 1]   %s' % (self.t, self.n, str(self.S_P.shape)))
+        #log.debug('[t=%d,n=%d] Online - Kalman_PRE - fPos[:, self.t - 1] %s' % (self.t, self.n, str(self.fPositDerivSpike.shape)))
+        #log.debug('[t=%d,n=%d] Online - Kalman_PRE - fNeg[:, self.t - 1] %s' % (self.t, self.n, str(self.fNegatDerivSpike.shape)))
 
         klm_data_out, self.S_x, self.S_P, self.fPositDerivSpike, self.fNegatDerivSpike = rt_kalman_vol(self.n,
                                                                         self.t,
@@ -266,15 +280,12 @@ class Experiment(object):
                                                                         do_operation = self.do_kalman)
         
         
-        log.debug('[t=%d,n=%d] Online - Kalman_POST - klm_data_out %s' % (self.t, self.n, str(klm_data_out.shape)))
-        #log.debug('[t=%d,n=%d] Online - Kalman_POST - Data_kalman  %s' % (self.t, self.n, str(self.Data_kalman.shape)))
-        log.debug('[t=%d,n=%d] Online - Kalman_POST - S_x          %s' % (self.t, self.n, str(self.S_x.shape)))
-        log.debug('[t=%d,n=%d] Online - Kalman_POST - S_P          %s' % (self.t, self.n, str(self.S_P.shape)))
-        log.debug('[t=%d,n=%d] Online - Kalman_POST - fPos         %s' % (self.t, self.n, str(self.fPositDerivSpike.shape)))
-        log.debug('[t=%d,n=%d] Online - Kalman_POST - fNeg         %s' % (self.t, self.n, str(self.fNegatDerivSpike.shape)))
-
+        #log.debug('[t=%d,n=%d] Online - Kalman_POST - klm_data_out %s' % (self.t, self.n, str(klm_data_out.shape)))
+        #log.debug('[t=%d,n=%d] Online - Kalman_POST - S_x          %s' % (self.t, self.n, str(self.S_x.shape)))
+        #log.debug('[t=%d,n=%d] Online - Kalman_POST - S_P          %s' % (self.t, self.n, str(self.S_P.shape)))
+        #log.debug('[t=%d,n=%d] Online - Kalman_POST - fPos         %s' % (self.t, self.n, str(self.fPositDerivSpike.shape)))
+        #log.debug('[t=%d,n=%d] Online - Kalman_POST - fNeg         %s' % (self.t, self.n, str(self.fNegatDerivSpike.shape)))
         
-        ###log.debug('[t=%d,n=%d] Online - Kalman - klm_data_out     %s' % (self.t, self.n, str(klm_data_out.shape)))                                                                
         if self.save_kalman: 
             self.Data_kalman      = np.append(self.Data_kalman, klm_data_out, axis = 1)
             log.debug('[t=%d,n=%d] Online - Kalman - Data_kalman.shape     %s' % (self.t, self.n, str(self.Data_kalman.shape)))
@@ -285,13 +296,13 @@ class Experiment(object):
         if self.save_smooth:
             self.Data_smooth = np.append(self.Data_smooth, smooth_out, axis=1)
             log.debug('[t=%d,n=%d] Online - Smooth - Data_smooth.shape   %s' % (self.t, self.n, str(self.Data_smooth.shape)))
-        log.debug('[t=%d,n=%d] Online - EMA - smooth_out.shape      %s' % (self.t, self.n, str(smooth_out.shape)))
+            log.debug('[t=%d,n=%d] Online - EMA - smooth_out.shape      %s' % (self.t, self.n, str(smooth_out.shape)))
 
         # Do Spatial Normalization (if needed)
         # ====================================
         norm_out = rt_snorm_vol(np.squeeze(smooth_out), do_operation=self.do_snorm)
         self.Data_norm = np.append(self.Data_norm, norm_out, axis=1)
-        log.debug('[t=%d,n=%d] Online - Smooth - Data_norm.shape   %s' % (self.t, self.n, str(self.Data_norm.shape)))
+        #log.debug('[t=%d,n=%d] Online - Smooth - Data_norm.shape   %s' % (self.t, self.n, str(self.Data_norm.shape)))
         # Need to return something, otherwise the program thinks the experiment ended
         return 1
 
@@ -337,10 +348,9 @@ def processExperimentOptions (self, options=None):
     usage = "%prog [options]"
     description = "AFNI real-time demo receiver with demo visualization."
     parser = OptionParser(usage=usage, description=description)
-    parser.add_option("-d", "--debug", action="store_true",
-             help="enable debugging output")
-    parser.add_option("-v", "--verbose", action="store_true",
-             help="enable verbose output")
+    parser.add_option("-d", "--debug",    action="store_true", dest="debug",  help="enable debugging output",          default=False)
+    parser.add_option("-s", "--silent",   action="store_true", dest="silent", help="make program do minimal printing", default=False)
+    
     parser.add_option("-p", "--tcp_port", help="TCP port for incoming connections")
     parser.add_option("-S", "--show_data", action="store_true",
             help="display received data in terminal if this option is specified")
@@ -365,6 +375,7 @@ def processExperimentOptions (self, options=None):
     parser.add_option("--save_smooth", help="Save 4D Smooth dataset",     dest="save_smooth",   default=False, action="store_true")
     parser.add_option("--save_iglm  ", help="Save 4D iGLM datasets",     dest="save_iglm",   default=False, action="store_true")
     parser.add_option("--save_orig"  , help="Save 4D with incoming data", dest="save_orig", default=False, action="store_true")
+    parser.add_option("--save_all"  , help="Save 4D with incoming data", dest="save_all", default=False, action="store_true")
 
     return parser.parse_args(options)
 
@@ -397,12 +408,6 @@ def main():
     if receiver.RTI.open_incoming_socket():
         return 1
 
-    # # repeatedly: process all incoming data for a single run
-    # while 1:
-    #     rv = receiver.process_one_run()
-    #     if rv: time.sleep(1)              # on error, ponder life briefly
-    #     receiver.close_data_ports()
-    # return -1   
     #Vinai's alternative
     log.info('6) Here we go...')
     rv = receiver.process_one_run()

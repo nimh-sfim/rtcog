@@ -6,6 +6,7 @@ import itertools
 from numpy.linalg import cholesky, inv
 import logging
 from sklearn.preprocessing import StandardScaler
+
 log     = logging.getLogger("rt_functions")
 log.setLevel(logging.INFO)
 log_fmt = logging.Formatter('[%(levelname)s - rt_functions]: %(message)s')
@@ -13,7 +14,7 @@ log_ch  = logging.StreamHandler()
 log_ch.setFormatter(log_fmt)
 log_ch.setLevel(logging.INFO)
 log.addHandler(log_ch)
-#log.basicConfig(format='[%(levelname)s]: %(message)s', level=log.DEBUG)
+
 def init_iGLM():
     return 1, {}
 
