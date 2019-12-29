@@ -3,6 +3,7 @@
 # python3 status: compatible
 
 import sys, os
+import itertools
 import signal, time
 from   optparse import OptionParser
 import logging
@@ -109,7 +110,7 @@ class Experiment(object):
         self.iGLM_motion   = options.iGLM_motion
         self.iGLM_polort   = options.iGLM_polort
         self.nuisance      = None
-        
+        self.motion_estimates = []
         if self.iGLM_motion:
             self.iGLM_num_regressors = self.iGLM_polort + 6
             self.nuisance_labels = ['Polort'+str(i) for i in np.arange(self.iGLM_polort)] + ['roll','pitch','yaw','dS','dL','dP']
@@ -157,6 +158,10 @@ class Experiment(object):
             self.pool = None
 
     def compute_TR_data(self, motion, extra):
+        # Keep a record of motion estimates
+        #print(motion)
+        #print(type(motion))
+        self.motion_estimates.append(motion)
         # Update t (it always does)
         self.t = self.t + 1
 
@@ -307,8 +312,17 @@ class Experiment(object):
         return 1
 
     def final_steps(self):
+        # Write out motion
+        self.motion_estimates = [item for sublist in self.motion_estimates for item in sublist]
+        log.info('self.motion_estimates length is %d' % len(self.motion_estimates))
+        self.motion_estimates = np.reshape(self.motion_estimates,newshape=(int(len(self.motion_estimates)/6),6))
+        np.savetxt(osp.join(self.out_dir,self.out_prefix+'Motion.1D'), 
+                   self.motion_estimates,
+                   delimiter="\t")
+        log.info('Motion estimates saved to disk: [%s]' % osp.join(self.out_dir,self.out_prefix+'.Motion.1D'))
+
         if self.mask_img is None:
-            log.warning(' final_steps = No outputs generated due to lack of mask.')
+            log.warning(' final_steps = No additional outputs generated due to lack of mask.')
             return 1
         
         log.debug(' final_steps - About to write outputs to disk.')
@@ -355,27 +369,27 @@ def processExperimentOptions (self, options=None):
     parser.add_option("-S", "--show_data", action="store_true",
             help="display received data in terminal if this option is specified")
     
-    parser.add_option("--no_ema",    help="De-activate EMA Filtering Step",              dest="do_EMA",      default=True, action="store_false")
-    parser.add_option("--no_iglm",   help="De-activate iGLM Denoising Step",             dest="do_iGLM",     default=True, action="store_false")
-    parser.add_option("--no_kalman", help="De-activate Kalman Low-Pass Filter Step",     dest="do_kalman",   default=True, action="store_false")
-    parser.add_option("--no_smooth", help="De-activate Spatial Smoothing Step",          dest="do_smooth",   default=True, action="store_false")
-    parser.add_option("--no_snorm",  help="De-activate per-volume spartial Z-Scoring",   dest="do_snorm",   default=True, action="store_false")
-    parser.add_option("--fwhm",      help="FWHM for Spatial Smoothing in [mm]",          dest="FWHM",        default=4.0, action="store", type="float")
-    parser.add_option("--polort",     help="Order of Legengre Polynomials for iGLM",     dest="iGLM_polort", default=2, action="store", type="int")
-    parser.add_option("--no_iglm_motion", help="Do not use 6 motion parameters in iGLM", dest="iGLM_motion", default=True, action="store_false")
-    parser.add_option("--discard",    help="Number of volumes to discard (they won't enter the iGLM step)",  default=10, dest="discard", action="store", type="int")
-    parser.add_option("--nvols",      help="Number of expected volumes (for legendre pols only)", dest="nvols",default=500, action="store", type="int")
-    parser.add_option("--tr",         help="Repetition time [sec]",                      dest="tr",default=1.0, action="store", type="float")
-    parser.add_option("--ncores",     help="Number of cores to use in the parallel processing part of the code", dest="n_cores", action="store",type="int", default=10)
-    parser.add_option("--mask",       help="Mask necessary for smoothing operation",     dest="mask_path", action="store", type="str", default=None)
-    parser.add_option("--out_dir",    help="Output directory",                           dest="out_dir",    action="store", type="str", default="./")
-    parser.add_option("--out_prefix", help="Prefix for outputs",                         dest="out_prefix", action="store", type="str", default="online_preproc")
-    parser.add_option("--save_ema",    help="Save 4D EMA dataset",     dest="save_ema",   default=False, action="store_true")
-    parser.add_option("--save_kalman", help="Save 4D Smooth dataset",     dest="save_kalman",   default=False, action="store_true")
-    parser.add_option("--save_smooth", help="Save 4D Smooth dataset",     dest="save_smooth",   default=False, action="store_true")
-    parser.add_option("--save_iglm  ", help="Save 4D iGLM datasets",     dest="save_iglm",   default=False, action="store_true")
-    parser.add_option("--save_orig"  , help="Save 4D with incoming data", dest="save_orig", default=False, action="store_true")
-    parser.add_option("--save_all"  , help="Save 4D with incoming data", dest="save_all", default=False, action="store_true")
+    parser.add_option("--no_ema",    help="De-activate EMA Filtering Step [default: %default]",              dest="do_EMA",      default=True, action="store_false")
+    parser.add_option("--no_iglm",   help="De-activate iGLM Denoising Step  [default: %default]",             dest="do_iGLM",     default=True, action="store_false")
+    parser.add_option("--no_kalman", help="De-activate Kalman Low-Pass Filter Step  [default: %default]",     dest="do_kalman",   default=True, action="store_false")
+    parser.add_option("--no_smooth", help="De-activate Spatial Smoothing Step  [default: %default]",          dest="do_smooth",   default=True, action="store_false")
+    parser.add_option("--no_snorm",  help="De-activate per-volume spartial Z-Scoring  [default: %default]",   dest="do_snorm",   default=True, action="store_false")
+    parser.add_option("--fwhm",      help="FWHM for Spatial Smoothing in [mm]  [default: %default]",          dest="FWHM",        default=4.0, action="store", type="float")
+    parser.add_option("--polort",     help="Order of Legengre Polynomials for iGLM  [default: %default]",     dest="iGLM_polort", default=2, action="store", type="int")
+    parser.add_option("--no_iglm_motion", help="Do not use 6 motion parameters in iGLM  [default: %default]", dest="iGLM_motion", default=True, action="store_false")
+    parser.add_option("--discard",    help="Number of volumes to discard (they won't enter the iGLM step)  [default: %default]",  default=10, dest="discard", action="store", type="int")
+    parser.add_option("--nvols",      help="Number of expected volumes (for legendre pols only)  [default: %default]", dest="nvols",default=500, action="store", type="int")
+    parser.add_option("--tr",         help="Repetition time [sec]  [default: %default]",                      dest="tr",default=1.0, action="store", type="float")
+    parser.add_option("--ncores",     help="Number of cores to use in the parallel processing part of the code  [default: %default]", dest="n_cores", action="store",type="int", default=10)
+    parser.add_option("--mask",       help="Mask necessary for smoothing operation  [default: %default]",     dest="mask_path", action="store", type="str", default=None)
+    parser.add_option("--out_dir",    help="Output directory  [default: %default]",                           dest="out_dir",    action="store", type="str", default="./")
+    parser.add_option("--out_prefix", help="Prefix for outputs  [default: %default]",                         dest="out_prefix", action="store", type="str", default="online_preproc")
+    parser.add_option("--save_ema",    help="Save 4D EMA dataset  [default: %default]",     dest="save_ema",   default=False, action="store_true")
+    parser.add_option("--save_kalman", help="Save 4D Smooth dataset  [default: %default]",     dest="save_kalman",   default=False, action="store_true")
+    parser.add_option("--save_smooth", help="Save 4D Smooth dataset  [default: %default]",     dest="save_smooth",   default=False, action="store_true")
+    parser.add_option("--save_iglm  ", help="Save 4D iGLM datasets  [default: %default]",     dest="save_iglm",   default=False, action="store_true")
+    parser.add_option("--save_orig"  , help="Save 4D with incoming data  [default: %default]", dest="save_orig", default=False, action="store_true")
+    parser.add_option("--save_all"  , help="Save 4D with incoming data  [default: %default]", dest="save_all", default=False, action="store_true")
 
     return parser.parse_args(options)
 
