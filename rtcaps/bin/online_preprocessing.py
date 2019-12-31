@@ -5,7 +5,6 @@
 import sys, os
 import itertools
 import signal, time
-#from   optparse import OptionParser
 import argparse
 import logging
 mpl_logger = logging.getLogger('matplotlib')
@@ -18,11 +17,12 @@ import os.path as osp
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from afni_lib.receiver import ReceiverInterface
-#from afni_lib.receiver import ReceiverInterface
 from rtcap_lib.core import unpack_extra, welford
 from rtcap_lib.rt_functions import rt_EMA_vol, rt_regress_vol, rt_kalman_vol, rt_smooth_vol, rt_snorm_vol
 from rtcap_lib.rt_functions import gen_polort_regressors
 from rtcap_lib.fMRI import load_fMRI_file, unmask_fMRI_img
+
+from psychopy.visual import Window, TextStim
 
 # ----------------------------------------------------------------------
 # Default Login Options:
@@ -30,26 +30,8 @@ log     = logging.getLogger("online_preproc")
 log_fmt = logging.Formatter('[%(levelname)s - Main]: %(message)s')
 log_ch  = logging.StreamHandler()
 log_ch.setFormatter(log_fmt)
-#log_ch.setLevel(logging.INFO)
 log.setLevel(logging.INFO)
 log.addHandler(log_ch)
-
-g_help_string = """`
-=============================================================================
-online_preprocessing.py - program for online preprocessing data provided via 
-TCP connection. Included pre-processing steps: 1) EMA Filter, Incremental GLM,
-Kalman Low-Pass Filter, Spatial Smoothing.
-
-------------------------------------------
-   Options:
-   
-=============================================================================
-"""
-g_history = """
-   0.1  Dec 12, 2019 : added support for pre-processing online
-"""
-
-g_version = "online_preprocessing.py version 1.0, December 12, 2019"
 
 # ----------------------------------------------------------------------
 # In this module, handing signals and options.  Try to keep other
@@ -66,6 +48,12 @@ class Experiment(object):
             log.setLevel(logging.DEBUG)
         if self.silent:
             log.setLevel(logging.CRITICAL)
+
+        self.exp_type      = options.exp_type
+        self.no_proc_chair = options.no_proc_chair
+        self.screen_size   = [512, 288]
+        self.fullscreen    = options.fullscreen
+        self.screen        = options.screen
 
         self.n             = 0               # Counter for number of volumes pre-processed (Start = 1)
         self.t             = -1              # Counter for number of received volumes (Start = 0)
@@ -158,6 +146,26 @@ class Experiment(object):
         else:
             self.pool = None
 
+    def setup_preproc_withscreen_run(self):
+        #create a window
+        if self.fullscreen:
+            self.ewin = Window(fullscr = self.fullscreen, allowGUI=False, units='norm')
+        else:
+            self.ewin = Window(self.screen_size, allowGUI=False, units='norm')
+        
+        #create some stimuli
+        text_inst_line01 = TextStim(win=self.ewin, text='Please fixate on x-hair,',pos=(0.0,0.4))
+        text_inst_line02 = TextStim(win=self.ewin, text='remain awake,',           pos=(0.0,0.28))
+        text_inst_line03 = TextStim(win=self.ewin, text='and let your mind wander.',pos=(0.0,0.16))
+        text_inst_chair  = TextStim(win=self.ewin, text='X', pos=(0,0))
+
+        #plot on the screen
+        text_inst_line01.draw()
+        text_inst_line02.draw()
+        text_inst_line03.draw()
+        text_inst_chair.draw()
+        self.ewin.flip()
+    
     def compute_TR_data(self, motion, extra):
         # Keep a record of motion estimates
         #print(motion)
@@ -352,12 +360,14 @@ class Experiment(object):
         
 
         return 1
+
 def processExperimentOptions (self, options=None):
     parser = argparse.ArgumentParser(description="rtCAPs experimental software. Based on NIH-neurofeedback software")
     parser_gen = parser.add_argument_group("General Options")
     parser_gen.add_argument("-d", "--debug", action="store_true", dest="debug",  help="Enable debugging output [%(default)s]", default=False)
     parser_gen.add_argument("-s", "--silent",   action="store_true", dest="silent", help="Minimal text messages [%(default)s]", default=False)
     parser_gen.add_argument("-p", "--tcp_port", help="TCP port for incoming connections [%(default)s]", action="store", default=53214, type=int, dest='tcp_port')
+    parser_gen.add_argument("-S", "--show_data", action="store_true",help="display received data in terminal if this option is specified")
     parser_gen.add_argument("--tr",         help="Repetition time [sec]  [default: %(default)s]",                      dest="tr",default=1.0, action="store", type=float)
     parser_gen.add_argument("--ncores",     help="Number of cores to use in the parallel processing part of the code  [default: %(default)s]", dest="n_cores", action="store",type=int, default=10)
     parser_gen.add_argument("--mask",       help="Mask necessary for smoothing operation  [default: %(default)s]",     dest="mask_path", action="store", type=str, default=None, required=True)
@@ -384,42 +394,51 @@ def processExperimentOptions (self, options=None):
     parser_save.add_argument("--save_orig"  , help="Save 4D with incoming data  [default: %(default)s]", dest="save_orig", default=False, action="store_true")
     parser_save.add_argument("--save_all"  ,  help="Save 4D with incoming data  [default: %(default)s]", dest="save_all", default=False, action="store_true")
     parser_exp = parser.add_argument_group('Experiment/GUI Options')
-    parser_exp.add_argument("-e","--exp_type", help="Type of Experimental Run [%(default)s]",      type=str, required=True,  choices=['proc','esam'], default='proc')
+    parser_exp.add_argument("-e","--exp_type", help="Type of Experimental Run [%(default)s]",      type=str, required=True,  choices=['preproc','esam'], default='preproc')
     parser_exp.add_argument("--no_proc_chair", help="Hide crosshair during preprocessing run [%(default)s]", default=False,  action="store_true", dest='no_proc_chair')
+    parser_exp.add_argument("--fscreen", help="Use full screen for Experiment [%(default)s]", default=False, action="store_true", dest="fullscreen")
+    parser_exp.add_argument("--screen", help="Monitor to use [%(default)s]", default=1, action="store", dest="screen",type=int)
     
     return parser.parse_args(options)
-
 
 def main():
     # 1) Read Input Parameters: port, fullscreen, etc..
     log.info('1) Reading input parameters...')
-    opts, args = processExperimentOptions(sys.argv)
+    opts = processExperimentOptions(sys.argv)
     log.debug('User Options: %s' % str(opts))    
+
     # 2) Create Experiment Object
     log.info('2) Instantiating Experiment Object...')
     experiment = Experiment(opts)
 
-    # 2) Start Communications
+    # 3) Initilize GUI (if needed):
+    if (experiment.exp_type == "preproc") and (experiment.no_proc_chair==False):
+        log.debug('Starting Pychopy Screen for Experiment Run [ Preprocessing + Crosshiar ]')
+        experiment.setup_preproc_withscreen_run()
+    #if (self.exp_type is "esam"):
+    #    experiment.setup_esam_run() 
+
+    # 4) Start Communications
     log.info('3) Opening Communication Channel...')
     receiver = ReceiverInterface(port=opts.tcp_port, show_data=opts.show_data)
     if not receiver:
         return 1
 
-    # set signal handlers and look for data
+    # 5) set signal handlers and look for data
     log.info('4) Setting Signal Handlers...')
     receiver.set_signal_handlers()  # require signal to exit
 
-    # set receiver callback
+    # 6) set receiver callback
     # At this point Receiver is still basically an empty container
     receiver.compute_TR_data  = experiment.compute_TR_data
     receiver.final_steps      = experiment.final_steps
 
-    # prepare for incoming connections
+    # 7) prepare for incoming connections
     log.info('5) Prepare for Incoming Connections...')
     if receiver.RTI.open_incoming_socket():
         return 1
 
-    #Vinai's alternative
+    #8) Vinai's alternative
     log.info('6) Here we go...')
     rv = receiver.process_one_run()
     return rv
