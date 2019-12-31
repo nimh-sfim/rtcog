@@ -136,12 +136,12 @@ def processProgramOptions(options):
                    CAP configurations in fMRI data."
 
     parser = OptionParser(usage = usage, description = description)
-    parser.add_option("-d","--data", action="store", type="str", dest="data_path", default=None, help="path to training dataset")
-    parser.add_option("-m","--mask", action="store", type="str", dest="mask_path", default=None, help="path to mask")
-    parser.add_option("-o","--outdir",  action="store", type="str", dest="outdir",  default=None, help="output directory")
-    parser.add_option("-c","--caps", action="store", type="str", dest="caps_path", default=None, help="path to caps template")
-    parser.add_option("--discard",   action="store", type="int", dest="nvols_discard",   default=100,  help="number of volumes")
-    parser.add_option("-p","--prefix", action="store", type="str", dest="prefix", default="svr", help="prefix for output file")
+    parser.add_option("-d","--data", action="store", type="str", dest="data_path", default=None, help="path to training dataset [Default: %default]")
+    parser.add_option("-m","--mask", action="store", type="str", dest="mask_path", default=None, help="path to mask [Default: %default]")
+    parser.add_option("-o","--outdir",  action="store", type="str", dest="outdir",  default=None, help="output directory [Default: %default]")
+    parser.add_option("-c","--caps", action="store", type="str", dest="caps_path", default=None, help="path to caps template [Default: %default]")
+    parser.add_option("--discard",   action="store", type="int", dest="nvols_discard",   default=100,  help="number of volumes [Default: %default]")
+    parser.add_option("-p","--prefix", action="store", type="str", dest="prefix", default="svr", help="prefix for output file [Default: %default]")
     return parser.parse_args(options)
 
 def main():
