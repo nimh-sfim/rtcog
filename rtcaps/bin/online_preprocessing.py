@@ -18,9 +18,11 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 
 from afni_lib.receiver import ReceiverInterface
 from rtcap_lib.core import unpack_extra, welford
-from rtcap_lib.rt_functions import rt_EMA_vol, rt_regress_vol, rt_kalman_vol, rt_smooth_vol, rt_snorm_vol
+from rtcap_lib.rt_functions import rt_EMA_vol, rt_regress_vol, rt_kalman_vol
+from rtcap_lib.rt_functions import rt_smooth_vol, rt_snorm_vol, rt_svrscore_vol
 from rtcap_lib.rt_functions import gen_polort_regressors
-from rtcap_lib.fMRI import load_fMRI_file, unmask_fMRI_img
+from rtcap_lib.fMRI         import load_fMRI_file, unmask_fMRI_img
+from rtcap_lib.svr_methods  import is_hit_rt01
 
 from psychopy.visual import Window, TextStim
 
@@ -49,6 +51,7 @@ class Experiment(object):
         if self.silent:
             log.setLevel(logging.CRITICAL)
 
+        self.ewin          = None
         self.exp_type      = options.exp_type
         self.no_proc_chair = options.no_proc_chair
         self.screen_size   = [512, 288]
@@ -148,10 +151,11 @@ class Experiment(object):
 
     def setup_preproc_withscreen_run(self):
         #create a window
-        if self.fullscreen:
-            self.ewin = Window(fullscr = self.fullscreen, allowGUI=False, units='norm')
-        else:
-            self.ewin = Window(self.screen_size, allowGUI=False, units='norm')
+        if self.ewin is None:
+            if self.fullscreen:
+                self.ewin = Window(fullscr = self.fullscreen, allowGUI=False, units='norm')
+            else:
+                self.ewin = Window(self.screen_size, allowGUI=False, units='norm')
         
         #create some stimuli
         text_inst_line01 = TextStim(win=self.ewin, text='Please fixate on x-hair,',pos=(0.0,0.4))
@@ -166,6 +170,35 @@ class Experiment(object):
         text_inst_chair.draw()
         self.ewin.flip()
     
+    def setup_esam_run(self, options):
+        # create initial window with instructions
+        self.setup_preproc_withscreen_run()
+
+        # load SVR model
+        if options.svr_path is None:
+            log.error('SVR Model not provided. Program will exit.')
+            sys.exit(-1)
+        if not osp.exists(options.svr_path):
+            log.error('SVR Model File does not exists. Please correct.')
+            sys.exit(-1)
+        self.svr_path = options.svr_path
+        try:
+            SVRs_pickle_in = open(self.svr_path, "rb")
+            self.SVRs = pickle.load(SVRs_pickle_in)
+        except OSError as ose:
+            log.error('SVR Model File opening threw OSError Exception.')
+            log.error(traceback.format_exc(ose))
+            sys.exit(-1)
+        except Exception as e:
+            log.error('SVR Model File opening threw generic Exception.')
+            log.error(traceback.format_exc(e))
+            sys.exit(-1)
+        self.Ncaps = len(self.SVRs.keys())
+        self.caps_labels = list(self.SVRs.keys())
+        log.info('- setup_esam_run - List of CAPs to be tested: %s' % str(self.caps_labels))
+        
+
+
     def compute_TR_data(self, motion, extra):
         # Keep a record of motion estimates
         #print(motion)
@@ -187,6 +220,12 @@ class Experiment(object):
         if self.t == 0:
             self.Nv            = len(this_t_data)
             log.info('Number of Voxels Nv=%d' % self.Nv)
+            if self.exp_type == "esam":
+                # These two variables are only needed if this is an experimental
+                log.debug('[t=%d,n=%d] Initializing hits and svrscores     %s' % (self.t, self.n))
+                self.hits             = np.zeros((self.Ncaps, 1))
+                self.svrscores        = np.zeros((self.Ncaps, 1))
+
             self.welford_M   = np.zeros(self.Nv)
             self.welford_S   = np.zeros(self.Nv)
             self.welford_std = np.zeros(self.Nv)
@@ -225,21 +264,21 @@ class Experiment(object):
             if self.save_smooth: self.Data_smooth = np.append(self.Data_smooth, np.zeros((self.Nv,1)), axis=1)
             self.Data_norm     = np.append(self.Data_norm,   np.zeros((self.Nv,1)), axis=1)
             if self.save_iGLM: self.iGLM_Coeffs   = np.append(self.iGLM_Coeffs, np.zeros((self.Nv,self.iGLM_num_regressors,1)), axis=2)
-            
             log.debug('[t=%d,n=%d] Discard - Data_FromAFNI.shape %s' % (self.t, self.n, str(self.Data_FromAFNI.shape)))
             if self.save_ema:    log.debug('[t=%d,n=%d] Discard - Data_EMA.shape      %s' % (self.t, self.n, str(self.Data_EMA.shape)))
             if self.save_iGLM:   log.debug('[t=%d,n=%d] Discard - Data_iGLM.shape     %s' % (self.t, self.n, str(self.Data_iGLM.shape)))
             if self.save_kalman: log.debug('[t=%d,n=%d] Discard - Data_kalman.shape   %s' % (self.t, self.n, str(self.Data_kalman.shape)))
             log.debug('[t=%d,n=%d] Discard - Data_norm.shape     %s' % (self.t, self.n, str(self.Data_norm.shape)))
             if self.save_iGLM: log.debug('[t=%d,n=%d] Discard - iGLM_Coeffs.shape   %s' % (self.t, self.n, str(self.iGLM_Coeffs.shape)))
+            if self.exp_type == "esam":
+                # These two variables are only needed if this is an experimental
+                self.hits      = np.append(self.hits,      np.zeros((self.Ncaps,1)),  axis=1)
+                self.svrscores = np.append(self.svrscores, np.zeros((self.Ncaps,1)), axis=1)
             return 1
 
         # Compute running mean and running std with welford
         self.welford_M, self.welford_S, self.weldord_std = welford(self.n, this_t_data, self.welford_M, self.welford_S)
-        #log.debug('[t=%d,n=%d] Online - Input - welford_M.shape %s' % (self.t, self.n, str(self.welford_M.shape)))
-        #log.debug('[t=%d,n=%d] Online - Input - welford_S.shape %s' % (self.t, self.n, str(self.welford_S.shape)))
-        #log.debug('[t=%d,n=%d] Online - Input - welford_std.shape %s' % (self.t, self.n, str(self.welford_std.shape)))
-
+        
         # If we reach this point, it means we have work to do
         if self.save_orig:
             self.Data_FromAFNI = np.append(self.Data_FromAFNI,this_t_data[:, np.newaxis], axis=1)
@@ -274,13 +313,6 @@ class Experiment(object):
 
         # Do Kalman Low-Pass Filter (if needed)
         # =====================================
-        #log.debug('[t=%d,n=%d] ========================   KALMAN   ==================================================')
-        #log.debug('[t=%d,n=%d] Online - Kalman_PRE - Data_iGLM           %s' % (self.t, self.n, str(self.Data_iGLM.shape)))
-        #log.debug('[t=%d,n=%d] Online - Kalman_PRE - S_x[:,self.t - 1]   %s' % (self.t, self.n, str(self.S_x.shape)))
-        #log.debug('[t=%d,n=%d] Online - Kalman_PRE - S_P[:,self.t - 1]   %s' % (self.t, self.n, str(self.S_P.shape)))
-        #log.debug('[t=%d,n=%d] Online - Kalman_PRE - fPos[:, self.t - 1] %s' % (self.t, self.n, str(self.fPositDerivSpike.shape)))
-        #log.debug('[t=%d,n=%d] Online - Kalman_PRE - fNeg[:, self.t - 1] %s' % (self.t, self.n, str(self.fNegatDerivSpike.shape)))
-
         klm_data_out, self.S_x, self.S_P, self.fPositDerivSpike, self.fNegatDerivSpike = rt_kalman_vol(self.n,
                                                                         self.t,
                                                                         iGLM_data_out,
@@ -292,14 +324,7 @@ class Experiment(object):
                                                                         self.n_cores,
                                                                         self.pool,
                                                                         do_operation = self.do_kalman)
-        
-        
-        #log.debug('[t=%d,n=%d] Online - Kalman_POST - klm_data_out %s' % (self.t, self.n, str(klm_data_out.shape)))
-        #log.debug('[t=%d,n=%d] Online - Kalman_POST - S_x          %s' % (self.t, self.n, str(self.S_x.shape)))
-        #log.debug('[t=%d,n=%d] Online - Kalman_POST - S_P          %s' % (self.t, self.n, str(self.S_P.shape)))
-        #log.debug('[t=%d,n=%d] Online - Kalman_POST - fPos         %s' % (self.t, self.n, str(self.fPositDerivSpike.shape)))
-        #log.debug('[t=%d,n=%d] Online - Kalman_POST - fNeg         %s' % (self.t, self.n, str(self.fNegatDerivSpike.shape)))
-        
+                
         if self.save_kalman: 
             self.Data_kalman      = np.append(self.Data_kalman, klm_data_out, axis = 1)
             log.debug('[t=%d,n=%d] Online - Kalman - Data_kalman.shape     %s' % (self.t, self.n, str(self.Data_kalman.shape)))
@@ -316,11 +341,48 @@ class Experiment(object):
         # ====================================
         norm_out = rt_snorm_vol(np.squeeze(smooth_out), do_operation=self.do_snorm)
         self.Data_norm = np.append(self.Data_norm, norm_out, axis=1)
-        #log.debug('[t=%d,n=%d] Online - Smooth - Data_norm.shape   %s' % (self.t, self.n, str(self.Data_norm.shape)))
+
+        if self.exp_type == "esam":
+
+            # Do Windowing (if needed)
+            # ========================
+            if (self.t >= self.start_vol) and self.hit_dowin:
+                vols_in_win       = (np.arange(self.t-4,self.t)+1)[::-1]
+                out_data_windowed = np.dot(self.Data_norm[:,vols_in_win], self.hit_win_weights)
+                self.Data_wind    = np.append(self.Data_wind, out_data_windowed, axis = 1)
+            else:
+                self.Data_wind    = np.append(self.Data_wind, norm_out, axis =1)
+
+            # Compute SVR scores (if needed)
+            # ==============================
+            if self.t < self.start_vol:   # We don't want to start decoding before iGLM is stable.
+                self.svrscores = np.append(self.svrscores, np.zeros((self.Ncaps,1)), axis=1)
+            else:
+                this_t_svrscores = rt_svrscore_vol(self.Data_wind[:, self.t], self.SVRs, self.caps_labels)
+                self.svrscores   = np.append(self.svrscores, this_t_svrscores, axis=1)
+            log.debug('[t=%d,n=%d] Online - SVRs - svrscores.shape   %s' % (self.t, self.n, str(self.svrscores.shape)))
+
+            # Compute Hits (if needed)
+            # ========================
+            # MISSING: Don't do this if before 100 vols
+            hit = self.hit_method_func(self.t,
+                                       self.caps_labels,
+                                       self.svrscores,
+                                       self.hit_zth,
+                                       self.hit_wl)
+            self.hits = np.append(self.hits, np.zeros((self.Ncaps,1)), axis=1)
+            if hit != None:
+                log.info('[t=%d,n=%d] CAP hit [%s]' % (self.t,self.n, hit))
+                self.hits[self.caps_labels.index(hit),self.t] = 1
+
         # Need to return something, otherwise the program thinks the experiment ended
         return 1
 
     def final_steps(self):
+        if self.ewin is not None:
+                log.info('Psychopy UI closing.')
+                self.ewin.close()
+
         # Write out motion
         self.motion_estimates = [item for sublist in self.motion_estimates for item in sublist]
         log.info('self.motion_estimates length is %d' % len(self.motion_estimates))
@@ -398,6 +460,7 @@ def processExperimentOptions (self, options=None):
     parser_exp.add_argument("--no_proc_chair", help="Hide crosshair during preprocessing run [%(default)s]", default=False,  action="store_true", dest='no_proc_chair')
     parser_exp.add_argument("--fscreen", help="Use full screen for Experiment [%(default)s]", default=False, action="store_true", dest="fullscreen")
     parser_exp.add_argument("--screen", help="Monitor to use [%(default)s]", default=1, action="store", dest="screen",type=int)
+    parser_exp.add_argument("--svr_path",   help="Path to pre-trained SVR models [%(default)s]", dest="svr_path", action="store", type=str, default=None)
     
     return parser.parse_args(options)
 
@@ -413,10 +476,13 @@ def main():
 
     # 3) Initilize GUI (if needed):
     if (experiment.exp_type == "preproc") and (experiment.no_proc_chair==False):
-        log.debug('Starting Pychopy Screen for Experiment Run [ Preprocessing + Crosshiar ]')
+        log.info('Starting Pychopy Screen for Experiment Run [ Preprocessing + Crosshiar ]')
         experiment.setup_preproc_withscreen_run()
-    #if (self.exp_type is "esam"):
-    #    experiment.setup_esam_run() 
+    if self.exp_type == "esam":
+        log.info('This is an experimental run')
+        log.info('  - PsychoPy Screen Activated.')
+        log.info('  - SVR Models loaded from %s' % experiment.)
+        experiment.setup_esam_run() 
 
     # 4) Start Communications
     log.info('3) Opening Communication Channel...')
