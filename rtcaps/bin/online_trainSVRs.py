@@ -12,6 +12,7 @@ from scipy.stats import zscore
 from sklearn.svm import SVR
 import pickle
 from optparse import OptionParser
+import argparse
 import matplotlib.pyplot as plt
 
 #log.basicConfig(format='[%(levelname)s]: %(message)s', level=log.DEBUG)
@@ -131,18 +132,30 @@ class Program(object):
         return 1
 
 def processProgramOptions(options):
-    usage = "%prog [options]"
-    description = "rtCAPs: This program train classifiers for the on-line detection of \
-                   CAP configurations in fMRI data."
+    parser = argparse.ArgumentParser(description="Train SVRs for spatial template matching")
+    parser_inopts = parser.add_argument_group('Input Options','Inputs to this program')
+    parser_inopts.add_argument("-d","--data", action="store", type=str, dest="data_path", default=None, help="path to training dataset [Default: %(default)s]", required=True)
+    parser_inopts.add_argument("-m","--mask", action="store", type=str, dest="mask_path", default=None, help="path to mask [Default: %(default)s]", required=True)
+    parser_inopts.add_argument("-c","--caps", action="store", type=str, dest="caps_path", default=None, help="path to caps template [Default: ]", required=True)
+    parser_inopts.add_argument("--discard",   action="store", type=int, dest="nvols_discard",   default=100,  help="number of volumes [Default: %(default)s]")
+    parser_outopts = parser.add_argument_group('Output Options','wWere to save results')
+    parser_outopts.add_argument("-o","--outdir",  action="store", type=str, dest="outdir",  default='./', help="output directory [Default: %(default)s]")
+    parser_outopts.add_argument("-p","--prefix", action="store", type=str, dest="prefix", default="svr", help="prefix for output file [Default: %(default)s]")
+    return parser.parse_args(options)  
 
-    parser = OptionParser(usage = usage, description = description)
-    parser.add_option("-d","--data", action="store", type="str", dest="data_path", default=None, help="path to training dataset [Default: %default]")
-    parser.add_option("-m","--mask", action="store", type="str", dest="mask_path", default=None, help="path to mask [Default: %default]")
-    parser.add_option("-o","--outdir",  action="store", type="str", dest="outdir",  default=None, help="output directory [Default: %default]")
-    parser.add_option("-c","--caps", action="store", type="str", dest="caps_path", default=None, help="path to caps template [Default: %default]")
-    parser.add_option("--discard",   action="store", type="int", dest="nvols_discard",   default=100,  help="number of volumes [Default: %default]")
-    parser.add_option("-p","--prefix", action="store", type="str", dest="prefix", default="svr", help="prefix for output file [Default: %default]")
-    return parser.parse_args(options)
+# def processProgramOptions(options):
+#     usage = "%prog [options]"
+#     description = "rtCAPs: This program train classifiers for the on-line detection of \
+#                    CAP configurations in fMRI data."
+
+#     parser = OptionParser(usage = usage, description = description)
+#     parser.add_option("-d","--data", action="store", type="str", dest="data_path", default=None, help="path to training dataset [Default: %default]")
+#     parser.add_option("-m","--mask", action="store", type="str", dest="mask_path", default=None, help="path to mask [Default: %default]")
+#     parser.add_option("-o","--outdir",  action="store", type="str", dest="outdir",  default=None, help="output directory [Default: %default]")
+#     parser.add_option("-c","--caps", action="store", type="str", dest="caps_path", default=None, help="path to caps template [Default: %default]")
+#     parser.add_option("--discard",   action="store", type="int", dest="nvols_discard",   default=100,  help="number of volumes [Default: %default]")
+#     parser.add_option("-p","--prefix", action="store", type="str", dest="prefix", default="svr", help="prefix for output file [Default: %default]")
+#     return parser.parse_args(options)
 
 def main():
     # 1) Read Input Parameters
