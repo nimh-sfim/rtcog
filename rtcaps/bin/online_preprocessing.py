@@ -7,6 +7,7 @@ import itertools
 import signal, time
 import argparse
 import logging
+import pickle
 mpl_logger = logging.getLogger('matplotlib')
 mpl_logger.setLevel(logging.WARNING)
 
@@ -23,6 +24,7 @@ from rtcap_lib.rt_functions import rt_smooth_vol, rt_snorm_vol, rt_svrscore_vol
 from rtcap_lib.rt_functions import gen_polort_regressors
 from rtcap_lib.fMRI         import load_fMRI_file, unmask_fMRI_img
 from rtcap_lib.svr_methods  import is_hit_rt01
+from rtcap_lib.core         import create_win
 
 from psychopy.visual import Window, TextStim
 
@@ -41,7 +43,7 @@ log.addHandler(log_ch)
 # ----------------------------------------------------------------------
 
 class Experiment(object):
-    
+
     def __init__(self, options):
 
         self.silent        = options.silent
@@ -171,9 +173,6 @@ class Experiment(object):
         self.ewin.flip()
     
     def setup_esam_run(self, options):
-        # create initial window with instructions
-        self.setup_preproc_withscreen_run()
-
         # load SVR model
         if options.svr_path is None:
             log.error('SVR Model not provided. Program will exit.')
@@ -197,12 +196,26 @@ class Experiment(object):
         self.caps_labels = list(self.SVRs.keys())
         log.info('- setup_esam_run - List of CAPs to be tested: %s' % str(self.caps_labels))
         
+        # Decoder-related initializations
+        self.dec_start_vol = options.dec_start_vol # First volume to do decoding on.
+        self.hit_method    = options.hit_method
+        self.hit_zth       = options.hit_zth
+        self.hit_v4hit     = options.hit_v4hit
+        self.hit_dowin     = options.hit_dowin
+        self.hit_domot     = options.hit_domot
+        self.hit_mot_th    = options.svr_mot_th
+        self.hit_wl        = options.hit_wl
+        if self.hit_dowin:
+            self.hit_win_weights = create_win(self.hit_wl)
+        self.hit_method_func = None
+        if self.hit_method == "method01":
+            self.hit_method_func = is_hit_rt01
 
+        # create initial window with instructions
+        self.setup_preproc_withscreen_run()
 
     def compute_TR_data(self, motion, extra):
         # Keep a record of motion estimates
-        #print(motion)
-        #print(type(motion))
         self.motion_estimates.append(motion)
         # Update t (it always does)
         self.t = self.t + 1
@@ -222,7 +235,7 @@ class Experiment(object):
             log.info('Number of Voxels Nv=%d' % self.Nv)
             if self.exp_type == "esam":
                 # These two variables are only needed if this is an experimental
-                log.debug('[t=%d,n=%d] Initializing hits and svrscores     %s' % (self.t, self.n))
+                log.debug('[t=%d,n=%d] Initializing hits and svrscores' % (self.t, self.n))
                 self.hits             = np.zeros((self.Ncaps, 1))
                 self.svrscores        = np.zeros((self.Ncaps, 1))
 
@@ -274,6 +287,8 @@ class Experiment(object):
                 # These two variables are only needed if this is an experimental
                 self.hits      = np.append(self.hits,      np.zeros((self.Ncaps,1)),  axis=1)
                 self.svrscores = np.append(self.svrscores, np.zeros((self.Ncaps,1)), axis=1)
+                log.debug('[t=%d,n=%d] Discard - hits.shape      %s' % (self.t, self.n, str(self.hits.shape)))
+                log.debug('[t=%d,n=%d] Discard - svrscores.shape %s' % (self.t, self.n, str(self.svrscores.shape)))
             return 1
 
         # Compute running mean and running std with welford
@@ -346,19 +361,22 @@ class Experiment(object):
 
             # Do Windowing (if needed)
             # ========================
-            if (self.t >= self.start_vol) and self.hit_dowin:
+            if (self.t >= self.dec_start_vol) and self.hit_dowin:
                 vols_in_win       = (np.arange(self.t-4,self.t)+1)[::-1]
                 out_data_windowed = np.dot(self.Data_norm[:,vols_in_win], self.hit_win_weights)
-                self.Data_wind    = np.append(self.Data_wind, out_data_windowed, axis = 1)
+                #self.Data_wind    = np.append(self.Data_wind, out_data_windowed, axis = 1)
             else:
-                self.Data_wind    = np.append(self.Data_wind, norm_out, axis =1)
+                out_data_windowed = norm_out
+                #self.Data_wind    = np.append(self.Data_wind, norm_out, axis =1)
+            log.debug('[t=%d,n=%d] Online - SVRs - out_data_windowed.shape   %s' % (self.t, self.n, str(out_data_windowed.shape)))
 
             # Compute SVR scores (if needed)
             # ==============================
-            if self.t < self.start_vol:   # We don't want to start decoding before iGLM is stable.
+            if self.t < self.dec_start_vol:   # We don't want to start decoding before iGLM is stable.
                 self.svrscores = np.append(self.svrscores, np.zeros((self.Ncaps,1)), axis=1)
             else:
-                this_t_svrscores = rt_svrscore_vol(self.Data_wind[:, self.t], self.SVRs, self.caps_labels)
+                #this_t_svrscores = rt_svrscore_vol(self.Data_wind[:, self.t], self.SVRs, self.caps_labels)
+                this_t_svrscores = rt_svrscore_vol(np.squeeze(out_data_windowed), self.SVRs, self.caps_labels)
                 self.svrscores   = np.append(self.svrscores, this_t_svrscores, axis=1)
             log.debug('[t=%d,n=%d] Online - SVRs - svrscores.shape   %s' % (self.t, self.n, str(self.svrscores.shape)))
 
@@ -372,7 +390,7 @@ class Experiment(object):
                                        self.hit_wl)
             self.hits = np.append(self.hits, np.zeros((self.Ncaps,1)), axis=1)
             if hit != None:
-                log.info('[t=%d,n=%d] CAP hit [%s]' % (self.t,self.n, hit))
+                log.info('[t=%d,n=%d] =============================================  CAP hit [%s]' % (self.t,self.n, hit))
                 self.hits[self.caps_labels.index(hit),self.t] = 1
 
         # Need to return something, otherwise the program thinks the experiment ended
@@ -419,7 +437,13 @@ class Experiment(object):
                 data = self.iGLM_Coeffs[:,i,:]
                 out = unmask_fMRI_img(data, self.mask_img, osp.join(self.out_dir,self.out_prefix+'.pp_iGLM_'+lab+'.nii'))    
 
-        
+        if self.exp_type == "esam":
+            svrscores_path = osp.join(self.out_dir,self.out_prefix+'.svrscores')
+            np.save(svrscores_path,self.svrscores)
+            log.info('Saved svrscores to %s' % svrscores_path)
+            hits_path = osp.join(self.out_dir,self.out_prefix+'.hits')
+            np.save(hits_path, self.hits)
+            log.info('Saved hits info to %s' % hits_path)
 
         return 1
 
@@ -460,8 +484,24 @@ def processExperimentOptions (self, options=None):
     parser_exp.add_argument("--no_proc_chair", help="Hide crosshair during preprocessing run [%(default)s]", default=False,  action="store_true", dest='no_proc_chair')
     parser_exp.add_argument("--fscreen", help="Use full screen for Experiment [%(default)s]", default=False, action="store_true", dest="fullscreen")
     parser_exp.add_argument("--screen", help="Monitor to use [%(default)s]", default=1, action="store", dest="screen",type=int)
-    parser_exp.add_argument("--svr_path",   help="Path to pre-trained SVR models [%(default)s]", dest="svr_path", action="store", type=str, default=None)
-    
+    parser_dec = parser.add_argument_group('SVR/Decoding Options')
+    parser_dec.add_argument("--svr_start",  help="Volume when decoding should start. When we think iGLM is sufficient_stable [%(default)s]", default=100, dest="dec_start_vol", action="store", type=int)
+    parser_dec.add_argument("--svr_path",   help="Path to pre-trained SVR models [%(default)s]", dest="svr_path", action="store", type=str, default=None)
+    parser_dec.add_argument("--svr_zth",    help="Z-score threshold for deciding hits [%(default)s]", dest="hit_zth", action="store", type=float, default=2.0)
+    parser_dec.add_argument("--svr_vhit",   help="Number of consecutive vols over threshold required for a hit [%(default)s]", dest="hit_v4hit", action="store", type=int, default=2)
+    parser_dec.add_argument("--svr_win_activate", help="Activate windowing of individual volumes prior to hit estimation [%(default)s]", dest="hit_dowin", action="store_true", default=False)
+    parser_dec.add_argument("--svr_win_wl", help='Number of volumes for SVR windowing step [%(default)s]', dest='hit_wl', default=4, type=int, action='store')
+    parser_dec.add_argument("--svr_mot_activate", help="Consider a hit if excessive motion [%(default)s]", dest="hit_domot", action="store_true", default=False )
+    parser_dec.add_argument("--svr_mot_th", help="Framewise Displacement Treshold for motion [%(default)s]",  action="store", type=float, dest="svr_mot_th", default=1.2)
+    parser_dec.add_argument("--svr_hit_mehod", help="Method for deciding hits [%(default)s]", type=str, choices=["method01"], default="method01", action="store", dest="hit_method")
+    #self.hit_method    = "method01"
+    #    self.hit_zth       = 2
+    #    self.hit_v4hit     = 2
+    #    self.hit_dowin     = True
+    #    self.hit_domot     = False
+    #    self.hit_wl        = 4
+
+
     return parser.parse_args(options)
 
 def main():
@@ -478,11 +518,12 @@ def main():
     if (experiment.exp_type == "preproc") and (experiment.no_proc_chair==False):
         log.info('Starting Pychopy Screen for Experiment Run [ Preprocessing + Crosshiar ]')
         experiment.setup_preproc_withscreen_run()
-    if self.exp_type == "esam":
+    if experiment.exp_type == "esam":
         log.info('This is an experimental run')
         log.info('  - PsychoPy Screen Activated.')
-        log.info('  - SVR Models loaded from %s' % experiment.)
-        experiment.setup_esam_run() 
+        experiment.setup_esam_run(opts) 
+        log.info('  - SVR Models loaded from %s' % experiment.svr_path)
+
 
     # 4) Start Communications
     log.info('3) Opening Communication Channel...')
@@ -508,7 +549,6 @@ def main():
     log.info('6) Here we go...')
     rv = receiver.process_one_run()
     return rv
-
 
 if __name__ == '__main__':
    sys.exit(main())
