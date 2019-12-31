@@ -5,7 +5,8 @@
 import sys, os
 import itertools
 import signal, time
-from   optparse import OptionParser
+#from   optparse import OptionParser
+import argparse
 import logging
 mpl_logger = logging.getLogger('matplotlib')
 mpl_logger.setLevel(logging.WARNING)
@@ -351,47 +352,82 @@ class Experiment(object):
         
 
         return 1
-
 def processExperimentOptions (self, options=None):
-
-    """
-       Process command line options for on-going experiment.
-       Customize as needed for your own experiments.
-    """
-
-    usage = "%prog [options]"
-    description = "AFNI real-time demo receiver with demo visualization."
-    parser = OptionParser(usage=usage, description=description)
-    parser.add_option("-d", "--debug",    action="store_true", dest="debug",  help="enable debugging output",          default=False)
-    parser.add_option("-s", "--silent",   action="store_true", dest="silent", help="make program do minimal printing", default=False)
+    parser = argparse.ArgumentParser(description="rtCAPs experimental software. Based on NIH-neurofeedback software")
+    parser_gen = parser.add_argument_group("General Options")
+    parser_gen.add_argument("-d", "--debug", action="store_true", dest="debug",  help="Enable debugging output [%(default)s]", default=False)
+    parser_gen.add_argument("-s", "--silent",   action="store_true", dest="silent", help="Minimal text messages [%(default)s]", default=False)
+    parser_gen.add_argument("-p", "--tcp_port", help="TCP port for incoming connections [%(default)s]", action="store", default=53214, type=int, dest='tcp_port')
+    parser_gen.add_argument("--tr",         help="Repetition time [sec]  [default: %(default)s]",                      dest="tr",default=1.0, action="store", type=float)
+    parser_gen.add_argument("--ncores",     help="Number of cores to use in the parallel processing part of the code  [default: %(default)s]", dest="n_cores", action="store",type=int, default=10)
+    parser_gen.add_argument("--mask",       help="Mask necessary for smoothing operation  [default: %(default)s]",     dest="mask_path", action="store", type=str, default=None, required=True)
+    parser_proc   = parser.add_argument_group("Activate/Deactivate Processing Steps")
+    parser_proc.add_argument("--no_ema",    help="De-activate EMA Filtering Step [default: %(default)s]", dest="do_EMA",      default=True, action="store_false")
+    parser_proc.add_argument("--no_iglm",   help="De-activate iGLM Denoising Step  [default: %(default)s]",             dest="do_iGLM",     default=True, action="store_false")
+    parser_proc.add_argument("--no_kalman", help="De-activate Kalman Low-Pass Filter Step  [default: %(default)s]",     dest="do_kalman",   default=True, action="store_false")
+    parser_proc.add_argument("--no_smooth", help="De-activate Spatial Smoothing Step  [default: %(default)s]",          dest="do_smooth",   default=True, action="store_false")
+    parser_proc.add_argument("--no_snorm",  help="De-activate per-volume spartial Z-Scoring  [default: %(default)s]",   dest="do_snorm",   default=True, action="store_false")
+    parser_iglm = parser.add_argument_group("Incremental GLM Options")
+    parser_iglm.add_argument("--polort",     help="Order of Legengre Polynomials for iGLM  [default: %(default)s]",     dest="iGLM_polort", default=2, action="store", type=int)
+    parser_iglm.add_argument("--no_iglm_motion", help="Do not use 6 motion parameters in iGLM  [default: %(default)s]", dest="iGLM_motion", default=True, action="store_false")
+    parser_iglm.add_argument("--nvols",      help="Number of expected volumes (for legendre pols only)  [default: %(default)s]", dest="nvols",default=500, action="store", type=int, required=True)
+    parser_iglm.add_argument("--discard",    help="Number of volumes to discard (they won't enter the iGLM step)  [default: %(default)s]",  default=10, dest="discard", action="store", type=int)
+    parser_smo = parser.add_argument_group("Smoothing Options")
+    parser_smo.add_argument("--fwhm",      help="FWHM for Spatial Smoothing in [mm]  [default: %(default)s]",          dest="FWHM",        default=4.0, action="store", type=float)
+    parser_save   = parser.add_argument_group("Saving Options")
+    parser_save.add_argument("--out_dir",     help="Output directory  [default: %(default)s]",                           dest="out_dir",    action="store", type=str, default="./")
+    parser_save.add_argument("--out_prefix",  help="Prefix for outputs  [default: %(default)s]",                         dest="out_prefix", action="store", type=str, default="online_preproc")
+    parser_save.add_argument("--save_ema",    help="Save 4D EMA dataset  [default: %(default)s]",     dest="save_ema",   default=False, action="store_true")
+    parser_save.add_argument("--save_kalman", help="Save 4D Smooth dataset  [default: %(default)s]",     dest="save_kalman",   default=False, action="store_true")
+    parser_save.add_argument("--save_smooth", help="Save 4D Smooth dataset  [default: %(default)s]",     dest="save_smooth",   default=False, action="store_true")
+    parser_save.add_argument("--save_iglm  ", help="Save 4D iGLM datasets  [default: %(default)s]",     dest="save_iglm",   default=False, action="store_true")
+    parser_save.add_argument("--save_orig"  , help="Save 4D with incoming data  [default: %(default)s]", dest="save_orig", default=False, action="store_true")
+    parser_save.add_argument("--save_all"  ,  help="Save 4D with incoming data  [default: %(default)s]", dest="save_all", default=False, action="store_true")
+    parser_exp = parser.add_argument_group('Experiment/GUI Options')
+    parser_exp.add_argument("-e","--exp_type", help="Type of Experimental Run [%(default)s]",      type=str, required=True,  choices=['proc','esam'], default='proc')
+    parser_exp.add_argument("--no_proc_chair", help="Hide crosshair during preprocessing run [%(default)s]", default=False,  action="store_true", dest='no_proc_chair')
     
-    parser.add_option("-p", "--tcp_port", help="TCP port for incoming connections")
-    parser.add_option("-S", "--show_data", action="store_true",
-            help="display received data in terminal if this option is specified")
-    
-    parser.add_option("--no_ema",    help="De-activate EMA Filtering Step [default: %default]",              dest="do_EMA",      default=True, action="store_false")
-    parser.add_option("--no_iglm",   help="De-activate iGLM Denoising Step  [default: %default]",             dest="do_iGLM",     default=True, action="store_false")
-    parser.add_option("--no_kalman", help="De-activate Kalman Low-Pass Filter Step  [default: %default]",     dest="do_kalman",   default=True, action="store_false")
-    parser.add_option("--no_smooth", help="De-activate Spatial Smoothing Step  [default: %default]",          dest="do_smooth",   default=True, action="store_false")
-    parser.add_option("--no_snorm",  help="De-activate per-volume spartial Z-Scoring  [default: %default]",   dest="do_snorm",   default=True, action="store_false")
-    parser.add_option("--fwhm",      help="FWHM for Spatial Smoothing in [mm]  [default: %default]",          dest="FWHM",        default=4.0, action="store", type="float")
-    parser.add_option("--polort",     help="Order of Legengre Polynomials for iGLM  [default: %default]",     dest="iGLM_polort", default=2, action="store", type="int")
-    parser.add_option("--no_iglm_motion", help="Do not use 6 motion parameters in iGLM  [default: %default]", dest="iGLM_motion", default=True, action="store_false")
-    parser.add_option("--discard",    help="Number of volumes to discard (they won't enter the iGLM step)  [default: %default]",  default=10, dest="discard", action="store", type="int")
-    parser.add_option("--nvols",      help="Number of expected volumes (for legendre pols only)  [default: %default]", dest="nvols",default=500, action="store", type="int")
-    parser.add_option("--tr",         help="Repetition time [sec]  [default: %default]",                      dest="tr",default=1.0, action="store", type="float")
-    parser.add_option("--ncores",     help="Number of cores to use in the parallel processing part of the code  [default: %default]", dest="n_cores", action="store",type="int", default=10)
-    parser.add_option("--mask",       help="Mask necessary for smoothing operation  [default: %default]",     dest="mask_path", action="store", type="str", default=None)
-    parser.add_option("--out_dir",    help="Output directory  [default: %default]",                           dest="out_dir",    action="store", type="str", default="./")
-    parser.add_option("--out_prefix", help="Prefix for outputs  [default: %default]",                         dest="out_prefix", action="store", type="str", default="online_preproc")
-    parser.add_option("--save_ema",    help="Save 4D EMA dataset  [default: %default]",     dest="save_ema",   default=False, action="store_true")
-    parser.add_option("--save_kalman", help="Save 4D Smooth dataset  [default: %default]",     dest="save_kalman",   default=False, action="store_true")
-    parser.add_option("--save_smooth", help="Save 4D Smooth dataset  [default: %default]",     dest="save_smooth",   default=False, action="store_true")
-    parser.add_option("--save_iglm  ", help="Save 4D iGLM datasets  [default: %default]",     dest="save_iglm",   default=False, action="store_true")
-    parser.add_option("--save_orig"  , help="Save 4D with incoming data  [default: %default]", dest="save_orig", default=False, action="store_true")
-    parser.add_option("--save_all"  , help="Save 4D with incoming data  [default: %default]", dest="save_all", default=False, action="store_true")
-
     return parser.parse_args(options)
+# def processExperimentOptions (self, options=None):
+
+#     """
+#        Process command line options for on-going experiment.
+#        Customize as needed for your own experiments.
+#     """
+
+#     usage = "%prog [options]"
+#     description = "AFNI real-time demo receiver with demo visualization."
+#     parser = OptionParser(usage=usage, description=description)
+##     parser.add_option("-d", "--debug",    action="store_true", dest="debug",  help="enable debugging output",          default=False)
+##     parser.add_option("-s", "--silent",   action="store_true", dest="silent", help="make program do minimal printing", default=False)
+    
+##     parser.add_option("-p", "--tcp_port", help="TCP port for incoming connections")
+#     parser.add_option("-S", "--show_data", action="store_true",
+#             help="display received data in terminal if this option is specified")
+    
+##     parser.add_option("--no_ema",    help="De-activate EMA Filtering Step [default: %default]",              dest="do_EMA",      default=True, action="store_false")
+##     parser.add_option("--no_iglm",   help="De-activate iGLM Denoising Step  [default: %default]",             dest="do_iGLM",     default=True, action="store_false")
+##     parser.add_option("--no_kalman", help="De-activate Kalman Low-Pass Filter Step  [default: %default]",     dest="do_kalman",   default=True, action="store_false")
+##     parser.add_option("--no_smooth", help="De-activate Spatial Smoothing Step  [default: %default]",          dest="do_smooth",   default=True, action="store_false")
+##     parser.add_option("--no_snorm",  help="De-activate per-volume spartial Z-Scoring  [default: %default]",   dest="do_snorm",   default=True, action="store_false")
+#     parser.add_option("--fwhm",      help="FWHM for Spatial Smoothing in [mm]  [default: %default]",          dest="FWHM",        default=4.0, action="store", type="float")
+##     parser.add_option("--polort",     help="Order of Legengre Polynomials for iGLM  [default: %default]",     dest="iGLM_polort", default=2, action="store", type="int")
+##     parser.add_option("--no_iglm_motion", help="Do not use 6 motion parameters in iGLM  [default: %default]", dest="iGLM_motion", default=True, action="store_false")
+##     parser.add_option("--discard",    help="Number of volumes to discard (they won't enter the iGLM step)  [default: %default]",  default=10, dest="discard", action="store", type="int")
+##     parser.add_option("--nvols",      help="Number of expected volumes (for legendre pols only)  [default: %default]", dest="nvols",default=500, action="store", type="int")
+##     parser.add_option("--tr",         help="Repetition time [sec]  [default: %default]",                      dest="tr",default=1.0, action="store", type="float")
+##     parser.add_option("--ncores",     help="Number of cores to use in the parallel processing part of the code  [default: %default]", dest="n_cores", action="store",type="int", default=10)
+##    parser.add_option("--mask",       help="Mask necessary for smoothing operation  [default: %default]",     dest="mask_path", action="store", type="str", default=None)
+#     parser.add_option("--out_dir",    help="Output directory  [default: %default]",                           dest="out_dir",    action="store", type="str", default="./")
+#     parser.add_option("--out_prefix", help="Prefix for outputs  [default: %default]",                         dest="out_prefix", action="store", type="str", default="online_preproc")
+#     parser.add_option("--save_ema",    help="Save 4D EMA dataset  [default: %default]",     dest="save_ema",   default=False, action="store_true")
+#     parser.add_option("--save_kalman", help="Save 4D Smooth dataset  [default: %default]",     dest="save_kalman",   default=False, action="store_true")
+#     parser.add_option("--save_smooth", help="Save 4D Smooth dataset  [default: %default]",     dest="save_smooth",   default=False, action="store_true")
+#     parser.add_option("--save_iglm  ", help="Save 4D iGLM datasets  [default: %default]",     dest="save_iglm",   default=False, action="store_true")
+#     parser.add_option("--save_orig"  , help="Save 4D with incoming data  [default: %default]", dest="save_orig", default=False, action="store_true")
+#     parser.add_option("--save_all"  , help="Save 4D with incoming data  [default: %default]", dest="save_all", default=False, action="store_true")
+
+#     return parser.parse_args(options)
 
 def main():
     # 1) Read Input Parameters: port, fullscreen, etc..
