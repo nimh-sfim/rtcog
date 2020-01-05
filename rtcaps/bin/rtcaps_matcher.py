@@ -4,23 +4,24 @@ import logging
 import pickle
 import multiprocessing as mp 
 from time import sleep
-from psychopy.visual import Window, TextStim, RatingScale
-from psychopy.sound import Sound
-from psychopy import microphone
+#from psychopy.visual import Window, TextStim, RatingScale
+#from psychopy.sound import Sound
+#from psychopy import microphone
 
 import numpy as np
 import os.path as osp
 import sys, os
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from afni_lib.receiver      import ReceiverInterface
-from rtcap_lib.core         import unpack_extra, welford
-from rtcap_lib.rt_functions import rt_EMA_vol, rt_regress_vol, rt_kalman_vol
-from rtcap_lib.rt_functions import rt_smooth_vol, rt_snorm_vol, rt_svrscore_vol
-from rtcap_lib.rt_functions import gen_polort_regressors
-from rtcap_lib.fMRI         import load_fMRI_file, unmask_fMRI_img
-from rtcap_lib.svr_methods  import is_hit_rt01
-from rtcap_lib.core         import create_win
+from afni_lib.receiver       import ReceiverInterface
+from rtcap_lib.core          import unpack_extra, welford
+from rtcap_lib.rt_functions  import rt_EMA_vol, rt_regress_vol, rt_kalman_vol
+from rtcap_lib.rt_functions  import rt_smooth_vol, rt_snorm_vol, rt_svrscore_vol
+from rtcap_lib.rt_functions  import gen_polort_regressors
+from rtcap_lib.fMRI          import load_fMRI_file, unmask_fMRI_img
+from rtcap_lib.svr_methods   import is_hit_rt01
+from rtcap_lib.core          import create_win
+from rtcap_lib.experiment_qa import get_experiment_info, experiment_QA
 
 from psychopy import prefs
 prefs.hardware['audioLib'] = ['pyo']
@@ -35,52 +36,6 @@ log.addHandler(log_ch)
 
 screen_size = [512, 288]
 
-class QA(object):
-    def __init__(self, ewin):
-
-        self.ewin = ewin
-        # Create Initial Screen (we are going to record sound)
-        self.text_inst_chair    = TextStim(win=self.ewin, text='X', pos=(0,0))
-        self.text_inst_chair_r  = TextStim(win=self.ewin, text='X', pos=(0,0), color='red')
-        self.beep_text_above  = TextStim(win = self.ewin, text = 'Descibe what you were thinking and doing when you heard the beep.', pos=(0.0,0.5))
-        #self.beep_sound       = Sound('../resources/beep.wav')
-        self.beep_text_below  = TextStim(win = self.ewin, text = 'Press any button when you are done.', pos=(0.0,-0.5))
-
-        # Emotion Questions
-        self.emot_instr  = TextStim(win=self.ewin, text='Please rate the content/form of your thoughts just prior to the beep',pos=(0.0,0.5))
-        self.emot_rscale = RatingScale(win=self.ewin, scale="Emotional Content", leftKeys='a', rightKeys='s', acceptKeys='z',
-                            markerStart='3', low='1', high='5', labels=('Sad','Neutral','Happy'), marker='glow', markerExpansion=0,
-                            markerColor='white', pos=(0.0,-0.3), stretch=2, textColor='white', showAccept=False,
-                            maxTime=10, name='RatScale_Emotion')
-        
-        microphone.switchOn()
-        self.mic = microphone.AdvAudioCapture()
-
-    def run(self):
-        print('- QA - run - Rating Scale No Response = %s | ====================================' % str(self.emot_rscale.noResponse))
-        # 1) Play sound
-        self.beep_text_above.draw()
-        self.text_inst_chair.draw()
-        self.beep_text_below.draw()
-        #self.beep_sound.play()
-        self.ewin.flip()
-        # 2) Record spoken description of thoughts
-        self.mic.record()
-        self.beep_text_above.draw()
-        self.text_inst_chair_r.draw()
-        self.beep_text_below.draw()
-        self.ewin.flip()
-        if event.getKeys(['q']):
-            mic.stop()
-
-        # 3) Present First Question
-        while self.emot_rscale.noResponse:
-            self.emot_instr.draw()
-            self.emot_rscale.draw()
-            self.ewin.flip()
-
-        self.emot_rscale.reset()
-        return 1
 
 class Experiment(object):
     def __init__(self, options, mp_evt_hit, mp_evt_end, mp_evt_qa_end):
@@ -597,11 +552,12 @@ def processExperimentOptions (self, options=None):
 
 def main():
     # 1) Read Input Parameters: port, fullscreen, etc..
+    # -------------------------------------------------
     log.info('1) Reading input parameters...')
     opts = processExperimentOptions(sys.argv)
     log.debug('User Options: %s' % str(opts))
 
-    # 2) Create Multi-processing infra-structure
+    # 3) Create Multi-processing infra-structure
     # ------------------------------------------
     mp_evt_hit = mp.Event()
     mp_evt_end = mp.Event()
@@ -610,18 +566,26 @@ def main():
     mp_prc_comm = mp.Process(target=comm_process, args=(opts, mp_evt_hit, mp_evt_end, mp_evt_qa_end))
     mp_prc_comm.start()
 
-    # 3) Start GUI
+    # 2) Get additional info using the GUI
+    # ------------------------------------
+    exp_info, kb, monitor = get_experiment_info()
+
+    # 4) Start GUI
     # ------------
-    ewin   = create_psychopy_win(opts)
-    cap_qa = QA(ewin)
-    # 4) Wait for things to happen
+    cap_qa = experiment_QA(kb,monitor,opts)
+    
+    # 5) Wait for things to happen
     # ----------------------------
     while not mp_evt_end.is_set():
-        show_initial_screen(ewin)
+        cap_qa.draw_resting_screen()
         if mp_evt_hit.is_set():
-            cap_qa.run()
+            cap_qa.run_full_QA()
             mp_evt_qa_end.set()
             sleep(0.5)
+    
+    # 6) Close Psychopy Window
+    # ------------------------
+    cap_qa.close_psychopy_infrastructure()
 
     log.info(' - main - Reached end of Main in primary thread')
     return 1
