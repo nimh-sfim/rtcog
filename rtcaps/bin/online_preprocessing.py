@@ -5,6 +5,8 @@
 import sys, os
 import itertools
 import signal, time
+from time import sleep
+#from threading import Thread, Event
 import argparse
 import logging
 import pickle
@@ -12,8 +14,8 @@ mpl_logger = logging.getLogger('matplotlib')
 mpl_logger.setLevel(logging.WARNING)
 
 import numpy as np
-import multiprocessing
-#multiprocessing.set_start_method('spawn', True)
+import multiprocessing as mp
+mp.set_start_method('spawn', True)
 import os.path as osp
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
@@ -26,7 +28,7 @@ from rtcap_lib.fMRI         import load_fMRI_file, unmask_fMRI_img
 from rtcap_lib.svr_methods  import is_hit_rt01
 from rtcap_lib.core         import create_win
 
-from psychopy.visual import Window, TextStim
+from psychopy.visual import Window, TextStim, RatingScale
 
 # ----------------------------------------------------------------------
 # Default Login Options:
@@ -41,6 +43,50 @@ log.addHandler(log_ch)
 # In this module, handing signals and options.  Try to keep other
 # operations in separate libraries (e.g. lib_realtime.py).
 # ----------------------------------------------------------------------
+
+# def run_questionaire(hit, visuals, ewin):
+#     log.debug(' - run_questionaire - Function called')
+#     while visuals['emot']['rscale'].noResponse:
+#         visuals['emot']['inst'].draw()
+#         visuals['emot']['rscale'].draw()
+#         ewin.flip()
+#     return 1
+
+def gui_thread(hit_event, end_event, fullscreen, screen_size):
+    print('============== hello from gui_thread ==============================')
+    #if fullscreen:
+    #     ewin = Window(fullscr = fullscreen, allowGUI=False, units='norm')
+    #else:
+    #     ewin = Window(screen_size, allowGUI=False, units='norm')
+        
+    # #create some stimuli
+    # text_inst_line01 = TextStim(win=ewin, text='Please fixate on x-hair,',pos=(0.0,0.4))
+    # text_inst_line02 = TextStim(win=ewin, text='remain awake,',           pos=(0.0,0.28))
+    # text_inst_line03 = TextStim(win=ewin, text='and let your mind wander.',pos=(0.0,0.16))
+    # text_inst_chair  = TextStim(win=ewin, text='X', pos=(0,0))
+
+    # #plot on the screen the initial instructions
+    # text_inst_line01.draw()
+    # text_inst_line02.draw()
+    # text_inst_line03.draw()
+    # text_inst_chair.draw()
+    # ewin.flip()
+
+    # #create all objects, I will need in the future
+    # emot_instr  = TextStim(win=ewin, text='Please rate the content/form of your thoughts just prior to the beep',pos=(0.0,0.5))
+    # emot_rscale = RatingScale(win=ewin, scale="Emotional Content", leftKeys='a', rightKeys='s', acceptKeys='z',
+    #                         markerStart='3', low='1', high='5', labels=('Sad','Neutral','Happy'), marker='glow', markerExpansion=0,
+    #                         markerColor='white', pos=(0.0,-0.3), stretch=2, textColor='white', showAccept=False,
+    #                         maxTime=10, name='RatScale_Emotion')
+
+    # # run loop
+    # while not end_event.isSet():
+    #     if hit_event.isSet():
+    #         emot_instr.draw()
+    #         emot_rscale.draw()
+    
+    # return 1
+
 
 class Experiment(object):
 
@@ -147,7 +193,7 @@ class Experiment(object):
 
         # If kalman needed, create a pool
         if self.do_kalman:
-            self.pool = multiprocessing.Pool(processes=self.n_cores)
+            self.pool = mp.Pool(processes=self.n_cores)
         else:
             self.pool = None
 
@@ -171,7 +217,7 @@ class Experiment(object):
         text_inst_line03.draw()
         text_inst_chair.draw()
         self.ewin.flip()
-    
+
     def setup_esam_run(self, options):
         # load SVR model
         if options.svr_path is None:
@@ -195,7 +241,7 @@ class Experiment(object):
         self.Ncaps = len(self.SVRs.keys())
         self.caps_labels = list(self.SVRs.keys())
         log.info('- setup_esam_run - List of CAPs to be tested: %s' % str(self.caps_labels))
-        
+
         # Decoder-related initializations
         self.dec_start_vol = options.dec_start_vol # First volume to do decoding on.
         self.hit_method    = options.hit_method
@@ -210,9 +256,48 @@ class Experiment(object):
         self.hit_method_func = None
         if self.hit_method == "method01":
             self.hit_method_func = is_hit_rt01
-
+        
         # create initial window with instructions
-        self.setup_preproc_withscreen_run()
+        #thread_event_hit = mp.Event()
+        #thread_event_end = mp.Event()
+        log.info('- setup_esam_run - About to create psychopy_proc')
+        psychopy_proc = mp.Process(name='psyhopy_proc', 
+                                target=gui_thread, 
+                                args=(1,1,
+                                      self.fullscreen, self.screen_size ))
+        log.info('- setup_esam_run - About to start psychopy_proc')
+        #psychopy_proc.start()
+        return 1
+
+        # self.setup_preproc_withscreen_run()
+        # # Creare all graphic elements to be used at a later time
+        # self.visuals = {
+        #     'emot':{'inst': TextStim(win=self.ewin, text='Please rate the content/form of your thoughts just prior to the beep',pos=(0.0,0.5)),
+        #             'rscale':  RatingScale(win=self.ewin, scale="Emotional Content", leftKeys='a', rightKeys='s', acceptKeys='z',
+        #                             markerStart='3', low='1', high='5', labels=('Sad','Neutral','Happy'), marker='glow', markerExpansion=0,
+        #                             markerColor='white', pos=(0.0,-0.3), stretch=2, textColor='white', showAccept=False,
+        #                             maxTime=10, name='RatScale_Emotion')
+        #                 }}
+        # self.questioning_in_progress = False
+        
+    # def run_questionaire(self):
+    #     log.info(' - run_questionaire - Function called')
+    #     #self.visuals['emot']['inst'].draw()
+    #     #self.visuals['emot']['rscale'].draw()
+    #     a = TextStim(win=self.ewin, text='HELLO')
+    #     a.draw()
+    #     self.ewin.flip()
+    #     return 1
+
+    # def start_questions(self):
+    #     # Create new thread
+    #     #questioning_thread = Thread(name='Q_thread',target=run_questionaire, args=(hit, self.visuals, self.ewin))
+    #     questioning_thread = Thread(name='Q_thread',target=self.run_questionaire)
+    #     # Potentially over-write _init_ and run methods
+    #     questioning_thread.start() # At some point this will invoke run()
+
+    #     # Return new_thread
+    #     return questioning_thread #is_alive() tells if thread still alive.
 
     def compute_TR_data(self, motion, extra):
         # Keep a record of motion estimates
@@ -389,9 +474,10 @@ class Experiment(object):
                                        self.hit_zth,
                                        self.hit_wl)
             self.hits = np.append(self.hits, np.zeros((self.Ncaps,1)), axis=1)
-            if hit != None:
+            if (hit != None) and (not self.thread_event_hit.isSet()):
                 log.info('[t=%d,n=%d] =============================================  CAP hit [%s]' % (self.t,self.n, hit))
                 self.hits[self.caps_labels.index(hit),self.t] = 1
+                self.thread_event_hit.Set()
 
         # Need to return something, otherwise the program thinks the experiment ended
         return 1
@@ -548,7 +634,7 @@ def main():
     #8) Vinai's alternative
     log.info('6) Here we go...')
     rv = receiver.process_one_run()
-    return rv
+    #return rv
 
 if __name__ == '__main__':
    sys.exit(main())

@@ -6,6 +6,7 @@ import multiprocessing as mp
 from time import sleep
 from psychopy.visual import Window, TextStim, RatingScale
 from psychopy.sound import Sound
+from psychopy import microphone
 
 import numpy as np
 import os.path as osp
@@ -20,6 +21,9 @@ from rtcap_lib.rt_functions import gen_polort_regressors
 from rtcap_lib.fMRI         import load_fMRI_file, unmask_fMRI_img
 from rtcap_lib.svr_methods  import is_hit_rt01
 from rtcap_lib.core         import create_win
+
+from psychopy import prefs
+prefs.hardware['audioLib'] = ['pyo']
 
 # Setup Logging Infrastructure
 log     = logging.getLogger("online_preproc")
@@ -36,9 +40,10 @@ class QA(object):
 
         self.ewin = ewin
         # Create Initial Screen (we are going to record sound)
-        self.text_inst_chair  = TextStim(win=self.ewin, text='X', pos=(0,0))
+        self.text_inst_chair    = TextStim(win=self.ewin, text='X', pos=(0,0))
+        self.text_inst_chair_r  = TextStim(win=self.ewin, text='X', pos=(0,0), color='red')
         self.beep_text_above  = TextStim(win = self.ewin, text = 'Descibe what you were thinking and doing when you heard the beep.', pos=(0.0,0.5))
-        self.beep_sound       = Sound('../resources/beep.wav')
+        #self.beep_sound       = Sound('../resources/beep.wav')
         self.beep_text_below  = TextStim(win = self.ewin, text = 'Press any button when you are done.', pos=(0.0,-0.5))
 
         # Emotion Questions
@@ -47,6 +52,9 @@ class QA(object):
                             markerStart='3', low='1', high='5', labels=('Sad','Neutral','Happy'), marker='glow', markerExpansion=0,
                             markerColor='white', pos=(0.0,-0.3), stretch=2, textColor='white', showAccept=False,
                             maxTime=10, name='RatScale_Emotion')
+        
+        microphone.switchOn()
+        self.mic = microphone.AdvAudioCapture()
 
     def run(self):
         print('- QA - run - Rating Scale No Response = %s | ====================================' % str(self.emot_rscale.noResponse))
@@ -54,10 +62,16 @@ class QA(object):
         self.beep_text_above.draw()
         self.text_inst_chair.draw()
         self.beep_text_below.draw()
+        #self.beep_sound.play()
         self.ewin.flip()
-        self.beep_sound.play()
-        sleep(0.5)
         # 2) Record spoken description of thoughts
+        self.mic.record()
+        self.beep_text_above.draw()
+        self.text_inst_chair_r.draw()
+        self.beep_text_below.draw()
+        self.ewin.flip()
+        if event.getKeys(['q']):
+            mic.stop()
 
         # 3) Present First Question
         while self.emot_rscale.noResponse:
