@@ -4,7 +4,7 @@ import logging
 import pickle
 import multiprocessing as mp 
 from time import sleep
-
+from psychopy import event
 
 import numpy as np
 import os.path as osp
@@ -576,6 +576,9 @@ def main():
     # ----------------------------
     while not mp_evt_end.is_set():
         cap_qa.draw_resting_screen()
+        if event.getKeys(['escape']):
+            log.info('- User pressed escape key')
+            mp_evt_end.set()
         if mp_evt_hit.is_set():
             cap_qa.run_full_QA()
             mp_evt_qa_end.set()
