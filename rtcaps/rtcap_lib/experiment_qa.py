@@ -10,7 +10,17 @@ import time
 import numpy as np
 import os.path as osp
 import csv
+import logging
+
 RESOURCES_DIR = '../../rtcaps/resources/'
+
+log = logging.getLogger("experiment_qa")
+log.setLevel(logging.INFO)
+log_fmt = logging.Formatter('[%(levelname)s - experiment_qa]: %(message)s')
+log_ch  = logging.StreamHandler()
+log_ch.setFormatter(log_fmt)
+log_ch.setLevel(logging.INFO)
+log.addHandler(log_ch)
 
 def get_avail_keyboards():
     available_keyboards = keyboard.getKeyboards()
@@ -211,10 +221,12 @@ class experiment_QA(object):
         return None
         
     def close_psychopy_infrastructure(self):
+        log.info(' - close_psychopy_infrastructure - Function called.')
         self.ewin.flip()
         self.ewin.close()
         psychopy_logging.flush()
         core.quit()
+        return None
         
     def draw_likert_instructions(self):
         self.likert_qa_inst_01.draw()
@@ -243,13 +255,6 @@ class experiment_QA(object):
                     core.quit()
             responses[aux_q.name] = [aux_q.getRating(), aux_q.getRT(), aux_q.getHistory()]
         return responses
-  
-    def close_psychopy_infrastructure(self):
-        self.ewin.flip()
-        psychopy_logging.flush()
-        self.ewin.close()
-        core.quit()
-        return 1
 
     def run_full_QA(self):
         # 1) Play beep and instruct subject to talk

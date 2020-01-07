@@ -4,9 +4,7 @@ import logging
 import pickle
 import multiprocessing as mp 
 from time import sleep
-#from psychopy.visual import Window, TextStim, RatingScale
-#from psychopy.sound import Sound
-#from psychopy import microphone
+
 
 import numpy as np
 import os.path as osp
@@ -40,9 +38,9 @@ screen_size = [512, 288]
 class Experiment(object):
     def __init__(self, options, mp_evt_hit, mp_evt_end, mp_evt_qa_end):
 
-        self.mp_evt_hit = mp_evt_hit
-        self.mp_evt_end = mp_evt_end
-        self.mp_evt_qa_end = mp_evt_qa_end
+        self.mp_evt_hit = mp_evt_hit           # Signals a CAP hit
+        self.mp_evt_end = mp_evt_end           # Signals the end of the experiment
+        self.mp_evt_qa_end = mp_evt_qa_end     # Signals the end of a QA set
         self.silent        = options.silent
         self.debug         = options.debug
         if self.debug:
@@ -340,9 +338,9 @@ class Experiment(object):
         return 1
 
     def final_steps(self):
-        if self.ewin is not None:
-                log.info('Psychopy UI closing.')
-                self.ewin.close()
+        #if self.ewin is not None:
+        #        log.info('Psychopy UI closing.')
+        #        self.ewin.close()
 
         # Write out motion
         self.motion_estimates = [item for sublist in self.motion_estimates for item in sublist]
@@ -387,7 +385,7 @@ class Experiment(object):
             hits_path = osp.join(self.out_dir,self.out_prefix+'.hits')
             np.save(hits_path, self.hits)
             log.info('Saved hits info to %s' % hits_path)
-
+        log.info(' - final_steps - Setting end of experiment event (mp_evt_end)')
         self.mp_evt_end.set()
         return 1
 
@@ -586,7 +584,6 @@ def main():
     # 6) Close Psychopy Window
     # ------------------------
     cap_qa.close_psychopy_infrastructure()
-
     log.info(' - main - Reached end of Main in primary thread')
     return 1
 if __name__ == '__main__':
