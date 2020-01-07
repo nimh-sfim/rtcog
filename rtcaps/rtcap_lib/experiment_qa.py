@@ -6,8 +6,10 @@ from psychopy.sound import Sound
 from psychopy.visual import TextStim, Window, ImageStim, RatingScale
 from psychopy import microphone
 from time import sleep
+import time
 import numpy as np
 import os.path as osp
+import csv
 RESOURCES_DIR = '../../rtcaps/resources/'
 
 def get_avail_keyboards():
@@ -40,7 +42,9 @@ class experiment_QA(object):
         self.RS_Q_SHOW_ACCEPT = False
         self.RS_Q_MARKER_TYPE = 'glow'
         self.RS_Q_MARKER_COLOR = 'white'
-        self.fscreen = opts.fullscreen
+        self.out_dir    = opts.out_dir
+        self.out_prefix = opts.out_prefix
+        self.fscreen    = opts.fullscreen
         self.ewin       = self._create_experiment_window(monitor)
         self.kb         = kb
         self.monitor    = monitor
@@ -66,7 +70,8 @@ class experiment_QA(object):
         self.mic_image         = ImageStim(win=self.ewin, image=osp.join(RESOURCES_DIR,'microphone_pic.png'), pos=(-0.5,0.0), size=(.2,.2))
 
         microphone.switchOn()
-        self.mic            = microphone.AdvAudioCapture(saveDir='/data/SFIMJGC/PRJ_rtcaps/resources/',filename='response.wav')
+        #self.mic            = microphone.AdvAudioCapture(saveDir=self.out_dir, filename=self.out_prefix+'_OralResponse')
+        self.mic            = microphone.AudioCapture(saveDir=self.out_dir,filename=self.out_prefix+'_OralResponse')
         self.mic_ack_rec_01 = TextStim(win=self.ewin, text='Recoding Successful', pos=(0.0,0.06), color='green', bold=True)
         self.mic_ack_rec_02 = TextStim(win=self.ewin, text='Thank you!', pos=(0.0,-0.06), color='green', bold=True)
         self.likert_inst_01 = TextStim(win=self.ewin,text='Now, please use the response box\nto answer additional questions\nregarding what you were experiencing\nwhen you heard the beep', pos=(0.0,0.5), alignHoriz='center')
@@ -195,6 +200,7 @@ class experiment_QA(object):
                 self.ewin.flip()
             if event.getKeys():
                 self.mic.stop()
+
         return None
     
     def draw_ack_recording_screen(self):
@@ -260,6 +266,10 @@ class experiment_QA(object):
         self.draw_likert_instructions()
         
         # 5) Do the Likert Questionare
-        resp = self.draw_likert_questions(self.likert_order)
-        
-        return resp
+        resp_dict = self.draw_likert_questions(self.likert_order)
+        resp_timestr = time.strftime("%Y%m%d-%H%M%S")
+        resp_path = osp.join(self.out_dir,self.out_prefix+'.'+resp_timestr+'.LikertResponses.txt')
+        w = csv.writer(open(resp_path, "w"))
+        for key, val in resp_dict.items():
+            w.writerow([key, val])
+        return resp_dict

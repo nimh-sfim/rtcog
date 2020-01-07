@@ -348,7 +348,7 @@ class Experiment(object):
         self.motion_estimates = [item for sublist in self.motion_estimates for item in sublist]
         log.info('self.motion_estimates length is %d' % len(self.motion_estimates))
         self.motion_estimates = np.reshape(self.motion_estimates,newshape=(int(len(self.motion_estimates)/6),6))
-        np.savetxt(osp.join(self.out_dir,self.out_prefix+'Motion.1D'), 
+        np.savetxt(osp.join(self.out_dir,self.out_prefix+'.Motion.1D'), 
                    self.motion_estimates,
                    delimiter="\t")
         log.info('Motion estimates saved to disk: [%s]' % osp.join(self.out_dir,self.out_prefix+'.Motion.1D'))
