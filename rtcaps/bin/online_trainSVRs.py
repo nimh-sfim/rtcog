@@ -11,7 +11,7 @@ from sklearn import linear_model
 from scipy.stats import zscore
 from sklearn.svm import SVR
 import pickle
-from optparse import OptionParser
+#from optparse import OptionParser
 import argparse
 import matplotlib.pyplot as plt
 
@@ -131,7 +131,7 @@ class Program(object):
         log.info('   Saved Label Computation Results to [%s]' % self.outpng)
         return 1
 
-def processProgramOptions(options):
+def processProgramOptions (self, options=None):
     parser = argparse.ArgumentParser(description="Train SVRs for spatial template matching")
     parser_inopts = parser.add_argument_group('Input Options','Inputs to this program')
     parser_inopts.add_argument("-d","--data", action="store", type=str, dest="data_path", default=None, help="path to training dataset [Default: %(default)s]", required=True)
@@ -143,24 +143,10 @@ def processProgramOptions(options):
     parser_outopts.add_argument("-p","--prefix", action="store", type=str, dest="prefix", default="svr", help="prefix for output file [Default: %(default)s]")
     return parser.parse_args(options)  
 
-# def processProgramOptions(options):
-#     usage = "%prog [options]"
-#     description = "rtCAPs: This program train classifiers for the on-line detection of \
-#                    CAP configurations in fMRI data."
-
-#     parser = OptionParser(usage = usage, description = description)
-#     parser.add_option("-d","--data", action="store", type="str", dest="data_path", default=None, help="path to training dataset [Default: %default]")
-#     parser.add_option("-m","--mask", action="store", type="str", dest="mask_path", default=None, help="path to mask [Default: %default]")
-#     parser.add_option("-o","--outdir",  action="store", type="str", dest="outdir",  default=None, help="output directory [Default: %default]")
-#     parser.add_option("-c","--caps", action="store", type="str", dest="caps_path", default=None, help="path to caps template [Default: %default]")
-#     parser.add_option("--discard",   action="store", type="int", dest="nvols_discard",   default=100,  help="number of volumes [Default: %default]")
-#     parser.add_option("-p","--prefix", action="store", type="str", dest="prefix", default="svr", help="prefix for output file [Default: %default]")
-#     return parser.parse_args(options)
-
 def main():
     # 1) Read Input Parameters
     log.info('1) Reading Program Inputs...')
-    opts, args = processProgramOptions(sys.argv)
+    opts = processProgramOptions(sys.argv)
     log.debug('User Options: %s' % str(opts))
 
     # 2) Ensure Inputs Correctness
