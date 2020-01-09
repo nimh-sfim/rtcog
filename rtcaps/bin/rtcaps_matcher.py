@@ -58,7 +58,7 @@ class Experiment(object):
         self.n             = 0               # Counter for number of volumes pre-processed (Start = 1)
         self.t             = -1              # Counter for number of received volumes (Start = 0)
         self.lastQA_endTR  = 0
-        self.vols_noqa     = 20
+        self.vols_noqa     = options.vols_noqa
         self.Nv            = None            # Number of voxels in data mask
         self.Nt            = options.nvols   # Number acquisitions
         self.TR            = options.tr      # TR [seconds]
@@ -165,7 +165,7 @@ class Experiment(object):
         if self.t == 0:
             self.Nv            = len(this_t_data)
             log.info('Number of Voxels Nv=%d' % self.Nv)
-            if self.exp_type == "esam":
+            if self.exp_type == "esam" or self.exp_type == "esam_test":
                 # These two variables are only needed if this is an experimental
                 log.debug('[t=%d,n=%d] Initializing hits and svrscores' % (self.t, self.n))
                 self.hits             = np.zeros((self.Ncaps, 1))
@@ -215,7 +215,7 @@ class Experiment(object):
             if self.save_kalman: log.debug('[t=%d,n=%d] Discard - Data_kalman.shape   %s' % (self.t, self.n, str(self.Data_kalman.shape)))
             log.debug('[t=%d,n=%d] Discard - Data_norm.shape     %s' % (self.t, self.n, str(self.Data_norm.shape)))
             if self.save_iGLM: log.debug('[t=%d,n=%d] Discard - iGLM_Coeffs.shape   %s' % (self.t, self.n, str(self.iGLM_Coeffs.shape)))
-            if self.exp_type == "esam":
+            if self.exp_type == "esam" or self.exp_type == "esam_test":
                 # These two variables are only needed if this is an experimental
                 self.hits      = np.append(self.hits,      np.zeros((self.Ncaps,1)),  axis=1)
                 self.svrscores = np.append(self.svrscores, np.zeros((self.Ncaps,1)), axis=1)
@@ -289,7 +289,7 @@ class Experiment(object):
         norm_out = rt_snorm_vol(np.squeeze(smooth_out), do_operation=self.do_snorm)
         self.Data_norm = np.append(self.Data_norm, norm_out, axis=1)
 
-        if self.exp_type == "esam":
+        if self.exp_type == "esam" or self.exp_type == "esam_test":
 
             # Do Windowing (if needed)
             # ========================
@@ -326,7 +326,7 @@ class Experiment(object):
                 self.lastQA_endTR = self.t
                 self.mp_evt_qa_end.clear()
                 self.mp_evt_hit.clear()
-                log.debug(' - compute_TR_data - QA ended (cleared) --> updating lastQA_endTR = %d' % self.lastQA_endTR)
+                log.info(' - compute_TR_data - QA ended (cleared) --> updating lastQA_endTR = %d' % self.lastQA_endTR)
 
             if (hit != None) and (not self.mp_evt_hit.is_set()) and (self.t >= self.lastQA_endTR + self.vols_noqa):
                 log.info('[t=%d,n=%d] =============================================  CAP hit [%s]' % (self.t,self.n, hit))
@@ -378,7 +378,7 @@ class Experiment(object):
                 data = self.iGLM_Coeffs[:,i,:]
                 out = unmask_fMRI_img(data, self.mask_img, osp.join(self.out_dir,self.out_prefix+'.pp_iGLM_'+lab+'.nii'))    
 
-        if self.exp_type == "esam":
+        if self.exp_type == "esam" or self.exp_type == "esam_test":
             svrscores_path = osp.join(self.out_dir,self.out_prefix+'.svrscores')
             np.save(svrscores_path,self.svrscores)
             log.info('Saved svrscores to %s' % svrscores_path)
@@ -444,7 +444,7 @@ def comm_process(opts, mp_evt_hit, mp_evt_end, mp_evt_qa_end):
     experiment = Experiment(opts, mp_evt_hit, mp_evt_end, mp_evt_qa_end)
  
     # 3) Initilize GUI (if needed):
-    if experiment.exp_type == "esam":
+    if experiment.exp_type == "esam" or experiment.exp_type == "esam_test":
         log.info('- comm_process - 2.a) This is an experimental run')
         experiment.setup_esam_run(opts) 
     
@@ -531,7 +531,7 @@ def processExperimentOptions (self, options=None):
     parser_save.add_argument("--save_orig"  , help="Save 4D with incoming data  [default: %(default)s]", dest="save_orig", default=False, action="store_true")
     parser_save.add_argument("--save_all"  ,  help="Save 4D with incoming data  [default: %(default)s]", dest="save_all", default=False, action="store_true")
     parser_exp = parser.add_argument_group('Experiment/GUI Options')
-    parser_exp.add_argument("-e","--exp_type", help="Type of Experimental Run [%(default)s]",      type=str, required=True,  choices=['preproc','esam'], default='preproc')
+    parser_exp.add_argument("-e","--exp_type", help="Type of Experimental Run [%(default)s]",      type=str, required=True,  choices=['preproc','esam', 'esam_test'], default='preproc')
     parser_exp.add_argument("--no_proc_chair", help="Hide crosshair during preprocessing run [%(default)s]", default=False,  action="store_true", dest='no_proc_chair')
     parser_exp.add_argument("--fscreen", help="Use full screen for Experiment [%(default)s]", default=False, action="store_true", dest="fullscreen")
     parser_exp.add_argument("--screen", help="Monitor to use [%(default)s]", default=1, action="store", dest="screen",type=int)
@@ -545,7 +545,7 @@ def processExperimentOptions (self, options=None):
     parser_dec.add_argument("--svr_mot_activate", help="Consider a hit if excessive motion [%(default)s]", dest="hit_domot", action="store_true", default=False )
     parser_dec.add_argument("--svr_mot_th", help="Framewise Displacement Treshold for motion [%(default)s]",  action="store", type=float, dest="svr_mot_th", default=1.2)
     parser_dec.add_argument("--svr_hit_mehod", help="Method for deciding hits [%(default)s]", type=str, choices=["method01"], default="method01", action="store", dest="hit_method")
-
+    parser_dec.add_argument("--svr_vols_noqa", help="Min. number of volumes to wait since end of last QA before declaing a new hit.", type=int, dest='vols_noqa', default=60, action="store")
 
     return parser.parse_args(options)
 
@@ -587,6 +587,27 @@ def main():
                 cap_qa.run_full_QA()
                 mp_evt_qa_end.set()
                 sleep(0.5)
+        
+        # 6) Close Psychopy Window
+        # ------------------------
+        cap_qa.close_psychopy_infrastructure()
+    
+    if opts.exp_type == "esam_test":
+        # 4) Start GUI
+        # ------------
+        cap_qa = experiment_QA(kb,monitor,opts)
+    
+        # 5) Wait for things to happen
+        # ----------------------------
+        while not mp_evt_end.is_set():
+            cap_qa.draw_resting_screen()
+            if event.getKeys(['escape']):
+                log.info('- User pressed escape key')
+                mp_evt_end.set()
+            #if mp_evt_hit.is_set():
+            #    cap_qa.run_full_QA()
+            #    mp_evt_qa_end.set()
+            #    sleep(0.5)
         
         # 6) Close Psychopy Window
         # ------------------------
