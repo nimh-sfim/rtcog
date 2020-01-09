@@ -19,7 +19,7 @@ from rtcap_lib.rt_functions  import gen_polort_regressors
 from rtcap_lib.fMRI          import load_fMRI_file, unmask_fMRI_img
 from rtcap_lib.svr_methods   import is_hit_rt01
 from rtcap_lib.core          import create_win
-from rtcap_lib.experiment_qa import get_experiment_info, experiment_QA
+from rtcap_lib.experiment_qa import get_experiment_info, experiment_QA, experiment_Preproc
 
 from psychopy import prefs
 prefs.hardware['audioLib'] = ['pyo']
@@ -447,6 +447,7 @@ def comm_process(opts, mp_evt_hit, mp_evt_end, mp_evt_qa_end):
     if experiment.exp_type == "esam":
         log.info('- comm_process - 2.a) This is an experimental run')
         experiment.setup_esam_run(opts) 
+    
     # 4) Start Communications
     log.info('- comm_process - 3) Opening Communication Channel...')
     receiver = ReceiverInterface(port=opts.tcp_port, show_data=opts.show_data)
@@ -568,25 +569,43 @@ def main():
     # ------------------------------------
     exp_info, kb, monitor = get_experiment_info()
 
-    # 4) Start GUI
-    # ------------
-    cap_qa = experiment_QA(kb,monitor,opts)
+    # 3) Depending on the type of run.....
+    # ------------------------------------
+    if opts.exp_type == "esam":
+        # 4) Start GUI
+        # ------------
+        cap_qa = experiment_QA(kb,monitor,opts)
     
-    # 5) Wait for things to happen
-    # ----------------------------
-    while not mp_evt_end.is_set():
-        cap_qa.draw_resting_screen()
-        if event.getKeys(['escape']):
-            log.info('- User pressed escape key')
-            mp_evt_end.set()
-        if mp_evt_hit.is_set():
-            cap_qa.run_full_QA()
-            mp_evt_qa_end.set()
-            sleep(0.5)
+        # 5) Wait for things to happen
+        # ----------------------------
+        while not mp_evt_end.is_set():
+            cap_qa.draw_resting_screen()
+            if event.getKeys(['escape']):
+                log.info('- User pressed escape key')
+                mp_evt_end.set()
+            if mp_evt_hit.is_set():
+                cap_qa.run_full_QA()
+                mp_evt_qa_end.set()
+                sleep(0.5)
+        
+        # 6) Close Psychopy Window
+        # ------------------------
+        cap_qa.close_psychopy_infrastructure()
     
-    # 6) Close Psychopy Window
-    # ------------------------
-    cap_qa.close_psychopy_infrastructure()
+    if opts.exp_type == "preproc":
+        # 4) Start GUI
+        rest_exp = experiment_Preproc(kb,monitor,opts)
+
+        # 5) Keep the experiment going, until it ends
+        while not mp_evt_end.is_set():
+            rest_exp.draw_resting_screen()
+            if event.getKeys(['escape']):
+                log.info('- User pressed escape key')
+                mp_evt_end.set()
+        
+        # 6) Close Psychopy Window
+        # ------------------------
+        rest_exp.close_psychopy_infrastructure()
     log.info(' - main - Reached end of Main in primary thread')
     return 1
 if __name__ == '__main__':
