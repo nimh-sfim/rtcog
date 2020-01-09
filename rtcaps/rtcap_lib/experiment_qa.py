@@ -44,8 +44,48 @@ def get_experiment_info():
     monitor_descriptor ='testMonitor'
     return expInfo, kb_descriptor, monitor_descriptor
 
+class experiment_Preproc(object):
+    def __init__(self, kb, monitor, opts):
+        self.out_dir    = opts.out_dir
+        self.out_prefix = opts.out_prefix
+        self.fscreen    = opts.fullscreen
+        self.ewin       = self._create_experiment_window(monitor)
+        self.kb         = kb
+        self.monitor    = monitor
+
+        # Default Screen
+        self.default_inst_01 = TextStim(win=self.ewin, text='Fixate on crosshair', pos=(0.0,0.42))
+        self.default_inst_02 = TextStim(win=self.ewin, text='Let you mind wander freely', pos=(0.0,0.3))
+        self.default_inst_03 = TextStim(win=self.ewin, text='Do not sleep', pos=(0.0,-0.3))
+        self.default_chair   = TextStim(win=self.ewin, text='X', pos=(0,0))
+    
+    def _create_experiment_window(self,monitor):
+        ewin = Window(
+            size=(1024, 768), fullscr=self.fscreen, screen=0, 
+            winType='pyglet', allowGUI=False, allowStencil=False,
+            monitor=monitor, color=[0,0,0], colorSpace='rgb',
+            blendMode='avg', useFBO=True, 
+            units='norm')
+        return ewin
+
+    def draw_resting_screen(self):
+        self.default_inst_01.draw()
+        self.default_inst_02.draw()
+        self.default_inst_03.draw()
+        self.default_chair.draw()
+        self.ewin.flip()
+        return None
+    
+    def close_psychopy_infrastructure(self):
+        log.info(' - close_psychopy_infrastructure - Function called.')
+        self.ewin.flip()
+        self.ewin.close()
+        psychopy_logging.flush()
+        core.quit()
+        return None
+
 class experiment_QA(object):
-    def __init__(self,kb, monitor, opts):
+    def __init__(self, kb, monitor, opts):
         # Constants for easy configuration
         self.RS_Q_TIMEOUT = 20
         self.RS_Q_STRETCH = 2.5
@@ -80,7 +120,6 @@ class experiment_QA(object):
         self.mic_image         = ImageStim(win=self.ewin, image=osp.join(RESOURCES_DIR,'microphone_pic.png'), pos=(-0.5,0.0), size=(.2,.2))
 
         microphone.switchOn()
-        #self.mic            = microphone.AdvAudioCapture(saveDir=self.out_dir, filename=self.out_prefix+'_OralResponse')
         self.mic            = microphone.AudioCapture(saveDir=self.out_dir,filename=self.out_prefix+'_OralResponse')
         self.mic_ack_rec_01 = TextStim(win=self.ewin, text='Recoding Successful', pos=(0.0,0.06), color='green', bold=True)
         self.mic_ack_rec_02 = TextStim(win=self.ewin, text='Thank you!', pos=(0.0,-0.06), color='green', bold=True)
