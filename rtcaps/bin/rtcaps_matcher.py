@@ -1,37 +1,30 @@
-#!/usr/bin/env python
-
-# python3 status: compatible
-
-import sys, os
-import itertools
-import signal, time
-from time import sleep
-#from threading import Thread, Event
+import sys
 import argparse
 import logging
 import pickle
-mpl_logger = logging.getLogger('matplotlib')
-mpl_logger.setLevel(logging.WARNING)
+import multiprocessing as mp 
+from time import sleep
+from psychopy import event
 
 import numpy as np
-import multiprocessing as mp
-mp.set_start_method('spawn', True)
 import os.path as osp
+import sys, os
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from afni_lib.receiver import ReceiverInterface
-from rtcap_lib.core import unpack_extra, welford
-from rtcap_lib.rt_functions import rt_EMA_vol, rt_regress_vol, rt_kalman_vol
-from rtcap_lib.rt_functions import rt_smooth_vol, rt_snorm_vol, rt_svrscore_vol
-from rtcap_lib.rt_functions import gen_polort_regressors
-from rtcap_lib.fMRI         import load_fMRI_file, unmask_fMRI_img
-from rtcap_lib.svr_methods  import is_hit_rt01
-from rtcap_lib.core         import create_win
+from afni_lib.receiver       import ReceiverInterface
+from rtcap_lib.core          import unpack_extra, welford
+from rtcap_lib.rt_functions  import rt_EMA_vol, rt_regress_vol, rt_kalman_vol
+from rtcap_lib.rt_functions  import rt_smooth_vol, rt_snorm_vol, rt_svrscore_vol
+from rtcap_lib.rt_functions  import gen_polort_regressors
+from rtcap_lib.fMRI          import load_fMRI_file, unmask_fMRI_img
+from rtcap_lib.svr_methods   import is_hit_rt01
+from rtcap_lib.core          import create_win
+from rtcap_lib.experiment_qa import get_experiment_info, experiment_QA, experiment_Preproc
 
-from psychopy.visual import Window, TextStim, RatingScale
+from psychopy import prefs
+prefs.hardware['audioLib'] = ['pyo']
 
-# ----------------------------------------------------------------------
-# Default Login Options:
+# Setup Logging Infrastructure
 log     = logging.getLogger("online_preproc")
 log_fmt = logging.Formatter('[%(levelname)s - Main]: %(message)s')
 log_ch  = logging.StreamHandler()
@@ -39,59 +32,15 @@ log_ch.setFormatter(log_fmt)
 log.setLevel(logging.INFO)
 log.addHandler(log_ch)
 
-# ----------------------------------------------------------------------
-# In this module, handing signals and options.  Try to keep other
-# operations in separate libraries (e.g. lib_realtime.py).
-# ----------------------------------------------------------------------
-
-# def run_questionaire(hit, visuals, ewin):
-#     log.debug(' - run_questionaire - Function called')
-#     while visuals['emot']['rscale'].noResponse:
-#         visuals['emot']['inst'].draw()
-#         visuals['emot']['rscale'].draw()
-#         ewin.flip()
-#     return 1
-
-def gui_thread(hit_event, end_event, fullscreen, screen_size):
-    print('============== hello from gui_thread ==============================')
-    #if fullscreen:
-    #     ewin = Window(fullscr = fullscreen, allowGUI=False, units='norm')
-    #else:
-    #     ewin = Window(screen_size, allowGUI=False, units='norm')
-        
-    # #create some stimuli
-    # text_inst_line01 = TextStim(win=ewin, text='Please fixate on x-hair,',pos=(0.0,0.4))
-    # text_inst_line02 = TextStim(win=ewin, text='remain awake,',           pos=(0.0,0.28))
-    # text_inst_line03 = TextStim(win=ewin, text='and let your mind wander.',pos=(0.0,0.16))
-    # text_inst_chair  = TextStim(win=ewin, text='X', pos=(0,0))
-
-    # #plot on the screen the initial instructions
-    # text_inst_line01.draw()
-    # text_inst_line02.draw()
-    # text_inst_line03.draw()
-    # text_inst_chair.draw()
-    # ewin.flip()
-
-    # #create all objects, I will need in the future
-    # emot_instr  = TextStim(win=ewin, text='Please rate the content/form of your thoughts just prior to the beep',pos=(0.0,0.5))
-    # emot_rscale = RatingScale(win=ewin, scale="Emotional Content", leftKeys='a', rightKeys='s', acceptKeys='z',
-    #                         markerStart='3', low='1', high='5', labels=('Sad','Neutral','Happy'), marker='glow', markerExpansion=0,
-    #                         markerColor='white', pos=(0.0,-0.3), stretch=2, textColor='white', showAccept=False,
-    #                         maxTime=10, name='RatScale_Emotion')
-
-    # # run loop
-    # while not end_event.isSet():
-    #     if hit_event.isSet():
-    #         emot_instr.draw()
-    #         emot_rscale.draw()
-    
-    # return 1
+screen_size = [512, 288]
 
 
 class Experiment(object):
+    def __init__(self, options, mp_evt_hit, mp_evt_end, mp_evt_qa_end):
 
-    def __init__(self, options):
-
+        self.mp_evt_hit = mp_evt_hit           # Signals a CAP hit
+        self.mp_evt_end = mp_evt_end           # Signals the end of the experiment
+        self.mp_evt_qa_end = mp_evt_qa_end     # Signals the end of a QA set
         self.silent        = options.silent
         self.debug         = options.debug
         if self.debug:
@@ -108,6 +57,8 @@ class Experiment(object):
 
         self.n             = 0               # Counter for number of volumes pre-processed (Start = 1)
         self.t             = -1              # Counter for number of received volumes (Start = 0)
+        self.lastQA_endTR  = 0
+        self.vols_noqa     = options.vols_noqa
         self.Nv            = None            # Number of voxels in data mask
         self.Nt            = options.nvols   # Number acquisitions
         self.TR            = options.tr      # TR [seconds]
@@ -183,8 +134,6 @@ class Experiment(object):
             self.mask_Nv = np.sum(self.mask_img.get_data())
             log.debug('  Experiment_init_ - Number of Voxels in user-provided mask: %d' % self.mask_Nv)
 
-        
-
         # Create Legendre Polynomial regressors
         if self.iGLM_polort > -1:
             self.legendre_pols = gen_polort_regressors(self.iGLM_polort,self.Nt)
@@ -196,108 +145,6 @@ class Experiment(object):
             self.pool = mp.Pool(processes=self.n_cores)
         else:
             self.pool = None
-
-    def setup_preproc_withscreen_run(self):
-        #create a window
-        if self.ewin is None:
-            if self.fullscreen:
-                self.ewin = Window(fullscr = self.fullscreen, allowGUI=False, units='norm')
-            else:
-                self.ewin = Window(self.screen_size, allowGUI=False, units='norm')
-        
-        #create some stimuli
-        text_inst_line01 = TextStim(win=self.ewin, text='Please fixate on x-hair,',pos=(0.0,0.4))
-        text_inst_line02 = TextStim(win=self.ewin, text='remain awake,',           pos=(0.0,0.28))
-        text_inst_line03 = TextStim(win=self.ewin, text='and let your mind wander.',pos=(0.0,0.16))
-        text_inst_chair  = TextStim(win=self.ewin, text='X', pos=(0,0))
-
-        #plot on the screen
-        text_inst_line01.draw()
-        text_inst_line02.draw()
-        text_inst_line03.draw()
-        text_inst_chair.draw()
-        self.ewin.flip()
-
-    def setup_esam_run(self, options):
-        # load SVR model
-        if options.svr_path is None:
-            log.error('SVR Model not provided. Program will exit.')
-            sys.exit(-1)
-        if not osp.exists(options.svr_path):
-            log.error('SVR Model File does not exists. Please correct.')
-            sys.exit(-1)
-        self.svr_path = options.svr_path
-        try:
-            SVRs_pickle_in = open(self.svr_path, "rb")
-            self.SVRs = pickle.load(SVRs_pickle_in)
-        except OSError as ose:
-            log.error('SVR Model File opening threw OSError Exception.')
-            log.error(traceback.format_exc(ose))
-            sys.exit(-1)
-        except Exception as e:
-            log.error('SVR Model File opening threw generic Exception.')
-            log.error(traceback.format_exc(e))
-            sys.exit(-1)
-        self.Ncaps = len(self.SVRs.keys())
-        self.caps_labels = list(self.SVRs.keys())
-        log.info('- setup_esam_run - List of CAPs to be tested: %s' % str(self.caps_labels))
-
-        # Decoder-related initializations
-        self.dec_start_vol = options.dec_start_vol # First volume to do decoding on.
-        self.hit_method    = options.hit_method
-        self.hit_zth       = options.hit_zth
-        self.hit_v4hit     = options.hit_v4hit
-        self.hit_dowin     = options.hit_dowin
-        self.hit_domot     = options.hit_domot
-        self.hit_mot_th    = options.svr_mot_th
-        self.hit_wl        = options.hit_wl
-        if self.hit_dowin:
-            self.hit_win_weights = create_win(self.hit_wl)
-        self.hit_method_func = None
-        if self.hit_method == "method01":
-            self.hit_method_func = is_hit_rt01
-        
-        # create initial window with instructions
-        #thread_event_hit = mp.Event()
-        #thread_event_end = mp.Event()
-        log.info('- setup_esam_run - About to create psychopy_proc')
-        psychopy_proc = mp.Process(name='psyhopy_proc', 
-                                target=gui_thread, 
-                                args=(1,1,
-                                      self.fullscreen, self.screen_size ))
-        log.info('- setup_esam_run - About to start psychopy_proc')
-        #psychopy_proc.start()
-        return 1
-
-        # self.setup_preproc_withscreen_run()
-        # # Creare all graphic elements to be used at a later time
-        # self.visuals = {
-        #     'emot':{'inst': TextStim(win=self.ewin, text='Please rate the content/form of your thoughts just prior to the beep',pos=(0.0,0.5)),
-        #             'rscale':  RatingScale(win=self.ewin, scale="Emotional Content", leftKeys='a', rightKeys='s', acceptKeys='z',
-        #                             markerStart='3', low='1', high='5', labels=('Sad','Neutral','Happy'), marker='glow', markerExpansion=0,
-        #                             markerColor='white', pos=(0.0,-0.3), stretch=2, textColor='white', showAccept=False,
-        #                             maxTime=10, name='RatScale_Emotion')
-        #                 }}
-        # self.questioning_in_progress = False
-        
-    # def run_questionaire(self):
-    #     log.info(' - run_questionaire - Function called')
-    #     #self.visuals['emot']['inst'].draw()
-    #     #self.visuals['emot']['rscale'].draw()
-    #     a = TextStim(win=self.ewin, text='HELLO')
-    #     a.draw()
-    #     self.ewin.flip()
-    #     return 1
-
-    # def start_questions(self):
-    #     # Create new thread
-    #     #questioning_thread = Thread(name='Q_thread',target=run_questionaire, args=(hit, self.visuals, self.ewin))
-    #     questioning_thread = Thread(name='Q_thread',target=self.run_questionaire)
-    #     # Potentially over-write _init_ and run methods
-    #     questioning_thread.start() # At some point this will invoke run()
-
-    #     # Return new_thread
-    #     return questioning_thread #is_alive() tells if thread still alive.
 
     def compute_TR_data(self, motion, extra):
         # Keep a record of motion estimates
@@ -318,7 +165,7 @@ class Experiment(object):
         if self.t == 0:
             self.Nv            = len(this_t_data)
             log.info('Number of Voxels Nv=%d' % self.Nv)
-            if self.exp_type == "esam":
+            if self.exp_type == "esam" or self.exp_type == "esam_test":
                 # These two variables are only needed if this is an experimental
                 log.debug('[t=%d,n=%d] Initializing hits and svrscores' % (self.t, self.n))
                 self.hits             = np.zeros((self.Ncaps, 1))
@@ -368,7 +215,7 @@ class Experiment(object):
             if self.save_kalman: log.debug('[t=%d,n=%d] Discard - Data_kalman.shape   %s' % (self.t, self.n, str(self.Data_kalman.shape)))
             log.debug('[t=%d,n=%d] Discard - Data_norm.shape     %s' % (self.t, self.n, str(self.Data_norm.shape)))
             if self.save_iGLM: log.debug('[t=%d,n=%d] Discard - iGLM_Coeffs.shape   %s' % (self.t, self.n, str(self.iGLM_Coeffs.shape)))
-            if self.exp_type == "esam":
+            if self.exp_type == "esam" or self.exp_type == "esam_test":
                 # These two variables are only needed if this is an experimental
                 self.hits      = np.append(self.hits,      np.zeros((self.Ncaps,1)),  axis=1)
                 self.svrscores = np.append(self.svrscores, np.zeros((self.Ncaps,1)), axis=1)
@@ -442,7 +289,7 @@ class Experiment(object):
         norm_out = rt_snorm_vol(np.squeeze(smooth_out), do_operation=self.do_snorm)
         self.Data_norm = np.append(self.Data_norm, norm_out, axis=1)
 
-        if self.exp_type == "esam":
+        if self.exp_type == "esam" or self.exp_type == "esam_test":
 
             # Do Windowing (if needed)
             # ========================
@@ -474,24 +321,32 @@ class Experiment(object):
                                        self.hit_zth,
                                        self.hit_wl)
             self.hits = np.append(self.hits, np.zeros((self.Ncaps,1)), axis=1)
-            if (hit != None) and (not self.thread_event_hit.isSet()):
+
+            if self.mp_evt_qa_end.is_set():
+                self.lastQA_endTR = self.t
+                self.mp_evt_qa_end.clear()
+                self.mp_evt_hit.clear()
+                log.info(' - compute_TR_data - QA ended (cleared) --> updating lastQA_endTR = %d' % self.lastQA_endTR)
+
+            if (hit != None) and (not self.mp_evt_hit.is_set()) and (self.t >= self.lastQA_endTR + self.vols_noqa):
                 log.info('[t=%d,n=%d] =============================================  CAP hit [%s]' % (self.t,self.n, hit))
                 self.hits[self.caps_labels.index(hit),self.t] = 1
-                self.thread_event_hit.Set()
+                self.mp_evt_hit.set()
+            
 
         # Need to return something, otherwise the program thinks the experiment ended
         return 1
 
     def final_steps(self):
-        if self.ewin is not None:
-                log.info('Psychopy UI closing.')
-                self.ewin.close()
+        #if self.ewin is not None:
+        #        log.info('Psychopy UI closing.')
+        #        self.ewin.close()
 
         # Write out motion
         self.motion_estimates = [item for sublist in self.motion_estimates for item in sublist]
         log.info('self.motion_estimates length is %d' % len(self.motion_estimates))
         self.motion_estimates = np.reshape(self.motion_estimates,newshape=(int(len(self.motion_estimates)/6),6))
-        np.savetxt(osp.join(self.out_dir,self.out_prefix+'Motion.1D'), 
+        np.savetxt(osp.join(self.out_dir,self.out_prefix+'.Motion.1D'), 
                    self.motion_estimates,
                    delimiter="\t")
         log.info('Motion estimates saved to disk: [%s]' % osp.join(self.out_dir,self.out_prefix+'.Motion.1D'))
@@ -523,15 +378,125 @@ class Experiment(object):
                 data = self.iGLM_Coeffs[:,i,:]
                 out = unmask_fMRI_img(data, self.mask_img, osp.join(self.out_dir,self.out_prefix+'.pp_iGLM_'+lab+'.nii'))    
 
-        if self.exp_type == "esam":
+        if self.exp_type == "esam" or self.exp_type == "esam_test":
             svrscores_path = osp.join(self.out_dir,self.out_prefix+'.svrscores')
             np.save(svrscores_path,self.svrscores)
             log.info('Saved svrscores to %s' % svrscores_path)
             hits_path = osp.join(self.out_dir,self.out_prefix+'.hits')
             np.save(hits_path, self.hits)
             log.info('Saved hits info to %s' % hits_path)
+        log.info(' - final_steps - Setting end of experiment event (mp_evt_end)')
+        self.mp_evt_end.set()
+        return 1
+
+    def setup_esam_run(self, options):
+        # load SVR model
+        if options.svr_path is None:
+            log.error('SVR Model not provided. Program will exit.')
+            self.mp_evt_end.set()
+            sys.exit(-1)
+        if not osp.exists(options.svr_path):
+            log.error('SVR Model File does not exists. Please correct.')
+            self.mp_evt_end.set()
+            sys.exit(-1)
+        self.svr_path = options.svr_path
+        try:
+            SVRs_pickle_in = open(self.svr_path, "rb")
+            self.SVRs = pickle.load(SVRs_pickle_in)
+        except OSError as ose:
+            log.error('SVR Model File opening threw OSError Exception.')
+            log.error(traceback.format_exc(ose))
+            self.mp_evt_end.set()
+            sys.exit(-1)
+        except Exception as e:
+            log.error('SVR Model File opening threw generic Exception.')
+            log.error(traceback.format_exc(e))
+            self.mp_evt_end.set()
+            sys.exit(-1)
+        self.Ncaps = len(self.SVRs.keys())
+        self.caps_labels = list(self.SVRs.keys())
+        log.info('- setup_esam_run - List of CAPs to be tested: %s' % str(self.caps_labels))
+
+        # Decoder-related initializations
+        self.dec_start_vol = options.dec_start_vol # First volume to do decoding on.
+        self.hit_method    = options.hit_method
+        self.hit_zth       = options.hit_zth
+        self.hit_v4hit     = options.hit_v4hit
+        self.hit_dowin     = options.hit_dowin
+        self.hit_domot     = options.hit_domot
+        self.hit_mot_th    = options.svr_mot_th
+        self.hit_wl        = options.hit_wl
+        if self.hit_dowin:
+            self.hit_win_weights = create_win(self.hit_wl)
+        self.hit_method_func = None
+        if self.hit_method == "method01":
+            self.hit_method_func = is_hit_rt01
 
         return 1
+
+# ==================================================
+# ======== Functions (for Comm Process)   ==========
+# ==================================================
+def comm_process(opts, mp_evt_hit, mp_evt_end, mp_evt_qa_end):
+    
+    # 2) Create Experiment Object
+    log.info('- comm_process - 2) Instantiating Experiment Object...')
+    experiment = Experiment(opts, mp_evt_hit, mp_evt_end, mp_evt_qa_end)
+ 
+    # 3) Initilize GUI (if needed):
+    if experiment.exp_type == "esam" or experiment.exp_type == "esam_test":
+        log.info('- comm_process - 2.a) This is an experimental run')
+        experiment.setup_esam_run(opts) 
+    
+    # 4) Start Communications
+    log.info('- comm_process - 3) Opening Communication Channel...')
+    receiver = ReceiverInterface(port=opts.tcp_port, show_data=opts.show_data)
+    if not receiver:
+        return 1
+
+    # 5) set signal handlers and look for data
+    log.info('- comm_process - 4) Setting Signal Handlers...')
+    receiver.set_signal_handlers()
+
+    # 6) set receiver callback
+    receiver.compute_TR_data  = experiment.compute_TR_data
+    receiver.final_steps      = experiment.final_steps
+
+    # 7) prepare for incoming connections
+    log.info('- comm_process - 5) Prepare for Incoming Connections...')
+    if receiver.RTI.open_incoming_socket():
+        return 1
+
+    #8) Vinai's alternative
+    log.info('6) Here we go...')
+    rv = receiver.process_one_run()
+    return rv
+
+# ===================================================
+# =========   Functions (for GUI Process)   =========
+# ===================================================
+def create_psychopy_win(opts):
+    #create a window
+    if opts.fullscreen:
+        ewin = Window(fullscr = opts.fullscreen, allowGUI=False, units='norm')
+    else:
+        ewin = Window(screen_size, allowGUI=False, units='norm')
+    return ewin
+
+def show_initial_screen(ewin):
+    #create some stimuli
+    text_inst_line01 = TextStim(win=ewin, text='Please fixate on x-hair,',pos=(0.0,0.4))
+    text_inst_line02 = TextStim(win=ewin, text='remain awake,',           pos=(0.0,0.28))
+    text_inst_line03 = TextStim(win=ewin, text='and let your mind wander.',pos=(0.0,0.16))
+    text_inst_chair  = TextStim(win=ewin, text='X', pos=(0,0))
+
+    #plot on the screen
+    text_inst_line01.draw()
+    text_inst_line02.draw()
+    text_inst_line03.draw()
+    text_inst_chair.draw()
+    ewin.flip()
+    return 1
 
 def processExperimentOptions (self, options=None):
     parser = argparse.ArgumentParser(description="rtCAPs experimental software. Based on NIH-neurofeedback software")
@@ -566,7 +531,7 @@ def processExperimentOptions (self, options=None):
     parser_save.add_argument("--save_orig"  , help="Save 4D with incoming data  [default: %(default)s]", dest="save_orig", default=False, action="store_true")
     parser_save.add_argument("--save_all"  ,  help="Save 4D with incoming data  [default: %(default)s]", dest="save_all", default=False, action="store_true")
     parser_exp = parser.add_argument_group('Experiment/GUI Options')
-    parser_exp.add_argument("-e","--exp_type", help="Type of Experimental Run [%(default)s]",      type=str, required=True,  choices=['preproc','esam'], default='preproc')
+    parser_exp.add_argument("-e","--exp_type", help="Type of Experimental Run [%(default)s]",      type=str, required=True,  choices=['preproc','esam', 'esam_test'], default='preproc')
     parser_exp.add_argument("--no_proc_chair", help="Hide crosshair during preprocessing run [%(default)s]", default=False,  action="store_true", dest='no_proc_chair')
     parser_exp.add_argument("--fscreen", help="Use full screen for Experiment [%(default)s]", default=False, action="store_true", dest="fullscreen")
     parser_exp.add_argument("--screen", help="Monitor to use [%(default)s]", default=1, action="store", dest="screen",type=int)
@@ -580,61 +545,89 @@ def processExperimentOptions (self, options=None):
     parser_dec.add_argument("--svr_mot_activate", help="Consider a hit if excessive motion [%(default)s]", dest="hit_domot", action="store_true", default=False )
     parser_dec.add_argument("--svr_mot_th", help="Framewise Displacement Treshold for motion [%(default)s]",  action="store", type=float, dest="svr_mot_th", default=1.2)
     parser_dec.add_argument("--svr_hit_mehod", help="Method for deciding hits [%(default)s]", type=str, choices=["method01"], default="method01", action="store", dest="hit_method")
-    #self.hit_method    = "method01"
-    #    self.hit_zth       = 2
-    #    self.hit_v4hit     = 2
-    #    self.hit_dowin     = True
-    #    self.hit_domot     = False
-    #    self.hit_wl        = 4
-
+    parser_dec.add_argument("--svr_vols_noqa", help="Min. number of volumes to wait since end of last QA before declaing a new hit.", type=int, dest='vols_noqa', default=60, action="store")
 
     return parser.parse_args(options)
 
 def main():
     # 1) Read Input Parameters: port, fullscreen, etc..
+    # -------------------------------------------------
     log.info('1) Reading input parameters...')
     opts = processExperimentOptions(sys.argv)
-    log.debug('User Options: %s' % str(opts))    
+    log.debug('User Options: %s' % str(opts))
 
-    # 2) Create Experiment Object
-    log.info('2) Instantiating Experiment Object...')
-    experiment = Experiment(opts)
+    # 3) Create Multi-processing infra-structure
+    # ------------------------------------------
+    mp_evt_hit = mp.Event()
+    mp_evt_end = mp.Event()
+    mp_evt_qa_end = mp.Event()
 
-    # 3) Initilize GUI (if needed):
-    if (experiment.exp_type == "preproc") and (experiment.no_proc_chair==False):
-        log.info('Starting Pychopy Screen for Experiment Run [ Preprocessing + Crosshiar ]')
-        experiment.setup_preproc_withscreen_run()
-    if experiment.exp_type == "esam":
-        log.info('This is an experimental run')
-        log.info('  - PsychoPy Screen Activated.')
-        experiment.setup_esam_run(opts) 
-        log.info('  - SVR Models loaded from %s' % experiment.svr_path)
+    mp_prc_comm = mp.Process(target=comm_process, args=(opts, mp_evt_hit, mp_evt_end, mp_evt_qa_end))
+    mp_prc_comm.start()
 
+    # 2) Get additional info using the GUI
+    # ------------------------------------
+    exp_info, kb, monitor = get_experiment_info()
 
-    # 4) Start Communications
-    log.info('3) Opening Communication Channel...')
-    receiver = ReceiverInterface(port=opts.tcp_port, show_data=opts.show_data)
-    if not receiver:
-        return 1
+    # 3) Depending on the type of run.....
+    # ------------------------------------
+    if opts.exp_type == "esam":
+        # 4) Start GUI
+        # ------------
+        cap_qa = experiment_QA(kb,monitor,opts)
+    
+        # 5) Wait for things to happen
+        # ----------------------------
+        while not mp_evt_end.is_set():
+            cap_qa.draw_resting_screen()
+            if event.getKeys(['escape']):
+                log.info('- User pressed escape key')
+                mp_evt_end.set()
+            if mp_evt_hit.is_set():
+                cap_qa.run_full_QA()
+                mp_evt_qa_end.set()
+                sleep(0.5)
+        
+        # 6) Close Psychopy Window
+        # ------------------------
+        cap_qa.close_psychopy_infrastructure()
+    
+    if opts.exp_type == "esam_test":
+        # 4) Start GUI
+        # ------------
+        cap_qa = experiment_QA(kb,monitor,opts)
+    
+        # 5) Wait for things to happen
+        # ----------------------------
+        while not mp_evt_end.is_set():
+            cap_qa.draw_resting_screen()
+            if event.getKeys(['escape']):
+                log.info('- User pressed escape key')
+                mp_evt_end.set()
+            #if mp_evt_hit.is_set():
+            #    cap_qa.run_full_QA()
+            #    mp_evt_qa_end.set()
+            #    sleep(0.5)
+        
+        # 6) Close Psychopy Window
+        # ------------------------
+        cap_qa.close_psychopy_infrastructure()
+    
+    if opts.exp_type == "preproc":
+        # 4) Start GUI
+        rest_exp = experiment_Preproc(kb,monitor,opts)
 
-    # 5) set signal handlers and look for data
-    log.info('4) Setting Signal Handlers...')
-    receiver.set_signal_handlers()  # require signal to exit
-
-    # 6) set receiver callback
-    # At this point Receiver is still basically an empty container
-    receiver.compute_TR_data  = experiment.compute_TR_data
-    receiver.final_steps      = experiment.final_steps
-
-    # 7) prepare for incoming connections
-    log.info('5) Prepare for Incoming Connections...')
-    if receiver.RTI.open_incoming_socket():
-        return 1
-
-    #8) Vinai's alternative
-    log.info('6) Here we go...')
-    rv = receiver.process_one_run()
-    #return rv
-
+        # 5) Keep the experiment going, until it ends
+        while not mp_evt_end.is_set():
+            rest_exp.draw_resting_screen()
+            if event.getKeys(['escape']):
+                log.info('- User pressed escape key')
+                mp_evt_end.set()
+        
+        # 6) Close Psychopy Window
+        # ------------------------
+        rest_exp.close_psychopy_infrastructure()
+    log.info(' - main - Reached end of Main in primary thread')
+    return 1
 if __name__ == '__main__':
    sys.exit(main())

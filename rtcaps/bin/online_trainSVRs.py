@@ -11,17 +11,20 @@ from sklearn import linear_model
 from scipy.stats import zscore
 from sklearn.svm import SVR
 import pickle
-from optparse import OptionParser
 import argparse
 import matplotlib.pyplot as plt
+import csv
 
-#log.basicConfig(format='[%(levelname)s]: %(message)s', level=log.DEBUG)
+import holoviews as hv
+import hvplot.pandas
+
 log     = logging.getLogger("trainSVRs")
 log_fmt = logging.Formatter('[%(levelname)s - Main]: %(message)s')
 log_ch  = logging.StreamHandler()
 log_ch.setFormatter(log_fmt)
-log_ch.setLevel(logging.DEBUG)
+log.setLevel(logging.INFO)
 log.addHandler(log_ch)
+
 
 sys.path.insert(0, osp.abspath(osp.join(osp.dirname(__file__), '..')))
 
@@ -44,8 +47,12 @@ class Program(object):
             sys.exit(-1)
         self.outdir = opts.outdir
         self.prefix = opts.prefix
-        self.outpkl = osp.join(self.outdir,self.prefix+".pkl")
-        self.outpng = osp.join(self.outdir,self.prefix+".png")
+        self.outpkl     = osp.join(self.outdir,self.prefix+".pkl")
+        self.outpng     = osp.join(self.outdir,self.prefix+".png")
+        self.outhtml    = osp.join(self.outdir,self.prefix) 
+        self.labels_csv = osp.join(self.outdir,self.prefix+"_lm_z_labels.csv")
+        self.r2_csv     = osp.join(self.outdir,self.prefix+"_lm_R2.csv")
+        self.tvols_csv  = osp.join(self.outdir,self.prefix+"_training_vols.csv")
         if osp.exists(self.outpkl):
             log.warning('Output File does exists. File will be overwritten.')
 
@@ -103,7 +110,6 @@ class Program(object):
         self.lm_res_z       = pd.DataFrame(lm_results_flat_Z, columns=self.caps_labels, index=lm_results.index)
         #self.lm_res_z['TR'] = self.vols4training
         
-
     def train_svrs(self):
         for cap_lab in tqdm(self.caps_labels):
             Training_Labels = self.lm_res_z[cap_lab]
@@ -113,11 +119,30 @@ class Program(object):
         return 1
 
     def save_results(self):
+        # Save Trained Models
         pickle_out = open(self.outpkl,"wb")
         pickle.dump(self.SVRs, pickle_out)
         pickle_out.close()
-        log.info('   Trained SVR models saved to %s' % self.outpkl)
-        a = np.random.rand(100)
+        log.info(' - save_results - Trained SVR models saved to %s' % self.outpkl)
+        
+        # List of Training Volumes
+        with open(self.tvols_csv, 'w') as f:
+            writer = csv.writer(f)
+            for val in self.vols4training:
+                writer.writerow([val])
+        log.info(' - save_results - List of training volumes saved to disk [%s]' % self.tvols_csv)
+        
+        # Save Labels & R2
+        with open(self.r2_csv, 'w') as f:
+            writer = csv.writer(f)
+            for val in self.lm_R2:
+                writer.writerow([val])
+        log.info(' - save_results - R2 for linear model saved to disk [%s]' % self.r2_csv)
+        
+        self.lm_res_z.to_csv(self.labels_csv, header=True, sep=',', index=False)
+        log.info(' - save_results - Z-score Labels saved to disk [%s]' % self.labels_csv)
+
+        # Save Static Figure
         fig = plt.figure(figsize=(20,5))
         plt.subplot(211)
         plt.plot(self.vols4training,self.lm_R2)
@@ -128,10 +153,24 @@ class Program(object):
         plt.ylabel('Z-Score')
         plt.legend(self.caps_labels)
         plt.savefig(self.outpng, dpi=200, layout='tight')
-        log.info('   Saved Label Computation Results to [%s]' % self.outpng)
+        log.info(' - save_results - Saved Label Computation Results to [%s]' % self.outpng)
+
+        # Save Dynamic Figures
+        renderer    = hv.renderer('bokeh')
+        R2_DF       = pd.DataFrame(columns=['TR','R2'], index=np.arange(len(self.vols4training)))
+        R2_DF['TR'] = self.vols4training
+        R2_DF['R2'] = self.lm_R2
+        R2_curve    = R2_DF.hvplot(legend='top', label='R2 for Linear Regression on Training Data', x='TR').opts(width=1500)
+
+        ZLabels_DF       = self.lm_res_z.copy()
+        ZLabels_DF['TR'] = self.vols4training
+        ZL_curve         = ZLabels_DF.hvplot(legend='top', label='Regression Coefficients for all CAPs', x='TR').opts(width=1500)
+        LM_Layout        = (R2_curve + ZL_curve).cols(1)
+        renderer.save(LM_Layout, self.outhtml)
+        log.info(' - save_results - Saved Label Computation Results (Dynamic View) to [%s.html]' % self.outhtml)
         return 1
 
-def processProgramOptions(options):
+def processProgramOptions (self, options=None):
     parser = argparse.ArgumentParser(description="Train SVRs for spatial template matching")
     parser_inopts = parser.add_argument_group('Input Options','Inputs to this program')
     parser_inopts.add_argument("-d","--data", action="store", type=str, dest="data_path", default=None, help="path to training dataset [Default: %(default)s]", required=True)
@@ -143,24 +182,10 @@ def processProgramOptions(options):
     parser_outopts.add_argument("-p","--prefix", action="store", type=str, dest="prefix", default="svr", help="prefix for output file [Default: %(default)s]")
     return parser.parse_args(options)  
 
-# def processProgramOptions(options):
-#     usage = "%prog [options]"
-#     description = "rtCAPs: This program train classifiers for the on-line detection of \
-#                    CAP configurations in fMRI data."
-
-#     parser = OptionParser(usage = usage, description = description)
-#     parser.add_option("-d","--data", action="store", type="str", dest="data_path", default=None, help="path to training dataset [Default: %default]")
-#     parser.add_option("-m","--mask", action="store", type="str", dest="mask_path", default=None, help="path to mask [Default: %default]")
-#     parser.add_option("-o","--outdir",  action="store", type="str", dest="outdir",  default=None, help="output directory [Default: %default]")
-#     parser.add_option("-c","--caps", action="store", type="str", dest="caps_path", default=None, help="path to caps template [Default: %default]")
-#     parser.add_option("--discard",   action="store", type="int", dest="nvols_discard",   default=100,  help="number of volumes [Default: %default]")
-#     parser.add_option("-p","--prefix", action="store", type="str", dest="prefix", default="svr", help="prefix for output file [Default: %default]")
-#     return parser.parse_args(options)
-
 def main():
     # 1) Read Input Parameters
     log.info('1) Reading Program Inputs...')
-    opts, args = processProgramOptions(sys.argv)
+    opts = processProgramOptions(sys.argv)
     log.debug('User Options: %s' % str(opts))
 
     # 2) Ensure Inputs Correctness

@@ -33,3 +33,8 @@ a.pkl.npy
 kl_devel.ipynb
 TMP
 rtcaps/profiles
+resources/
+rtcaps/bin/temp/
+rtcaps/bin/temp01/
+rtcaps/bin/err/
+emails/

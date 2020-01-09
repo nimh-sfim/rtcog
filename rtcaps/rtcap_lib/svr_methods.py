@@ -1,11 +1,11 @@
 import numpy as np
 import logging
 log     = logging.getLogger("svr_methods")
-log.setLevel(logging.DEBUG)
+log.setLevel(logging.INFO)
 log_fmt = logging.Formatter('[%(levelname)s - svr_methods]: %(message)s')
 log_ch  = logging.StreamHandler()
 log_ch.setFormatter(log_fmt)
-log_ch.setLevel(logging.DEBUG)
+log_ch.setLevel(logging.INFO)
 log.addHandler(log_ch)
 def is_hit_method01(vol, CAP_labels, hit_opts, SVRscores, rtPredictions, Vol_LastQEnded):
     pred_this_vol = SVRscores.loc[vol]        # SVR scores for this volume
