@@ -5,10 +5,12 @@ import pickle
 import multiprocessing as mp 
 from time import sleep
 from psychopy import event
-
+import holoviews as hv
+import hvplot.pandas
 import numpy as np
 import os.path as osp
 import sys, os
+import pandas as pd
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from afni_lib.receiver       import ReceiverInterface
@@ -33,7 +35,8 @@ log.setLevel(logging.INFO)
 log.addHandler(log_ch)
 
 screen_size = [512, 288]
-
+CAP_indexes = [25,4,18,28,24,11,21]
+CAP_labels  = ['VPol','DMN','SMot','Audi','ExCn','rFPa','lFPa']
 
 class Experiment(object):
     def __init__(self, options, mp_evt_hit, mp_evt_end, mp_evt_qa_end):
@@ -121,7 +124,10 @@ class Experiment(object):
         self.mask_path  = options.mask_path
         self.out_dir    = options.out_dir
         self.out_prefix = options.out_prefix 
+        self.outhtml       = osp.join(self.out_dir,self.out_prefix+'.dyn_report')
 
+        self.qa_onsets  = []
+        self.qa_offsets = []
         # Load Mask - Necessary for smoothing
         if self.do_smooth and self.mask_path is None:
             log.error('   Experiment_init_ - Smoothing requires a mask. Provide a mask or disable smoothing operation.')
@@ -327,9 +333,11 @@ class Experiment(object):
                 self.mp_evt_qa_end.clear()
                 self.mp_evt_hit.clear()
                 log.info(' - compute_TR_data - QA ended (cleared) --> updating lastQA_endTR = %d' % self.lastQA_endTR)
+                self.qa_offsets.append(self.t)
 
             if (hit != None) and (not self.mp_evt_hit.is_set()) and (self.t >= self.lastQA_endTR + self.vols_noqa):
                 log.info('[t=%d,n=%d] =============================================  CAP hit [%s]' % (self.t,self.n, hit))
+                self.qa_onsets.append(self.t)
                 self.hits[self.caps_labels.index(hit),self.t] = 1
                 self.mp_evt_hit.set()
             
@@ -386,6 +394,35 @@ class Experiment(object):
             np.save(hits_path, self.hits)
             log.info('Saved hits info to %s' % hits_path)
         log.info(' - final_steps - Setting end of experiment event (mp_evt_end)')
+
+        # Write out the dynamic report for this run
+        if self.exp_type == "esam" or self.exp_type == "esam_test":
+            SVR_Scores_DF       = pd.DataFrame(self.svrscores.T, columns=CAP_labels)
+            SVR_Scores_DF['TR'] = SVR_Scores_DF.index
+            SVRscores_curve     = SVR_Scores_DF.hvplot(legend='top', label='SVR Scores', x='TR').opts(width=1500)
+            Threshold_line      = hv.HLine(self.hit_zth).opts(color='black', line_dash='dashed', line_width=1)
+            Hits_ToPlot         = self.hits.T * self.svrscores.T
+            Hits_ToPlot[Hits_ToPlot==0.0] = None
+            Hits_DF             = pd.DataFrame(Hits_ToPlot, columns=CAP_labels)
+            Hits_DF['TR']       = Hits_DF.index
+            Hits_Marks          = Hits_DF.hvplot(legend='top', label='SVR Scores', 
+                                             x='TR', kind='scatter', marker='circle', 
+                                             alpha=0.5, s=100).opts(width=1500)
+            qa_boxes = []
+            for (on,off) in zip(self.qa_onsets,self.qa_offsets):
+                qa_boxes.append(hv.Box(x=on+((off-on)/2),y=0,spec=(off-on,10)))
+            QA_periods = hv.Polygons(qa_boxes).opts(alpha=.2, color='blue', line_color=None)
+            wait_boxes = []
+            for off in self.qa_offsets:
+                wait_boxes.append(hv.Box(x=off+(self.vols_noqa/2),y=0,spec=(self.vols_noqa,10)))
+            WAIT_periods = hv.Polygons(wait_boxes).opts(alpha=.2, color='cyan', line_color=None)
+            plot_layout = (SVRscores_curve * Threshold_line * Hits_Marks * QA_periods * WAIT_periods).opts(title='Experimental Run Results:'+self.out_prefix)
+            renderer    = hv.renderer('bokeh')
+            renderer.save(plot_layout, self.outhtml)
+            log.info(' - final_steps - qa_onsets:  %s' % str(self.qa_onsets))
+            log.info(' - final_steps - qa_offsets: %s' % str(self.qa_offsets))
+
+        # Inform other threads that this is comming to an end
         self.mp_evt_end.set()
         return 1
 
@@ -604,11 +641,7 @@ def main():
             if event.getKeys(['escape']):
                 log.info('- User pressed escape key')
                 mp_evt_end.set()
-            #if mp_evt_hit.is_set():
-            #    cap_qa.run_full_QA()
-            #    mp_evt_qa_end.set()
-            #    sleep(0.5)
-        
+       
         # 6) Close Psychopy Window
         # ------------------------
         cap_qa.close_psychopy_infrastructure()
