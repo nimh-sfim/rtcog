@@ -419,6 +419,7 @@ class Experiment(object):
             plot_layout = (SVRscores_curve * Threshold_line * Hits_Marks * QA_periods * WAIT_periods).opts(title='Experimental Run Results:'+self.out_prefix)
             renderer    = hv.renderer('bokeh')
             renderer.save(plot_layout, self.outhtml)
+            log.info(' - final_steps - Dynamic Report written to disk: [%s.html]' % self.outhtml)
             log.info(' - final_steps - qa_onsets:  %s' % str(self.qa_onsets))
             log.info(' - final_steps - qa_offsets: %s' % str(self.qa_offsets))
 
