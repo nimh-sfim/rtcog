@@ -63,9 +63,9 @@ class experiment_Preproc(object):
         ewin = Window(
             size=(1024, 768), fullscr=self.fscreen, screen=0, 
             winType='pyglet', allowGUI=False, allowStencil=False,
-            monitor=monitor, color=[0,0,0], colorSpace='rgb',
+            screen=screen, color=[0,0,0], colorSpace='rgb',
             blendMode='avg', useFBO=True, 
-            units='norm')
+            units='norm') #monitor=monitor
         return ewin
 
     def draw_resting_screen(self):
