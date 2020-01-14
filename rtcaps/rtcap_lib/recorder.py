@@ -10,6 +10,7 @@ Non-blocking mode (start and stop recording):
 ...     recfile2.start_recording()
 ...     time.sleep(5.0)
 ...     recfile2.stop_recording()
+Original Code from: https://gist.github.com/sloria/5693955
 '''
 import pyaudio
 import wave
