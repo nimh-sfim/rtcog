@@ -162,7 +162,10 @@ class Experiment(object):
         if self.t > self.nvols_discard - 1:
             self.n = self.n + 1
 
-        log.info(' - Time point [t=%d, n=%d]' % (self.t, self.n))
+        log.info(' - Time point [t=%d, n=%d] | hit = %s | qa_end = %s | prg_end = %s' % (self.t, self.n, 
+                                    self.mp_evt_hit.is_set(),
+                                    self.mp_evt_qa_end.is_set(),
+                                    self.mp_evt_end.is_set()))
         
         # Read Data from socket
         this_t_data = np.array(extra)
@@ -423,6 +426,27 @@ class Experiment(object):
             log.info(' - final_steps - qa_onsets:  %s' % str(self.qa_onsets))
             log.info(' - final_steps - qa_offsets: %s' % str(self.qa_offsets))
 
+        # Write out the maps associated with the hits
+        if self.exp_type == "esam" or self.exp_type == "esam_test":
+            Hits_DF = pd.DataFrame(self.hits.T, columns=CAP_labels)
+            for cap in CAP_labels:
+                thisCAP_hits = Hits_DF[cap].sum()
+                if thisCAP_hits > 0: # There were hits for this particular cap
+                    hit_ID = 1
+                    for vol in Hits_DF[Hits_DF[cap]==True].index:
+                        if self.hit_dowin == True:
+                            thisCAP_Vols = vol-np.arange(self.hit_wl+self.hit_v4hit-1)
+                        else:
+                            thisCAP_Vols = vol-np.arange(self.hit_v4hit)
+                        out_file = osp.join(self.out_dir, self.out_prefix + '.Hit_'+cap+'_'+str(hit_ID).zfill(2)+'.nii')
+                        log.info(' - final_steps - [%s-%d]. Contributing Vols: %s | File: %s' % (cap, hit_ID,str(thisCAP_Vols), out_file ))
+                        log.debug(' - final_steps - self.Data_norm.shape %s' % str(self.Data_norm.shape))
+                        log.debug(' - final_steps - self.Data_norm[:,thisCAP_Vols].shape %s' % str(self.Data_norm[:,thisCAP_Vols].shape))
+                        thisCAP_InMask  = self.Data_norm[:,thisCAP_Vols].mean(axis=1)
+                        log.debug(' - final_steps - thisCAP_InMask.shape %s' % str(thisCAP_InMask.shape))
+                        unmask_fMRI_img(thisCAP_InMask, self.mask_img, out_file)
+                        hit_ID = hit_ID + 1
+
         # Inform other threads that this is comming to an end
         self.mp_evt_end.set()
         return 1
@@ -508,6 +532,12 @@ def comm_process(opts, mp_evt_hit, mp_evt_end, mp_evt_qa_end):
     #8) Vinai's alternative
     log.info('6) Here we go...')
     rv = receiver.process_one_run()
+
+    if experiment.exp_type == "esam" or experiment.exp_type == "esam_test":
+        while (not experiment.mp_evt_qa_end.is_set()) and experiment.mp_evt_hit.is_set():
+            print('- comm_process - waiting for QA to end ')
+            sleep(1)
+    print('- comm_process - ready to end ')
     return rv
 
 # ===================================================
