@@ -635,14 +635,14 @@ def main():
 
     # 2) Get additional info using the GUI
     # ------------------------------------
-    exp_info, kb, monitor = get_experiment_info()
+    exp_info = get_experiment_info()
 
     # 3) Depending on the type of run.....
     # ------------------------------------
     if opts.exp_type == "esam":
         # 4) Start GUI
         # ------------
-        cap_qa = experiment_QA(kb,monitor,opts)
+        cap_qa = experiment_QA(exp_info,opts)
     
         # 5) Wait for things to happen
         # ----------------------------
@@ -663,7 +663,7 @@ def main():
     if opts.exp_type == "esam_test":
         # 4) Start GUI
         # ------------
-        cap_qa = experiment_QA(kb,monitor,opts)
+        cap_qa = experiment_QA(exp_info,opts)
     
         # 5) Wait for things to happen
         # ----------------------------
@@ -679,7 +679,7 @@ def main():
     
     if opts.exp_type == "preproc":
         # 4) Start GUI
-        rest_exp = experiment_Preproc(kb,monitor,opts)
+        rest_exp = experiment_Preproc(exp_info,opts)
 
         # 5) Keep the experiment going, until it ends
         while not mp_evt_end.is_set():
