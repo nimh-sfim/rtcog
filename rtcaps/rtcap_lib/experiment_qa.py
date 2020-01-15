@@ -2,15 +2,17 @@ from psychopy import core, event, gui, data, monitors #import some libraries fro
 from psychopy.hardware import keyboard
 from psychopy import logging as psychopy_logging
 
-from psychopy.sound import Sound
+#from psychopy.sound import Sound
 from psychopy.visual import TextStim, Window, ImageStim, RatingScale
-from psychopy import microphone
+#from psychopy import microphone
 from time import sleep
 import time
 import numpy as np
 import os.path as osp
 import csv
 import logging
+from playsound import playsound
+from .recorder import Recorder
 
 RESOURCES_DIR = '../../rtcaps/resources/'
 
@@ -34,38 +36,52 @@ def get_avail_keyboards():
 
 def get_experiment_info():
     available_keyboards, available_keyboards_labels = get_avail_keyboards()
-    available_monitors = monitors.getAllMonitors()
-    expInfo = {'participant': 'rtcsbj', 'run': '001','keyboard':available_keyboards_labels,'monitor':available_monitors}
+    expInfo = {'participant': 'rtcsbj', 
+               'run':         '001',
+               'keyboard':    available_keyboards_labels,
+               'screen':      ['Laptop','External'],
+               'fullScreen':  ['Yes','No'],
+               'leftKey':     'a',
+               'rightKey':    's',
+               'acceptKey':   'z',
+               'triggerKey':  '5'}
     dlg = gui.DlgFromDict(dictionary=expInfo, sortKeys=False, title='rtCAPs Thought Sampling')
     if dlg.OK == False:
         core.quit()  # user pressed cancel
     expInfo['date']    = data.getDateStr()
     kb_descriptor      = available_keyboards[available_keyboards_labels.index(expInfo['keyboard'])]
-    monitor_descriptor ='testMonitor'
-    return expInfo, kb_descriptor, monitor_descriptor
+    return expInfo
 
 class experiment_Preproc(object):
-    def __init__(self, kb, monitor, opts):
+    def __init__(self, expInfo, opts):
         self.out_dir    = opts.out_dir
         self.out_prefix = opts.out_prefix
-        self.fscreen    = opts.fullscreen
-        self.ewin       = self._create_experiment_window(monitor)
-        self.kb         = kb
-        self.monitor    = monitor
 
+        if expInfo['fullScreen'] == 'Yes':
+            self.fscreen = True
+        else:
+            self.fscreen = False
+
+        if expInfo['screen'] == 'Laptop':
+            self.screen = 0
+        if expInfo['screen'] == 'External':
+            self.screen = 1
+
+        self.ewin       = self._create_experiment_window()
+        
         # Default Screen
         self.default_inst_01 = TextStim(win=self.ewin, text='Fixate on crosshair', pos=(0.0,0.42))
         self.default_inst_02 = TextStim(win=self.ewin, text='Let you mind wander freely', pos=(0.0,0.3))
         self.default_inst_03 = TextStim(win=self.ewin, text='Do not sleep', pos=(0.0,-0.3))
         self.default_chair   = TextStim(win=self.ewin, text='X', pos=(0,0))
     
-    def _create_experiment_window(self,monitor):
+    def _create_experiment_window(self):
         ewin = Window(
-            size=(1024, 768), fullscr=self.fscreen, screen=0, 
-            winType='pyglet', allowGUI=False, allowStencil=False,
-            screen=screen, color=[0,0,0], colorSpace='rgb',
+            fullscr=self.fscreen, screen=self.screen, size=(1920,1080),
+            winType='pyglet', allowGUI=True, allowStencil=False,
+            color=[0,0,0], colorSpace='rgb',
             blendMode='avg', useFBO=True, 
-            units='norm') #monitor=monitor
+            units='norm')
         return ewin
 
     def draw_resting_screen(self):
@@ -85,8 +101,9 @@ class experiment_Preproc(object):
         return None
 
 class experiment_QA(object):
-    def __init__(self, kb, monitor, opts):
+    def __init__(self, expInfo, opts):
         # Constants for easy configuration
+        self.hitID = 1
         self.RS_Q_TIMEOUT = 20
         self.RS_Q_STRETCH = 2.5
         self.RS_Q_SHOW_ACCEPT = False
@@ -94,13 +111,20 @@ class experiment_QA(object):
         self.RS_Q_MARKER_COLOR = 'white'
         self.out_dir    = opts.out_dir
         self.out_prefix = opts.out_prefix
-        self.fscreen    = opts.fullscreen
-        self.ewin       = self._create_experiment_window(monitor)
-        self.kb         = kb
-        self.monitor    = monitor
-        self.key_left   = 'a'
-        self.key_right  = 's'
-        self.key_select = ['w','z']
+
+        if expInfo['fullScreen'] == 'Yes':
+            self.fscreen = True
+        else:
+            self.fscreen = False
+        if expInfo['screen'] == 'Laptop':
+            self.screen = 0
+        if expInfo['screen'] == 'External':
+            self.screen = 1
+
+        self.ewin       = self._create_experiment_window()
+        self.key_left   = expInfo['leftKey']
+        self.key_right  = expInfo['rightKey']
+        self.key_select = expInfo['acceptKey']
         self.likert_order = None
         
         # Default Screen
@@ -116,11 +140,8 @@ class experiment_QA(object):
         self.beep_chair        = TextStim(win=self.ewin, text='[ RECORDING ]', color='red', pos=(0.0,0.0), bold=True)
         self.beep_inst_bot_01  = TextStim(win=self.ewin, text='Press any key to stop recording', pos=(0.0,-0.3))
         self.beep_inst_bot_02  = TextStim(win=self.ewin, text='when you finish.', pos=(0.0,-0.42))
-        self.beep_sound        = Sound(osp.join(RESOURCES_DIR,'beep.wav'))
         self.mic_image         = ImageStim(win=self.ewin, image=osp.join(RESOURCES_DIR,'microphone_pic.png'), pos=(-0.5,0.0), size=(.2,.2))
 
-        microphone.switchOn()
-        self.mic            = microphone.AudioCapture(saveDir=self.out_dir,filename=self.out_prefix+'_OralResponse')
         self.mic_ack_rec_01 = TextStim(win=self.ewin, text='Recoding Successful', pos=(0.0,0.06), color='green', bold=True)
         self.mic_ack_rec_02 = TextStim(win=self.ewin, text='Thank you!', pos=(0.0,-0.06), color='green', bold=True)
         self.likert_inst_01 = TextStim(win=self.ewin,text='Now, please use the response box\nto answer additional questions\nregarding what you were experiencing\nwhen you heard the beep', pos=(0.0,0.5), alignHoriz='center')
@@ -199,11 +220,11 @@ class experiment_QA(object):
                        showAccept=self.RS_Q_SHOW_ACCEPT, maxTime=self.RS_Q_TIMEOUT, name='rs_form'),
         }
 
-    def _create_experiment_window(self,monitor):
+    def _create_experiment_window(self):
         ewin = Window(
-            size=(1024, 768), fullscr=self.fscreen, screen=0, 
-            winType='pyglet', allowGUI=False, allowStencil=False,
-            monitor=monitor, color=[0,0,0], colorSpace='rgb',
+            fullscr=self.fscreen, screen=self.screen, size=(1920,1080),
+            winType='pyglet', allowGUI=True, allowStencil=False,
+            color=[0,0,0], colorSpace='rgb',
             blendMode='avg', useFBO=True, 
             units='norm')
         return ewin
@@ -217,7 +238,6 @@ class experiment_QA(object):
         return None
     
     def draw_alert_screen(self):
-        self.beep_sound.play()
         self.beep_inst_top_01.draw()
         self.beep_inst_top_02.draw()
         self.beep_inst_top_03.draw()
@@ -226,30 +246,31 @@ class experiment_QA(object):
         self.beep_chair.draw()
         self.mic_image.draw()
         self.ewin.flip()
+        playsound(osp.join(RESOURCES_DIR,'beep.wav'))
         return None
     
     def record_oral_descr(self):
-        self.mic.reset()
-        self.mic.record(60, block=False)
-        i  = 0
+        rec = Recorder(channels=1)
+        i = 0
         op = 1
-        while self.mic.recorder.running:
-            i = i + 1
-            if i > 5000:
-                i  = 0
-                op = int(not(op))
-                self.beep_inst_top_01.draw()
-                self.beep_inst_top_02.draw()
-                self.beep_inst_top_03.draw()
-                self.beep_chair = TextStim(win=self.ewin, text='[ RECORDING ]', color='red', pos=(0.0,0.0), bold=True, opacity=op)
-                self.beep_chair.draw()
-                self.beep_inst_bot_01.draw()
-                self.beep_inst_bot_02.draw()
-                self.mic_image.draw()
-                self.ewin.flip()
-            if event.getKeys():
-                self.mic.stop()
-
+        rec_path = osp.join(self.out_dir,self.out_prefix+'.hit'+str(self.hitID).zfill(3)+'.wav')
+        with rec.open(rec_path,'wb') as rec_file:
+            rec_file.start_recording()
+            while not event.getKeys():
+                i = i + 1
+                if i > 5000:
+                    i  = 0
+                    op = int(not(op))
+                    self.beep_inst_top_01.draw()
+                    self.beep_inst_top_02.draw()
+                    self.beep_inst_top_03.draw()
+                    self.beep_chair = TextStim(win=self.ewin, text='[ RECORDING ]', color='red', pos=(0.0,0.0), bold=True, opacity=op)
+                    self.beep_chair.draw()
+                    self.beep_inst_bot_01.draw()
+                    self.beep_inst_bot_02.draw()
+                    self.mic_image.draw()
+                    self.ewin.flip()
+            rec_file.stop_recording()
         return None
     
     def draw_ack_recording_screen(self):
@@ -312,8 +333,9 @@ class experiment_QA(object):
         # 5) Do the Likert Questionare
         resp_dict = self.draw_likert_questions(self.likert_order)
         resp_timestr = time.strftime("%Y%m%d-%H%M%S")
-        resp_path = osp.join(self.out_dir,self.out_prefix+'.'+resp_timestr+'.LikertResponses.txt')
+        resp_path = osp.join(self.out_dir,self.out_prefix+'.'+resp_timestr+'.LikertResponses'+str(self.hitID).zfill(3)+'.txt')
         w = csv.writer(open(resp_path, "w"))
         for key, val in resp_dict.items():
             w.writerow([key, val])
+        self.hitID = self.hitID + 1
         return resp_dict
