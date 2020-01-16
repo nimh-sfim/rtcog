@@ -162,7 +162,7 @@ class Experiment(object):
         if self.t > self.nvols_discard - 1:
             self.n = self.n + 1
 
-        log.info(' - Time point [t=%d, n=%d] | hit = %s | qa_end = %s | prg_end = %s' % (self.t, self.n, 
+        log.info(' - Time point [t=%d, n=%d] | lastQA_endTR = %d | hit = %s | qa_end = %s | prg_end = %s' % (self.t, self.n, self.lastQA_endTR,
                                     self.mp_evt_hit.is_set(),
                                     self.mp_evt_qa_end.is_set(),
                                     self.mp_evt_end.is_set()))
@@ -331,19 +331,18 @@ class Experiment(object):
                                        self.hit_wl)
             self.hits = np.append(self.hits, np.zeros((self.Ncaps,1)), axis=1)
 
-            if self.mp_evt_qa_end.is_set():
-                self.lastQA_endTR = self.t
-                self.mp_evt_qa_end.clear()
-                self.mp_evt_hit.clear()
-                log.info(' - compute_TR_data - QA ended (cleared) --> updating lastQA_endTR = %d' % self.lastQA_endTR)
-                self.qa_offsets.append(self.t)
-
             if (hit != None) and (not self.mp_evt_hit.is_set()) and (self.t >= self.lastQA_endTR + self.vols_noqa):
                 log.info('[t=%d,n=%d] =============================================  CAP hit [%s]' % (self.t,self.n, hit))
                 self.qa_onsets.append(self.t)
                 self.hits[self.caps_labels.index(hit),self.t] = 1
                 self.mp_evt_hit.set()
             
+            if self.mp_evt_qa_end.is_set():
+                self.lastQA_endTR = self.t
+                self.qa_offsets.append(self.t)
+                self.mp_evt_qa_end.clear()
+                log.info(' - compute_TR_data - QA ended (cleared) --> updating lastQA_endTR = %d' % self.lastQA_endTR)
+
 
         # Need to return something, otherwise the program thinks the experiment ended
         return 1
@@ -534,7 +533,7 @@ def comm_process(opts, mp_evt_hit, mp_evt_end, mp_evt_qa_end):
     rv = receiver.process_one_run()
 
     if experiment.exp_type == "esam" or experiment.exp_type == "esam_test":
-        while (not experiment.mp_evt_qa_end.is_set()) and experiment.mp_evt_hit.is_set():
+        while experiment.mp_evt_hit.is_set():
             print('- comm_process - waiting for QA to end ')
             sleep(1)
     print('- comm_process - ready to end ')
@@ -626,11 +625,10 @@ def main():
 
     # 3) Create Multi-processing infra-structure
     # ------------------------------------------
-    mp_evt_hit = mp.Event()
-    mp_evt_end = mp.Event()
-    mp_evt_qa_end = mp.Event()
-
-    mp_prc_comm = mp.Process(target=comm_process, args=(opts, mp_evt_hit, mp_evt_end, mp_evt_qa_end))
+    mp_evt_hit    = mp.Event()    # Start with false
+    mp_evt_end    = mp.Event()    # Start with false
+    mp_evt_qa_end = mp.Event() # Start with false
+    mp_prc_comm   = mp.Process(target=comm_process, args=(opts, mp_evt_hit, mp_evt_end, mp_evt_qa_end))
     mp_prc_comm.start()
 
     # 2) Get additional info using the GUI
@@ -653,8 +651,8 @@ def main():
                 mp_evt_end.set()
             if mp_evt_hit.is_set():
                 cap_qa.run_full_QA()
+                mp_evt_hit.clear()
                 mp_evt_qa_end.set()
-                sleep(0.5)
         
         # 6) Close Psychopy Window
         # ------------------------
