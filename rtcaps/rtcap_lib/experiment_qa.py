@@ -41,9 +41,9 @@ def get_experiment_info():
                'keyboard':    available_keyboards_labels,
                'screen':      ['Laptop','External'],
                'fullScreen':  ['Yes','No'],
-               'leftKey':     'a',
-               'rightKey':    's',
-               'acceptKey':   'z',
+               'leftKey':     '3',
+               'rightKey':    '1',
+               'acceptKey':   '2',
                'triggerKey':  '5'}
     dlg = gui.DlgFromDict(dictionary=expInfo, sortKeys=False, title='rtCAPs Thought Sampling')
     if dlg.OK == False:
@@ -71,7 +71,7 @@ class experiment_Preproc(object):
         
         # Default Screen
         self.default_inst_01 = TextStim(win=self.ewin, text='Fixate on crosshair', pos=(0.0,0.42))
-        self.default_inst_02 = TextStim(win=self.ewin, text='Let you mind wander freely', pos=(0.0,0.3))
+        self.default_inst_02 = TextStim(win=self.ewin, text='Let your mind wander freely', pos=(0.0,0.3))
         self.default_inst_03 = TextStim(win=self.ewin, text='Do not sleep', pos=(0.0,-0.3))
         self.default_chair   = TextStim(win=self.ewin, text='X', pos=(0,0))
     
@@ -109,6 +109,7 @@ class experiment_QA(object):
         self.RS_Q_SHOW_ACCEPT = False
         self.RS_Q_MARKER_TYPE = 'glow'
         self.RS_Q_MARKER_COLOR = 'white'
+        self.RS_Q_TEXT_SIZE    = 0.7
         self.out_dir    = opts.out_dir
         self.out_prefix = opts.out_prefix
 
@@ -157,68 +158,83 @@ class experiment_QA(object):
         # Likert Questions
         self.likert_questions = {
         0: RatingScale(win=self.ewin,
-                       scale="What emotions (if any) were associated with your thoughts?",
+                       scale="How alert were you?",
                        leftKeys=self.key_left, rightKeys=self.key_right, acceptKeys=self.key_select,
                        markerStart='0', marker=self.RS_Q_MARKER_TYPE, markerExpansion=0,markerColor=self.RS_Q_MARKER_COLOR,
-                       choices=['Very Sad','Sad','Neutral/None','Happy','Very Happy'],
+                       choices=['Fully asleep','Somewhat sleepy','Somewhat alert','Fully alert'],
                        pos=(0.0,0.0), stretch=self.RS_Q_STRETCH, textColor='white', acceptPreText='Make a selection',
-                       showAccept=self.RS_Q_SHOW_ACCEPT, maxTime=self.RS_Q_TIMEOUT, name='rs_emotion'),
+                       showAccept=self.RS_Q_SHOW_ACCEPT, maxTime=self.RS_Q_TIMEOUT, name='rs_alert', textSize=self.RS_Q_TEXT_SIZE),
         1: RatingScale(win=self.ewin,
-                       scale="Were you moving any part of your body?",
+                       scale="Were you moving any parts of your body (e.g. head, arm, leg, toes etc)?",
                        leftKeys=self.key_left, rightKeys=self.key_right, acceptKeys=self.key_select,
                        markerStart='0', marker=self.RS_Q_MARKER_TYPE, markerExpansion=0,markerColor=self.RS_Q_MARKER_COLOR,
-                       low = 0, high = 4,
-                       labels=['Strongly Disagree','Strongly Agree'],
+                       choices=['Not sure','No / Disagree','Yes, a little','Yes, quite a bit', 'Yes, a lot'],
                        pos=(0.0,0.0), stretch=self.RS_Q_STRETCH, textColor='white', acceptPreText='Make a selection',
-                       showAccept=self.RS_Q_SHOW_ACCEPT, maxTime=self.RS_Q_TIMEOUT, name='rs_motion'),
+                       showAccept=self.RS_Q_SHOW_ACCEPT, maxTime=self.RS_Q_TIMEOUT, name='rs_motion', textSize=self.RS_Q_TEXT_SIZE),
         2: RatingScale(win=self.ewin,
                        scale="Was your attention focused on visual elements of the environment?",
                        leftKeys=self.key_left, rightKeys=self.key_right, acceptKeys=self.key_select,
                        markerStart='0', marker=self.RS_Q_MARKER_TYPE, markerExpansion=0,markerColor=self.RS_Q_MARKER_COLOR,
-                       low = 0, high = 4,
-                       labels=['Strongly Disagree','Strongly Agree'],
+                       choices=['Strongly disagree','Somewhat disagree','Not sure','Somewhat agree', 'Strongly agree'],
                        pos=(0.0,0.0), stretch=self.RS_Q_STRETCH, textColor='white', acceptPreText='Make a selection',
-                       showAccept=self.RS_Q_SHOW_ACCEPT, maxTime=self.RS_Q_TIMEOUT, name='rs_visual'),
+                       showAccept=self.RS_Q_SHOW_ACCEPT, maxTime=self.RS_Q_TIMEOUT, name='rs_visual', textSize=self.RS_Q_TEXT_SIZE),
         3: RatingScale(win=self.ewin,
                        scale="Was your attention focused on auditory elements of the environment?",
                        leftKeys=self.key_left, rightKeys=self.key_right, acceptKeys=self.key_select,
                        markerStart='0', marker=self.RS_Q_MARKER_TYPE, markerExpansion=0,markerColor=self.RS_Q_MARKER_COLOR,
-                       low = 0, high = 4,
-                       labels=['Strongly Disagree','Strongly Agree'],
+                       choices=['Strongly disagree','Somewhat disagree','Not sure','Somewhat agree', 'Strongly agree'],
                        pos=(0.0,0.0), stretch=self.RS_Q_STRETCH, textColor='white', acceptPreText='Make a selection',
-                       showAccept=self.RS_Q_SHOW_ACCEPT, maxTime=self.RS_Q_TIMEOUT, name='rs_audio'),
+                       showAccept=self.RS_Q_SHOW_ACCEPT, maxTime=self.RS_Q_TIMEOUT, name='rs_audio', textSize=self.RS_Q_TEXT_SIZE),
         4: RatingScale(win=self.ewin,
                        scale="Was your attention focused on tactile elements of the environment?",
                        leftKeys=self.key_left, rightKeys=self.key_right, acceptKeys=self.key_select,
                        markerStart='0', marker=self.RS_Q_MARKER_TYPE, markerExpansion=0,markerColor=self.RS_Q_MARKER_COLOR,
-                       low = 0, high = 4,
-                       labels=['Strongly Disagree','Strongly Agree'],
+                       choices=['Strongly disagree','Somewhat disagree','Not sure','Somewhat agree', 'Strongly agree'],
                        pos=(0.0,0.0), stretch=self.RS_Q_STRETCH, textColor='white', acceptPreText='Make a selection',
-                       showAccept=self.RS_Q_SHOW_ACCEPT, maxTime=self.RS_Q_TIMEOUT, name='rs_somatosensory'),
+                       showAccept=self.RS_Q_SHOW_ACCEPT, maxTime=self.RS_Q_TIMEOUT, name='rs_tactile', textSize=self.RS_Q_TEXT_SIZE),
         5: RatingScale(win=self.ewin,
-                       scale="How alert were you?",
+                       scale="Was your attention focused on your internal world?",
                        leftKeys=self.key_left, rightKeys=self.key_right, acceptKeys=self.key_select,
                        markerStart='0', marker=self.RS_Q_MARKER_TYPE, markerExpansion=0,markerColor=self.RS_Q_MARKER_COLOR,
-                       low = 0, high = 4,
-                       labels=['Sleeping','Dizzy','Fully Alert'],
+                       choices=['Strongly disagree','Somewhat disagree','Not sure','Somewhat agree', 'Strongly agree'],
                        pos=(0.0,0.0), stretch=self.RS_Q_STRETCH, textColor='white', acceptPreText='Make a selection',
-                       showAccept=self.RS_Q_SHOW_ACCEPT, maxTime=self.RS_Q_TIMEOUT, name='rs_wakefulness'),
+                       showAccept=self.RS_Q_SHOW_ACCEPT, maxTime=self.RS_Q_TIMEOUT, name='rs_internal', textSize=self.RS_Q_TEXT_SIZE),
         6: RatingScale(win=self.ewin,
-                       scale="Were your thoughts focues on a given moment in time?",
+                       scale="Where in time was your attention focused?",
                        leftKeys=self.key_left, rightKeys=self.key_right, acceptKeys=self.key_select,
                        markerStart='0', marker=self.RS_Q_MARKER_TYPE, markerExpansion=0,markerColor=self.RS_Q_MARKER_COLOR,
-                       choices=['N/A','Distant Past','Past','Present','Future','Distant Future'],
+                       choices=['No time\nin particular','Distant past\n(>1 day)','Near past\n(last 24h)','Present', 'Near future', 'Distant future'],
                        pos=(0.0,0.0), stretch=self.RS_Q_STRETCH, textColor='white', acceptPreText='Make a selection',
-                       showAccept=self.RS_Q_SHOW_ACCEPT, maxTime=self.RS_Q_TIMEOUT, name='rs_time'),
+                       showAccept=self.RS_Q_SHOW_ACCEPT, maxTime=self.RS_Q_TIMEOUT, name='rs_time', textSize=self.RS_Q_TEXT_SIZE),
         7: RatingScale(win=self.ewin,
-                       scale="What was the primary form of your thoughts?",
+                       scale="What was the modality / sensory domain of your ongoing experience?",
                        leftKeys=self.key_left, rightKeys=self.key_right, acceptKeys=self.key_select,
                        markerStart='0', marker=self.RS_Q_MARKER_TYPE, markerExpansion=0,markerColor=self.RS_Q_MARKER_COLOR,
-                       low = 0, high = 4,
-                       labels=['Exclusively\nin Words','Mix of\nWords & Images','Exclusively\nin Images'],
+                       choices=['Exclusively\nin words','Mostly words\n& some imagery','Balance of\nwords & imagery','Mostly imagery\n& some words', 'Exclusively\nin imagery'],
                        pos=(0.0,0.0), stretch=self.RS_Q_STRETCH, textColor='white', acceptPreText='Make a selection',
-                       showAccept=self.RS_Q_SHOW_ACCEPT, maxTime=self.RS_Q_TIMEOUT, name='rs_form'),
-        }
+                       showAccept=self.RS_Q_SHOW_ACCEPT, maxTime=self.RS_Q_TIMEOUT, name='rs_modality', textSize=self.RS_Q_TEXT_SIZE),
+        8: RatingScale(win=self.ewin,
+                       scale="What was the valence of your ongoing experience?",
+                       leftKeys=self.key_left, rightKeys=self.key_right, acceptKeys=self.key_select,
+                       markerStart='0', marker=self.RS_Q_MARKER_TYPE, markerExpansion=0,markerColor=self.RS_Q_MARKER_COLOR,
+                       choices=['Very negative','Somewhat negative','Neutral','Somewhat positive', 'Very positive'],
+                       pos=(0.0,0.0), stretch=self.RS_Q_STRETCH, textColor='white', acceptPreText='Make a selection',
+                       showAccept=self.RS_Q_SHOW_ACCEPT, maxTime=self.RS_Q_TIMEOUT, name='rs_valence', textSize=self.RS_Q_TEXT_SIZE),
+        9: RatingScale(win=self.ewin,
+                       scale="Was your attention focused intentionally or unintentionally?",
+                       leftKeys=self.key_left, rightKeys=self.key_right, acceptKeys=self.key_select,
+                       markerStart='0', marker=self.RS_Q_MARKER_TYPE, markerExpansion=0,markerColor=self.RS_Q_MARKER_COLOR,
+                       choices=['Intentionally','Unintentionally'],
+                       pos=(0.0,0.0), stretch=self.RS_Q_STRETCH, textColor='white', acceptPreText='Make a selection',
+                       showAccept=self.RS_Q_SHOW_ACCEPT, maxTime=self.RS_Q_TIMEOUT, name='rs_attention', textSize=self.RS_Q_TEXT_SIZE),
+        10: RatingScale(win=self.ewin,
+                       scale="Was your attention focused with or without awareness?",
+                       leftKeys=self.key_left, rightKeys=self.key_right, acceptKeys=self.key_select,
+                       markerStart='0', marker=self.RS_Q_MARKER_TYPE, markerExpansion=0,markerColor=self.RS_Q_MARKER_COLOR,
+                       choices=['Not aware at all','Somewhat aware','Extremely aware'],
+                       pos=(0.0,0.0), stretch=self.RS_Q_STRETCH, textColor='white', acceptPreText='Make a selection',
+                       showAccept=self.RS_Q_SHOW_ACCEPT, maxTime=self.RS_Q_TIMEOUT, name='rs_attention_B', textSize=self.RS_Q_TEXT_SIZE),
+}
 
     def _create_experiment_window(self):
         ewin = Window(
