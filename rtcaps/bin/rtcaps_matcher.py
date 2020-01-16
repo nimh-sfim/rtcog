@@ -657,7 +657,8 @@ def main():
                 log.info('- User pressed escape key')
                 mp_evt_end.set()
             if mp_evt_hit.is_set():
-                cap_qa.run_full_QA()
+                responses = cap_qa.run_full_QA()
+                log.info(' - Responses: %s' % str(responses))
                 mp_evt_hit.clear()
                 mp_evt_qa_end.set()
         
