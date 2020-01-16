@@ -15,8 +15,9 @@ from playsound import playsound
 from .recorder import Recorder
 
 RESOURCES_DIR = '../../rtcaps/resources/'
+ALERT_SOUND_FILE = 'bike_bell.wav'
 
-log = logging.getLogger("experiment_qa")
+log     = logging.getLogger("experiment_qa")
 log.setLevel(logging.INFO)
 log_fmt = logging.Formatter('[%(levelname)s - experiment_qa]: %(message)s')
 log_ch  = logging.StreamHandler()
@@ -262,7 +263,7 @@ class experiment_QA(object):
         self.beep_chair.draw()
         self.mic_image.draw()
         self.ewin.flip()
-        playsound(osp.join(RESOURCES_DIR,'beep.wav'))
+        playsound(osp.join(RESOURCES_DIR,ALERT_SOUND_FILE))
         return None
     
     def record_oral_descr(self):
