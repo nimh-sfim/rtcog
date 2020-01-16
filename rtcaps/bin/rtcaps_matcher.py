@@ -10,6 +10,7 @@ import hvplot.pandas
 import numpy as np
 import os.path as osp
 import sys, os
+import json
 import pandas as pd
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
@@ -622,6 +623,12 @@ def main():
     log.info('1) Reading input parameters...')
     opts = processExperimentOptions(sys.argv)
     log.debug('User Options: %s' % str(opts))
+    log.info('type(opts) %s' % type(opts))
+
+    opts_tofile_path = osp.join(opts.out_dir, opts.out_prefix+'_Options.json')
+    with open(opts_tofile_path, "w") as write_file:
+        json.dump(vars(opts), write_file)
+    log.info('  - Options written to disk [%s]'% opts_tofile_path)
 
     # 3) Create Multi-processing infra-structure
     # ------------------------------------------
