@@ -154,6 +154,8 @@ class Experiment(object):
             self.pool = None
 
     def compute_TR_data(self, motion, extra):
+        # Status as we enter the function
+        hit_status = self.mp_evt_hit.is_set()
         # Keep a record of motion estimates
         self.motion_estimates.append(motion)
         # Update t (it always does)
@@ -325,14 +327,19 @@ class Experiment(object):
             # Compute Hits (if needed)
             # ========================
             # MISSING: Don't do this if before 100 vols
-            hit = self.hit_method_func(self.t,
+            if (hit_status == True) or (self.t <= self.lastQA_endTR + self.vols_noqa):
+                hit = None
+            else:
+                hit = self.hit_method_func(self.t,
                                        self.caps_labels,
                                        self.svrscores,
                                        self.hit_zth,
                                        self.hit_wl)
+            
             self.hits = np.append(self.hits, np.zeros((self.Ncaps,1)), axis=1)
 
-            if (hit != None) and (not self.mp_evt_hit.is_set()) and (self.t >= self.lastQA_endTR + self.vols_noqa):
+            if hit != None:
+            #if (hit != None) and ( hit_status == False ) and (self.t >= self.lastQA_endTR + self.vols_noqa):
                 log.info('[t=%d,n=%d] =============================================  CAP hit [%s]' % (self.t,self.n, hit))
                 self.qa_onsets.append(self.t)
                 self.hits[self.caps_labels.index(hit),self.t] = 1
@@ -629,7 +636,7 @@ def main():
     with open(opts_tofile_path, "w") as write_file:
         json.dump(vars(opts), write_file)
     log.info('  - Options written to disk [%s]'% opts_tofile_path)
-
+    
     # 3) Create Multi-processing infra-structure
     # ------------------------------------------
     mp_evt_hit    = mp.Event()    # Start with false
@@ -640,7 +647,7 @@ def main():
 
     # 2) Get additional info using the GUI
     # ------------------------------------
-    exp_info = get_experiment_info()
+    exp_info = get_experiment_info(opts)
 
     # 3) Depending on the type of run.....
     # ------------------------------------

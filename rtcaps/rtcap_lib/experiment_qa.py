@@ -35,10 +35,10 @@ def get_avail_keyboards():
             available_keyboards_labels.append(kb['product'])
     return available_keyboards, available_keyboards_labels
 
-def get_experiment_info():
+def get_experiment_info(opts):
     available_keyboards, available_keyboards_labels = get_avail_keyboards()
-    expInfo = {'participant': 'rtcsbj', 
-               'run':         '001',
+    expInfo = {'prefix':      opts.out_prefix,
+               'out_dir':     opts.out_dir,
                'keyboard':    available_keyboards_labels,
                'screen':      ['Laptop','External'],
                'fullScreen':  ['Yes','No'],
