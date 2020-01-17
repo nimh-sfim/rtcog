@@ -10,6 +10,7 @@ import hvplot.pandas
 import numpy as np
 import os.path as osp
 import sys, os
+import json
 import pandas as pd
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
@@ -153,6 +154,8 @@ class Experiment(object):
             self.pool = None
 
     def compute_TR_data(self, motion, extra):
+        # Status as we enter the function
+        hit_status = self.mp_evt_hit.is_set()
         # Keep a record of motion estimates
         self.motion_estimates.append(motion)
         # Update t (it always does)
@@ -162,7 +165,7 @@ class Experiment(object):
         if self.t > self.nvols_discard - 1:
             self.n = self.n + 1
 
-        log.info(' - Time point [t=%d, n=%d] | hit = %s | qa_end = %s | prg_end = %s' % (self.t, self.n, 
+        log.info(' - Time point [t=%d, n=%d] | lastQA_endTR = %d | hit = %s | qa_end = %s | prg_end = %s' % (self.t, self.n, self.lastQA_endTR,
                                     self.mp_evt_hit.is_set(),
                                     self.mp_evt_qa_end.is_set(),
                                     self.mp_evt_end.is_set()))
@@ -324,26 +327,30 @@ class Experiment(object):
             # Compute Hits (if needed)
             # ========================
             # MISSING: Don't do this if before 100 vols
-            hit = self.hit_method_func(self.t,
+            if (hit_status == True) or (self.t <= self.lastQA_endTR + self.vols_noqa):
+                hit = None
+            else:
+                hit = self.hit_method_func(self.t,
                                        self.caps_labels,
                                        self.svrscores,
                                        self.hit_zth,
                                        self.hit_wl)
+            
             self.hits = np.append(self.hits, np.zeros((self.Ncaps,1)), axis=1)
 
-            if self.mp_evt_qa_end.is_set():
-                self.lastQA_endTR = self.t
-                self.mp_evt_qa_end.clear()
-                self.mp_evt_hit.clear()
-                log.info(' - compute_TR_data - QA ended (cleared) --> updating lastQA_endTR = %d' % self.lastQA_endTR)
-                self.qa_offsets.append(self.t)
-
-            if (hit != None) and (not self.mp_evt_hit.is_set()) and (self.t >= self.lastQA_endTR + self.vols_noqa):
+            if hit != None:
+            #if (hit != None) and ( hit_status == False ) and (self.t >= self.lastQA_endTR + self.vols_noqa):
                 log.info('[t=%d,n=%d] =============================================  CAP hit [%s]' % (self.t,self.n, hit))
                 self.qa_onsets.append(self.t)
                 self.hits[self.caps_labels.index(hit),self.t] = 1
                 self.mp_evt_hit.set()
             
+            if self.mp_evt_qa_end.is_set():
+                self.lastQA_endTR = self.t
+                self.qa_offsets.append(self.t)
+                self.mp_evt_qa_end.clear()
+                log.info(' - compute_TR_data - QA ended (cleared) --> updating lastQA_endTR = %d' % self.lastQA_endTR)
+
 
         # Need to return something, otherwise the program thinks the experiment ended
         return 1
@@ -534,7 +541,7 @@ def comm_process(opts, mp_evt_hit, mp_evt_end, mp_evt_qa_end):
     rv = receiver.process_one_run()
 
     if experiment.exp_type == "esam" or experiment.exp_type == "esam_test":
-        while (not experiment.mp_evt_qa_end.is_set()) and experiment.mp_evt_hit.is_set():
+        while experiment.mp_evt_hit.is_set():
             print('- comm_process - waiting for QA to end ')
             sleep(1)
     print('- comm_process - ready to end ')
@@ -623,19 +630,24 @@ def main():
     log.info('1) Reading input parameters...')
     opts = processExperimentOptions(sys.argv)
     log.debug('User Options: %s' % str(opts))
+    log.info('type(opts) %s' % type(opts))
 
+    opts_tofile_path = osp.join(opts.out_dir, opts.out_prefix+'_Options.json')
+    with open(opts_tofile_path, "w") as write_file:
+        json.dump(vars(opts), write_file)
+    log.info('  - Options written to disk [%s]'% opts_tofile_path)
+    
     # 3) Create Multi-processing infra-structure
     # ------------------------------------------
-    mp_evt_hit = mp.Event()
-    mp_evt_end = mp.Event()
-    mp_evt_qa_end = mp.Event()
-
-    mp_prc_comm = mp.Process(target=comm_process, args=(opts, mp_evt_hit, mp_evt_end, mp_evt_qa_end))
+    mp_evt_hit    = mp.Event()    # Start with false
+    mp_evt_end    = mp.Event()    # Start with false
+    mp_evt_qa_end = mp.Event() # Start with false
+    mp_prc_comm   = mp.Process(target=comm_process, args=(opts, mp_evt_hit, mp_evt_end, mp_evt_qa_end))
     mp_prc_comm.start()
 
     # 2) Get additional info using the GUI
     # ------------------------------------
-    exp_info = get_experiment_info()
+    exp_info = get_experiment_info(opts)
 
     # 3) Depending on the type of run.....
     # ------------------------------------
@@ -652,9 +664,10 @@ def main():
                 log.info('- User pressed escape key')
                 mp_evt_end.set()
             if mp_evt_hit.is_set():
-                cap_qa.run_full_QA()
+                responses = cap_qa.run_full_QA()
+                log.info(' - Responses: %s' % str(responses))
+                mp_evt_hit.clear()
                 mp_evt_qa_end.set()
-                sleep(0.5)
         
         # 6) Close Psychopy Window
         # ------------------------

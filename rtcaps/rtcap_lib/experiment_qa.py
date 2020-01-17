@@ -35,10 +35,10 @@ def get_avail_keyboards():
             available_keyboards_labels.append(kb['product'])
     return available_keyboards, available_keyboards_labels
 
-def get_experiment_info():
+def get_experiment_info(opts):
     available_keyboards, available_keyboards_labels = get_avail_keyboards()
-    expInfo = {'participant': 'rtcsbj', 
-               'run':         '001',
+    expInfo = {'prefix':      opts.out_prefix,
+               'out_dir':     opts.out_dir,
                'keyboard':    available_keyboards_labels,
                'screen':      ['Laptop','External'],
                'fullScreen':  ['Yes','No'],
@@ -131,7 +131,7 @@ class experiment_QA(object):
         
         # Default Screen
         self.default_inst_01 = TextStim(win=self.ewin, text='Fixate on crosshair', pos=(0.0,0.42))
-        self.default_inst_02 = TextStim(win=self.ewin, text='Let you mind wander freely', pos=(0.0,0.3))
+        self.default_inst_02 = TextStim(win=self.ewin, text='Let your mind wander freely', pos=(0.0,0.3))
         self.default_inst_03 = TextStim(win=self.ewin, text='Do not sleep', pos=(0.0,-0.3))
         self.default_chair   = TextStim(win=self.ewin, text='X', pos=(0,0))
 
