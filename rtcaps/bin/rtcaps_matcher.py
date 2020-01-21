@@ -613,14 +613,14 @@ def processExperimentOptions (self, options=None):
     parser_dec = parser.add_argument_group('SVR/Decoding Options')
     parser_dec.add_argument("--svr_start",  help="Volume when decoding should start. When we think iGLM is sufficient_stable [%(default)s]", default=100, dest="dec_start_vol", action="store", type=int)
     parser_dec.add_argument("--svr_path",   help="Path to pre-trained SVR models [%(default)s]", dest="svr_path", action="store", type=str, default=None)
-    parser_dec.add_argument("--svr_zth",    help="Z-score threshold for deciding hits [%(default)s]", dest="hit_zth", action="store", type=float, default=2.0)
+    parser_dec.add_argument("--svr_zth",    help="Z-score threshold for deciding hits [%(default)s]", dest="hit_zth", action="store", type=float, default=1.75)
     parser_dec.add_argument("--svr_vhit",   help="Number of consecutive vols over threshold required for a hit [%(default)s]", dest="hit_v4hit", action="store", type=int, default=2)
     parser_dec.add_argument("--svr_win_activate", help="Activate windowing of individual volumes prior to hit estimation [%(default)s]", dest="hit_dowin", action="store_true", default=False)
     parser_dec.add_argument("--svr_win_wl", help='Number of volumes for SVR windowing step [%(default)s]', dest='hit_wl', default=4, type=int, action='store')
     parser_dec.add_argument("--svr_mot_activate", help="Consider a hit if excessive motion [%(default)s]", dest="hit_domot", action="store_true", default=False )
     parser_dec.add_argument("--svr_mot_th", help="Framewise Displacement Treshold for motion [%(default)s]",  action="store", type=float, dest="svr_mot_th", default=1.2)
     parser_dec.add_argument("--svr_hit_mehod", help="Method for deciding hits [%(default)s]", type=str, choices=["method01"], default="method01", action="store", dest="hit_method")
-    parser_dec.add_argument("--svr_vols_noqa", help="Min. number of volumes to wait since end of last QA before declaing a new hit. [%(default)s]", type=int, dest='vols_noqa', default=60, action="store")
+    parser_dec.add_argument("--svr_vols_noqa", help="Min. number of volumes to wait since end of last QA before declaing a new hit. [%(default)s]", type=int, dest='vols_noqa', default=45, action="store")
 
     return parser.parse_args(options)
 
