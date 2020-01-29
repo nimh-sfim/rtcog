@@ -129,6 +129,8 @@ class Experiment(object):
 
         self.qa_onsets  = []
         self.qa_offsets = []
+        self.qa_onsets_path  = osp.join(self.out_dir,self.out_prefix+'.qa_onsets.txt')
+        self.qa_offsets_path = osp.join(self.out_dir,self.out_prefix+'.qa_offsets.txt')
         # Load Mask - Necessary for smoothing
         if self.do_smooth and self.mask_path is None:
             log.error('   Experiment_init_ - Smoothing requires a mask. Provide a mask or disable smoothing operation.')
@@ -155,7 +157,9 @@ class Experiment(object):
 
     def compute_TR_data(self, motion, extra):
         # Status as we enter the function
-        hit_status = self.mp_evt_hit.is_set()
+        hit_status    = self.mp_evt_hit.is_set()
+        qa_end_status = self.mp_evt_qa_end.is_set()
+
         # Keep a record of motion estimates
         self.motion_estimates.append(motion)
         # Update t (it always does)
@@ -326,7 +330,16 @@ class Experiment(object):
 
             # Compute Hits (if needed)
             # ========================
-            # MISSING: Don't do this if before 100 vols
+            # IF QA ended during the past TR (as I saved the status as soon as compute_TR started), then
+            # update the last_QA_endTR and clear events
+            if qa_end_status == True:
+                self.lastQA_endTR = self.t
+                self.qa_offsets.append(self.t)
+                self.mp_evt_qa_end.clear()
+                log.info(' - compute_TR_data - QA ended (cleared) --> updating lastQA_endTR = %d' % self.lastQA_endTR)
+
+            # IF needed (e.g., not in hit mode, and late enough since last time), then compute if
+            # a hit is taking place or not.
             if (hit_status == True) or (self.t <= self.lastQA_endTR + self.vols_noqa):
                 hit = None
             else:
@@ -336,20 +349,16 @@ class Experiment(object):
                                        self.hit_zth,
                                        self.hit_wl)
             
+            # Add one more line to the hits data structure with zeros (if a hit happen, a 1 will be added later)
             self.hits = np.append(self.hits, np.zeros((self.Ncaps,1)), axis=1)
 
+            # If there was a hit, then add that one, inform the use, and set the hit event to true
             if hit != None:
-            #if (hit != None) and ( hit_status == False ) and (self.t >= self.lastQA_endTR + self.vols_noqa):
+                #if (hit != None) and ( hit_status == False ) and (self.t >= self.lastQA_endTR + self.vols_noqa):
                 log.info('[t=%d,n=%d] =============================================  CAP hit [%s]' % (self.t,self.n, hit))
                 self.qa_onsets.append(self.t)
                 self.hits[self.caps_labels.index(hit),self.t] = 1
                 self.mp_evt_hit.set()
-            
-            if self.mp_evt_qa_end.is_set():
-                self.lastQA_endTR = self.t
-                self.qa_offsets.append(self.t)
-                self.mp_evt_qa_end.clear()
-                log.info(' - compute_TR_data - QA ended (cleared) --> updating lastQA_endTR = %d' % self.lastQA_endTR)
 
 
         # Need to return something, otherwise the program thinks the experiment ended
@@ -454,6 +463,14 @@ class Experiment(object):
                         unmask_fMRI_img(thisCAP_InMask, self.mask_img, out_file)
                         hit_ID = hit_ID + 1
 
+            # Write out QA_Onsers and QA_Offsets
+            with open(self.qa_onsets_path,'w') as file:
+                for onset in self.qa_onsets:
+                    file.write("%i\n" % onset)
+            with open(self.qa_offsets_path,'w') as file:
+                for offset in self.qa_offsets:
+                    file.write("%i\n" % offset)        
+        
         # Inform other threads that this is comming to an end
         self.mp_evt_end.set()
         return 1
