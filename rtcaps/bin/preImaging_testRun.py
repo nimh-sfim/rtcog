@@ -26,9 +26,9 @@ exp_info = get_experiment_info(opts)
 # Create QA Class
 cap_qa = experiment_QA(exp_info,opts)
 
-# Show Rest Screen for 30s
+# Show Rest Screen for 5s
 s = 0
-while s < 30:
+while s < 5:
     cap_qa.draw_resting_screen()
     if event.getKeys(['escape']):
         log.info('- User pressed escape key')
