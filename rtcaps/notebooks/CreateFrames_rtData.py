@@ -31,11 +31,27 @@ import numpy as np
 from nilearn.image import load_img
 import sys
 sys.path.append('/data/SFIMJGC/PRJ_rtCAPs/rtcaps/')
-from rtcap_lib.utils.exp_defs import PRJDIR
+from rtcap_lib.utils.exp_defs import PRJDIR, CAP_labels, Question_ToNum
 from rtcap_lib.utils.image    import MNIvol_to_surf_pngs
+from rtcap_lib.utils.files    import load_all_data
 
-SBJ = 'PILOT05'
-RUN = 'Run03'
+SBJs = ['PILOT03','PILOT04','PILOT05']
+
+DF_Behav, Files = load_all_data(PRJDIR,SBJs, CAP_labels, Question_ToNum, get_file_dict=True)
+for k,v in Files.items():
+    exec ('%s=%s'%(k,v))
+
+# ***
+# ### 1. Z-score the output of afni_proc (errts...)
+
+for SBJ in [SBJs[0]]:
+    for RUN in Runs_Per_Subject[SBJ]:
+        WORKDIR          = osp.join(PRJDIR,'PrcsData',SBJ,'_'.join(['D02',RUN,'Procpy']))
+        AFNIPROC_OUT_DIR = osp.join(WORKDIR,'.'.join([SBJ,'results']))
+        errts_path       = osp.join(AFNIPROC_OUT_DIR,'.'.join(['errts',SBJ,'tproject'])+'+orig.HEAD')
+        
+
+errts_path
 
 # ***
 # ### 1. Bring Frames of interest to MNI space (needed for display in surface)

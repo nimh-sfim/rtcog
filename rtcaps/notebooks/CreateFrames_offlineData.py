@@ -1,0 +1,167 @@
+# ---
+# jupyter:
+#   jupytext:
+#     formats: ipynb,py:light
+#     text_representation:
+#       extension: .py
+#       format_name: light
+#       format_version: '1.5'
+#       jupytext_version: 1.3.0
+#   kernelspec:
+#     display_name: psychopy_pyo_nilearn 0.6
+#     language: python
+#     name: psychopy_pyo_nilearn
+# ---
+
+# # Description
+#
+# This notebook takes the Hit Maps output by rtcaps_match.py when running on "esam" mode and generates PNGs of their surface view in MNI space
+#
+# For this the notebook assumes the following files do exists:
+#
+# * REF2MNI Transformation matrix
+# * The location of the hit maps
+#
+
+import os.path as osp
+import glob
+import ntpath
+import os
+import numpy as np
+import pandas as pd
+from nilearn.image import load_img
+import sys
+sys.path.append('/data/SFIMJGC/PRJ_rtCAPs/rtcaps/')
+from rtcap_lib.utils.exp_defs import PRJDIR
+from rtcap_lib.utils.image    import MNIvol_to_surf_pngs
+from rtcap_lib.utils.files    import load_all_data
+from rtcap_lib.utils.exp_defs import PRJDIR, CAP_labels, Question_Dict, Question_ToNum, CAP_labels
+
+SBJs = ['PILOT03','PILOT04','PILOT05']
+
+DF,Files = load_all_data(PRJDIR,SBJs, CAP_labels, Question_ToNum, get_file_dict=True)
+for k,v in Files.items():
+    exec ('%s=%s'%(k,v))
+
+
+def bring_to_MNI(file_path, tmatrix_path):
+    file_path = file_path.split('[')[0]
+    filename = ntpath.basename(file_path)
+    dirname  = ntpath.dirname(file_path)
+    [prefix,extension] = osp.splitext(filename)
+    zpad_path    = osp.join(dirname,prefix+'.zpad'+extension)
+    zpad_MNIpath = osp.join(dirname,prefix+'.zpad.MNI'+extension)
+    # Zero Padding
+    cmd_zeropad = '3dZeropad -overwrite -R 20 -L 20 -A 20 -P 20 -I 20 -S 20 -prefix '+ zpad_path + ' ' + file_path
+    # Bring to MNI Space
+    cmd_org2mni = '3dAllineate -1Dmatrix_apply ' + tmatrix_path + ' -input ' + zpad_path + ' -prefix ' + zpad_MNIpath
+    # Remove zero padded
+    cmd_rmorig  = 'rm ' + zpad_path
+    # Refit 
+    cmd_refit   = '3drefit -space MNI ' + zpad_MNIpath
+    # Autobox
+    cmd_abox    = '3dAutobox -prefix ' + abox_MNIpath + ' ' + zpad_MNIpath
+    # Remove MNI no autobox
+    cmd_rmmni   = 'rm ' + zpad_MNIpath
+    
+    for command in [cmd_zeropad, cmd_org2mni,cmd_rmorig, cmd_refit]:
+        print(command)
+        os.system(command)
+    return zpad_MNIpath
+
+
+# ***
+# ### Bring offline residuals (already z-scored) into MNI space
+
+for SBJ in SBJs:
+    SBJ_DIR    = osp.join(PRJDIR,'PrcsData',SBJ)
+    ORIG_DIR   = osp.join(SBJ_DIR,'D00_ScannerData')
+    Runs = Runs_Per_Subject[SBJ]
+    for RUN in Runs:
+        out_dir         = osp.join(PRJDIR,'PrcsData',SBJ,'_'.join(['D02',RUN,'Procpy']))
+        image_path      = osp.join(out_dir,'.'.join(['_'.join([SBJ,RUN]),'afni','zscore','nii']))
+        REF2MNI_path    = osp.join(ORIG_DIR,'REF2MNI.Xaff12.1D')
+        MNI_image_path  = bring_to_MNI(image_path, REF2MNI_path)
+
+MNI_image_path
+
+MNI_Files = {}
+OUT_DIR    = osp.join(PRJDIR,'Dashboards','SurfViews')
+for SBJ in SBJs:
+    Runs = Runs_Per_Subject[SBJ]
+    SBJ_DIR    = osp.join(PRJDIR,'PrcsData',SBJ)
+    ORIG_DIR   = osp.join(SBJ_DIR,'D00_ScannerData')
+    for RUN in Runs:
+        aux_DF = DF[(DF['Subject']==SBJ) & (DF['Run']==RUN) & (DF['Question']=='rs_alert')]
+        hit_counts = {c:1 for c in CAP_labels}
+        for index, row in aux_DF.iterrows():
+            cap             = row['CAP']
+            hitID           = hit_counts[cap]
+            hit_counts[cap] = hit_counts[cap] + 1
+            tr              = int(row['TR'])
+            tr_offline      = tr - 10
+            out_prefix      = '.'.join(['_'.join([SBJ,RUN]),'offline','_'.join(['Hit',cap,str(hitID).zfill(2)])])
+            out_dir         = osp.join(PRJDIR,'PrcsData',SBJ,'_'.join(['D02',RUN,'Procpy']))
+            image_path      = osp.join(out_dir,'.'.join(['_'.join([SBJ,RUN]),'afni','zscore','zpad','MNI','nii']))
+            volume_path     = image_path+'['+str(tr_offline)+']'
+            cmd = '3dcalc -a ' + volume_path + ' -expr "a"' + ' -overwrite -prefix ' + out_dir + '/' +out_prefix + '.nii'
+            print(cmd)
+            os.system(cmd)
+            
+            image      = load_img(out_dir + '/' +out_prefix + '.nii')
+            MNIvol_to_surf_pngs(image,out_prefix, OUT_DIR, threshold=0, vmax=4)
+
+cmd
+
+osp.splitext(filename)
+
+# ***
+# ### 1. Bring Frames of interest to MNI space (needed for display in surface)
+
+SBJ_DIR    = osp.join(PRJDIR,'PrcsData',SBJ)
+WORK_DIR   = osp.join(SBJ_DIR,'D01_OriginalData')
+ORIG_DIR   = osp.join(SBJ_DIR,'D00_ScannerData')
+OUT_DIR    = osp.join(PRJDIR,'Dashboards','SurfViews')
+HitFiles   = glob.glob(WORK_DIR + '/'+SBJ+'_'+RUN+'.Hit*[0123456789].nii')
+HitFiles.sort()
+HitFiles
+
+MNI_Files = {}
+for file_path in HitFiles:
+    filename = ntpath.basename(file_path)
+    dirname  = ntpath.dirname(file_path)
+    [prefix,middle,extension] = filename.split('.')
+    
+    zpad_path    = osp.join(dirname,prefix+'.'+middle+'.zpad.'+extension)
+    zpad_MNIpath = osp.join(dirname,prefix+'.'+middle+'.zpad.MNI.'+extension)
+    abox_MNIpath = osp.join(dirname,prefix+'.'+middle+'.zpad.MNI.abox.'+extension)
+    REF2MNI_path = osp.join(ORIG_DIR,'REF2MNI.Xaff12.1D')
+    # Zero Padding
+    cmd_zeropad = '3dZeropad -overwrite -R 20 -L 20 -A 20 -P 20 -I 20 -S 20 -prefix '+ zpad_path + ' ' + file_path
+    # Bring to MNI Space
+    cmd_org2mni = '3dAllineate -1Dmatrix_apply ' + REF2MNI_path + ' -input ' + zpad_path + ' -prefix ' + zpad_MNIpath
+    # Remove zero padded
+    cmd_rmorig  = 'rm ' + zpad_path
+    # Refit 
+    cmd_refit   = '3drefit -space MNI ' + zpad_MNIpath
+    # Autobox
+    cmd_abox    = '3dAutobox -prefix ' + abox_MNIpath + ' ' + zpad_MNIpath
+    # Remove MNI no autobox
+    cmd_rmmni   = 'rm ' + zpad_MNIpath
+    
+    for command in [cmd_zeropad, cmd_org2mni,cmd_rmorig, cmd_refit]:
+        print(command)
+        os.system(command)
+    MNI_Files[(prefix,middle)] = zpad_MNIpath
+
+# ***
+# ## 2. Generate PNGs with all surface views
+
+for (prefix,middle) in MNI_Files.keys():
+    file_path  = MNI_Files[(prefix,middle)]
+    print('+ Working on %s' % str(file_path))
+    image      = load_img(file_path)
+    out_prefix = prefix + '.' + middle
+    MNIvol_to_surf_pngs(image,out_prefix,OUT_DIR, threshold=0, vmax=4)
+
+
