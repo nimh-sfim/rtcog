@@ -13,246 +13,34 @@
 #     name: psychopy_pyo_nilearn
 # ---
 
-import glob
-import numpy as np
-import ntpath
-import re
-import pandas as pd
-import hvplot.pandas
-import holoviews as hv
 import os.path as osp
-from bokeh.plotting import figure, show, output_notebook
-from bokeh.models import ColumnDataSource, LabelSet, HoverTool
-import json
+import pandas as pd
+import numpy as np
 import panel as pn
+import holoviews as hv
+import hvplot.pandas
+import json
+from bokeh.models import ColumnDataSource, LabelSet, HoverTool
+from bokeh.plotting import figure
+from nilearn.image import load_img
 pn.extension()
+import sys
+sys.path.append('/data/SFIMJGC/PRJ_rtCAPs/rtcaps/')
+from rtcap_lib.utils.exp_defs import PRJDIR, CAP_indexes, CAP_labels, CAPLabel2Int, Question_Dict, Question_ToNum, CAP_colors
+from rtcap_lib.utils.files import get_runs_per_subject, grab_all_files, load_all_data
+from rtcap_lib.dashboards.radar import generate_radar_chart_from_vals, generate_avg_radar_chart_for_cap
+
+SBJs          = ['PILOT03','PILOT04','PILOT05']
+DASHBOARD_DIR = osp.join(PRJDIR,'Dashboards')
+
+DF_Behav, Files = load_all_data(PRJDIR,SBJs, CAP_labels, Question_ToNum, get_file_dict=True)
+for k,v in Files.items():
+    exec ('%s=%s'%(k,v))
 
 
-# +
-def get_answer(file):
-    out = {}
-    aux   = pd.read_csv(file,header=None, names=['Question','Responses'], sep=',').set_index('Question')
-    for q in aux.index:
-        aux_q_list          = aux.loc[q].tolist()[0]
-        [aux_q_p1,aux_q_p2] = aux_q_list.lstrip('[').rstrip(']').split('[')
-        aux_r_str = re.findall(r"'([^']*)'", aux_q_p1)[0] 
-        aux_rt    = float(aux_q_p1.replace("\'"+aux_r_str+"\'",'').split(',')[1])
-        out[q] = (aux_r_str,aux_rt)
-    return out
+def disable_logo(plot, element):
+    plot.state.toolbar.logo = None
 
-def get_runs_per_subject(s):
-    # Obtain All Response Files for this Subject 
-    wdir   = osp.join(PRJDIR,'PrcsData',s,'D01_OriginalData/')
-    this_sbj_files = glob.glob(wdir+'/'+s+'_*.Responses.???.txt')
-    # Obtain the list of Runs for this particular subjecgt
-    aux_runs = []
-    for file in this_sbj_files:
-        [s,r]=ntpath.basename(file).split('.')[0].split('_')
-        aux_runs.append(r)
-    avail_runs = list(set(aux_runs))
-    avail_runs.sort()
-    return avail_runs
-
-def read_transcript(path):
-    with open(path, 'r') as file:
-        data = file.read().replace('\n', '')
-    return data
-
-
-# -
-
-SBJs       = ['PILOT03','PILOT04','PILOT05']
-CAP_Labels = ['VPol','DMN','SMot','Audi','ExCn','rFPa','lFPa']
-PRJDIR     = '/data/SFIMJGC/PRJ_rtCAPs/'
-
-# +
-Question_Dict={'rs_alert'        : 'How alert were you?',
-               'rs_motion'       : 'Were you moving any parts of your body (e.g. head, arm, leg, toes etc)?',
-               'rs_visual'       : 'Was your attention focused on visual elements of the environment?',
-               'rs_audio'        : 'Was your attention focused on auditory elements of the environment?',
-               'rs_tactile'      : 'Was your attention focused on tactile elements of the environment?',
-               'rs_internal'     : 'Was your attention focused on your internal world?',
-               'rs_time'         : 'Where in time was your attention focused?',
-               'rs_modality'     : 'What was the modality / sensory domain of your ongoing experience?',
-               'rs_valence'      : 'What was the valence of your ongoing experience?',
-               'rs_attention'    : 'Was your attention focused intentionally or unintentionally?',
-               'rs_attention_B'  : 'Was your attention focused with or without awareness?',
-               }
-
-Question_ToNum={'rs_alert'       : {'Fully asleep':1/4,'Somewhat sleepy':2/4,'Somewhat alert':3/4,'Fully alert':4/4},
-                'rs_motion'      : {'Not sure':1/5,'No / Disagree':2/5,'Yes, a little':3/5,'Yes, quite a bit':4/5, 'Yes, a lot':5/5},
-                'rs_visual'      : {'Strongly disagree':1/5,'Somewhat disagree':2/5,'Not sure':0,'Somewhat agree':4/5, 'Strongly agree':5/5},
-                'rs_audio'       : {'Strongly disagree':1/5,'Somewhat disagree':2/5,'Not sure':0,'Somewhat agree':4/5, 'Strongly agree':5/5},
-                'rs_tactile'     : {'Strongly disagree':1/5,'Somewhat disagree':2/5,'Not sure':0,'Somewhat agree':4/5, 'Strongly agree':5/5},
-                'rs_internal'    : {'Strongly disagree':1/5,'Somewhat disagree':2/5,'Not sure':0,'Somewhat agree':4/5, 'Strongly agree':5/5},
-                'rs_time'        : {'No time\\nin particular':1/6,'Distant past\\n(>1 day)':2/6,'Near past\\n(last 24h)':3/6,'Present':4/6, 'Near future':5/6, 'Distant future':6/6},
-                'rs_modality'    : {'Exclusively\\nin words':1/5,'Mostly words\\n& some imagery':2/5,'Balance of\\nwords & imagery':3/5,'Mostly imagery\\n& some words':4/5, 'Exclusively\\nin imagery':5/5},
-                'rs_valence'     : {'Very negative':1/5,'Somewhat negative':2/5,'Neutral':3/5,'Somewhat positive':4/5, 'Very positive':5/5},
-                'rs_attention'   : {'Intentionally':0.1,'Unintentionally':1},
-                'rs_attention_B' : {'Not aware at all':1/3,'Somewhat aware':2/3,'Extremely aware':3/3}
-               }
-# -
-
-# Get list of all data files available per subject
-Runs_Per_Subject = {}
-Response_Files   = {}
-Transcript_Files = {}
-Hit_Files        = {}
-SVRscores_Files  = {}
-Options_Files    = {}
-QAOnset_Files    = {}
-QAOffset_Files   = {}
-for s in SBJs:
-    Runs_Per_Subject[s] = get_runs_per_subject(s)
-    for r in Runs_Per_Subject[s]:
-        Hit_Files[(s,r)]        = osp.join(PRJDIR,'PrcsData',s,'D01_OriginalData',s+'_'+r+'.hits.npy')
-        aux_response_files      = glob.glob(str(osp.join(PRJDIR,'PrcsData',s,'D01_OriginalData'))+'/'+s+'_'+r+'.Responses.???.txt')
-        aux_response_files.sort()
-        Response_Files[(s,r)]   = aux_response_files
-        aux_transcript_files    = glob.glob(str(osp.join(PRJDIR,'PrcsData',s,'D01_OriginalData'))+'/'+s+'_'+r+'.Responses_Oral_Transcript.???.txt')
-        aux_transcript_files.sort()
-        Transcript_Files[(s,r)] = aux_transcript_files
-        SVRscores_Files[(s,r)]  = osp.join(PRJDIR,'PrcsData',s,'D01_OriginalData',s+'_'+r+'.svrscores.npy')
-        Options_Files[(s,r)]    = osp.join(PRJDIR,'PrcsData',s,'D01_OriginalData',s+'_'+r+'_Options.json')
-        QAOnset_Files[(s,r)]    = osp.join(PRJDIR,'PrcsData',s,'D01_OriginalData',s+'_'+r+'.qa_onsets.txt')
-        QAOffset_Files[(s,r)]   = osp.join(PRJDIR,'PrcsData',s,'D01_OriginalData',s+'_'+r+'.qa_offsets.txt')
-        
-
-DF_Behav = pd.DataFrame(columns=['Subject','Run','Hit_ID','CAP','TR','Question','Resp_Str','Resp_Int','Resp_Time','Text'])
-for s in SBJs:
-    for r in Runs_Per_Subject[s]:
-        hit_info   = pd.DataFrame(np.load(Hit_Files[(s,r)]).T, columns=CAP_Labels)
-        hits       = hit_info[hit_info.T.sum()>0]
-        for i,file in enumerate(Response_Files[(s,r)]):
-            # Get Transcription of Oral Response if already available
-            try:
-                trans_file = Transcript_Files[(s,r)][i]
-                transcript = read_transcript(trans_file)
-            except:
-                transcript = ''
-            # Get responses to likert scale question
-            resp = get_answer(file)
-            # For each likert scale question insert an entry into the DF_Behavior dataframe
-            for q in resp.keys():
-                DF_Behav = DF_Behav.append({'Subject':s,
-                                        'Run'      : r,
-                                        'Hit_ID'   : i+1,
-                                        'TR'       : int(hits.iloc[i].name),
-                                        'CAP'      : hits.iloc[i][hits.iloc[i]==1.0].index[0],
-                                        'Question' : q,
-                                        'Resp_Str' : resp[q][0],
-                                        'Resp_Int' : Question_ToNum[q][resp[q][0]],
-                                        'Resp_Time': float(resp[q][1]),
-                                        'Text'     : transcript},ignore_index=True)
-
-
-# ***
-# # Graphical Stuff - Radar Plots
-
-# +
-def unit_poly_verts(theta, centre ):
-    """Return vertices of polygon for subplot axes.
-    This polygon is circumscribed by a unit circle centered at (0.5, 0.5)
-    """
-    x0, y0, r = [centre] * 3
-    verts = [(r*np.cos(t) + x0, r*np.sin(t) + y0) for t in theta]
-    return verts
-
-def radar_patch(r, theta, centre ):
-    """ Returns the x and y coordinates corresponding to the magnitudes of 
-    each variable displayed in the radar plot
-    """
-    # offset from centre of circle
-    offset = 0.0
-    yt = (r*centre + offset) * np.sin(theta) + centre 
-    xt = (r*centre + offset) * np.cos(theta) + centre 
-    return xt, yt
-
-def generate_radar_chart_from_resp(resp):
-    num_vars = len(resp)
-    centre   = 0.5
-    theta = np.linspace(0, 2*np.pi, num_vars, endpoint=False)
-    theta += np.pi/2
-    verts = unit_poly_verts(theta, centre)
-    x     = [v[0] for v in verts] 
-    y     = [v[1] for v in verts] 
-    p     = figure(title="Subject Response")
-    text  = ['Q'+str(i).zfill(2) for i in range(1,num_vars+1)]+[''] #list(resp.keys())+['']
-    source = ColumnDataSource({'x':x + [centre],'y':y + [1],'text':text})
-    #p.line(x="x", y="y", source=source)
-    p.circle(x=0.5,y=0.5,radius=.5, line_color='black', fill_color=None)
-    for i,j in zip(x,y):
-        p.line(x=[centre,i],y=[centre,j], line_color='black', line_dash='dashed')
-    labels = LabelSet(x="x",y="y",text="text",source=source)
-    p.add_layout(labels)
-    f = []
-    for q in resp.keys():
-        f.append(Question_ToNum[q][resp[q][0]])
-    f = np.array(f)
-    xt, yt = radar_patch(f, theta, centre)
-    p.patch(x=xt, y=yt, fill_alpha=0.15, fill_color='red', line_color='black', line_width=2)
-    return p
-
-def generate_radar_chart_from_vals(vals, strs):
-    centre   = 0.5
-    num_vars = len(vals)
-    theta    = np.linspace(0, 2*np.pi, num_vars, endpoint=False)
-    theta   += np.pi/2
-    verts    = unit_poly_verts(theta, centre)
-    x        = [v[0] for v in verts] 
-    y        = [v[1] for v in verts]
-
-    p =figure(match_aspect=True)
-    # Draw Outter Dots
-    out_dots_TOOLTIPS = [("Q:", "@desc")]
-    out_dots_src = ColumnDataSource({'x':x,'y':y,'desc':list(Question_Dict.values())})
-    g_out_dots = p.circle(x='x',y='y', color='black', source=out_dots_src)
-    out_dots_hover = HoverTool(renderers=[g_out_dots], tooltips=out_dots_TOOLTIPS)
-    p.add_tools(out_dots_hover)
-
-    # Draw Outter Circle
-    p.circle(x=0.5,y=0.5,radius=0.5, fill_color=None, line_color='black', line_alpha=0.5)
-
-    # Draw concentrical lines
-    for i,j in zip(x,y):
-        p.line(x=[centre,i],y=[centre,j], line_color='black', line_dash='dashed', line_alpha=0.5)
-
-    #Draw intermediate circles
-    p.circle(x=0.5,y=0.5,radius=.5, line_color='black', fill_color=None, line_alpha=0.5)
-    p.circle(x=0.5,y=0.5,radius=.1, line_color='black', fill_color=None, line_alpha=0.5, line_dash='dashed')
-    p.circle(x=0.5,y=0.5,radius=.2, line_color='black', fill_color=None, line_alpha=0.5, line_dash='dashed')
-    p.circle(x=0.5,y=0.5,radius=.3, line_color='black', fill_color=None, line_alpha=0.5, line_dash='dashed')
-    p.circle(x=0.5,y=0.5,radius=.4, line_color='black', fill_color=None, line_alpha=0.5, line_dash='dashed')
-
-    # Visual Aspects
-    p.xgrid.visible=False
-    p.ygrid.visible=False
-    p.xaxis.visible=False
-    p.yaxis.visible=False
-    p.toolbar.logo=None
-    p.toolbar_location='below'
-
-    # Draw Question IDs
-    labels_txt = ['Q'+str(i).zfill(2) for i in range(1,num_vars+1)]
-    labels_src = ColumnDataSource({'x':[i if i >= 0.5 else i-.05 for i in x],'y':[i if i >= 0.5 else i-.05 for i in y],'text':labels_txt})
-    labels     = LabelSet(x="x",y="y",text="text",source=labels_src)
-    p.add_layout(labels)
-    xt, yt = radar_patch(np.array(vals), theta, centre)
-    p.patch(x=xt, y=yt, fill_alpha=0.15, fill_color='red', line_color='black', line_width=2)
-
-    # Patch hovering
-    patch_dots_TOOLTIPS = [("Response:","@desc")]
-    patch_dots_src = ColumnDataSource({'xt':xt,'yt':yt,'desc':strs})
-    patch_dots = p.circle(x='xt',y='yt',color='black', source=patch_dots_src)
-    patch_dots_hover = HoverTool(renderers=[patch_dots], tooltips=patch_dots_TOOLTIPS)
-    p.add_tools(patch_dots_hover)
-    p.width=425
-    p.height=425
-    return p
-
-
-
-# -
 
 # ***
 # # Graphical Stuff - Dashboard
@@ -260,20 +48,20 @@ def generate_radar_chart_from_vals(vals, strs):
 # +
 Title            = pn.panel('# Individual Hit Summary View')
 SBJ_Select       = pn.widgets.Select(name='Subject ID:', value=SBJs[0], options=SBJs)
-initial_run_list = get_runs_per_subject(SBJs[0])
+initial_run_list = get_runs_per_subject(PRJDIR, SBJs[0])
 RUN_Select       = pn.widgets.Select(name='Run ID:',     value=initial_run_list[0], options=initial_run_list)
 initial_cap_list = list(DF_Behav[(DF_Behav['Subject']==SBJs[0]) & (DF_Behav['Run']==initial_run_list[0])]['CAP'].unique())
 CAP_TYPE_Select  = pn.widgets.Select(name='CAP Type:', value = initial_cap_list[0], options=initial_cap_list)
 @pn.depends(SBJ_Select.param.value, watch=True)
 def _update_run_select_list(sbj):
-    run_list = get_runs_per_subject(sbj)
+    run_list = get_runs_per_subject(PRJDIR, sbj)
     RUN_Select.options = run_list
     RUN_Select.value   = run_list[0]
     
 @pn.depends(SBJ_Select.param.value, RUN_Select.param.value)
 def hit_count_table(sbj,run):
     hits_file = osp.join(PRJDIR,'PrcsData',sbj,'D01_OriginalData',sbj+'_'+run+'.hits.npy')
-    hits = pd.DataFrame(np.load(hits_file).T,columns=CAP_Labels)
+    hits = pd.DataFrame(np.load(hits_file).T,columns=CAP_labels)
     hits_count = hits.sum().to_frame().T
     hits_count.index=['Number of Hits']
     return hits_count
@@ -304,13 +92,13 @@ def get_svrscore_plot(sbj,run,cap):
     svrscores           = np.load(svr_file).T
     hits                = np.load(hits_file).T
     
-    SVR_Scores_DF       = pd.DataFrame(svrscores, columns=CAP_Labels)
+    SVR_Scores_DF       = pd.DataFrame(svrscores, columns=CAP_labels)
     SVR_Scores_DF['TR'] = SVR_Scores_DF.index
-    SVRscores_curve     = SVR_Scores_DF.hvplot(legend='top', label='SVR Scores', x='TR').opts(width=2400, toolbar='below')
+    SVRscores_curve     = SVR_Scores_DF.hvplot(legend='top', label='SVR Scores', x='TR').opts(width=1000, height=200, toolbar='right',finalize_hooks=[disable_logo])
     Threshold_line      = hv.HLine(ZTH).opts(color='black', line_dash='dashed', line_width=1)
     Hits_ToPlot         = hits * svrscores
     Hits_ToPlot[Hits_ToPlot==0.0] = None
-    Hits_DF             = pd.DataFrame(Hits_ToPlot, columns=CAP_Labels)
+    Hits_DF             = pd.DataFrame(Hits_ToPlot, columns=CAP_labels)
     Hits_DF['TR']       = Hits_DF.index
     Hits_Marks          = Hits_DF.hvplot(legend='top', label='SVR Scores', 
                                              x='TR', kind='scatter', marker='circle', 
@@ -336,37 +124,71 @@ def get_svrscore_plot(sbj,run,cap):
 
 @pn.depends(SBJ_Select.param.value, RUN_Select.param.value, CAP_TYPE_Select.param.value, watch = True)
 def get_cap_hits_mosaic(sbj,run,cap):
-    cap_texts    = pn.Row()
-    cap_radars   = pn.Row()
-    cap_titles   = pn.Row()
-    cap_rt_maps  = []
-    cap_off_maps = []
     hitIDs_for_this_cap = list(DF_Behav[(DF_Behav['Subject']==sbj) & (DF_Behav['Run']==run) & (DF_Behav['CAP']==cap)]['Hit_ID'].unique())
-    for hitID in hitIDs_for_this_cap:
+    layout = pn.Row()
+    for idx,hitID in enumerate(hitIDs_for_this_cap):
         # Title
         hit_tr = DF_Behav[(DF_Behav['Subject']==sbj) & (DF_Behav['Run']==run) & (DF_Behav['CAP']==cap) & (DF_Behav['Hit_ID']==hitID)]['TR'].unique()[0]
-        title  = '<h3>'+cap+' | #Hit = '+str(hitID)+' | TR = '+str(hit_tr)+'</h3>'
-        cap_titles.append(pn.pane.HTML(title, width=420))
+        title  = '<h2>'+cap+' | #Hit = '+str(hitID)+' | TR = '+str(hit_tr)+'</h2>'
+        pn_title = pn.pane.HTML(title, width=420)
         # Transcript
-        cap_texts.append(pn.panel(DF_Behav[(DF_Behav['Subject']==sbj) & (DF_Behav['Run']==run) & (DF_Behav['CAP']==cap) & (DF_Behav['Hit_ID']==hitID)]['Text'].iloc[0], width=420))
+        pn_transcript = pn.panel(DF_Behav[(DF_Behav['Subject']==sbj) & (DF_Behav['Run']==run) & (DF_Behav['CAP']==cap) & (DF_Behav['Hit_ID']==hitID)]['Text'].iloc[0], width=420, height=125)
         # Radar Plots
         likert_values  = list(DF_Behav[(DF_Behav['Subject']==sbj) & (DF_Behav['Run']==run) & (DF_Behav['CAP']==cap) & (DF_Behav['Hit_ID']==hitID)]['Resp_Int'].values)
         likert_strings = list(DF_Behav[(DF_Behav['Subject']==sbj) & (DF_Behav['Run']==run) & (DF_Behav['CAP']==cap) & (DF_Behav['Hit_ID']==hitID)]['Resp_Str'].values)
         likert_strings = [a.replace('\\n',' ') for a in likert_strings]
-        cap_radars.append(generate_radar_chart_from_vals(likert_values,likert_strings))
-    return pn.Column(cap_titles, cap_texts, cap_radars)
+        pn_radar = generate_radar_chart_from_vals(likert_values,likert_strings, Question_Dict, color=CAP_colors[cap])
+        # RT Maps
+        hit_sv_LL = pn.pane.PNG(osp.join(DASHBOARD_DIR,'SurfViews',sbj+'_'+run+'.Hit_'+cap+'_'+str(idx+1).zfill(2)+'_Left_Lateral.png'), height=130)
+        hit_sv_LM = pn.pane.PNG(osp.join(DASHBOARD_DIR,'SurfViews',sbj+'_'+run+'.Hit_'+cap+'_'+str(idx+1).zfill(2)+'_Left_Medial.png'), height=130)
+        hit_sv_RL = pn.pane.PNG(osp.join(DASHBOARD_DIR,'SurfViews',sbj+'_'+run+'.Hit_'+cap+'_'+str(idx+1).zfill(2)+'_Right_Lateral.png'), height=130)
+        hit_sv_RM = pn.pane.PNG(osp.join(DASHBOARD_DIR,'SurfViews',sbj+'_'+run+'.Hit_'+cap+'_'+str(idx+1).zfill(2)+'_Right_Medial.png'), height=130)
+        rt_pn_caps_sv = pn.GridBox(ncols=2,nrows=2, objects=[hit_sv_LL,hit_sv_RL,hit_sv_LM,hit_sv_RM], height=300, background='white', margin=(10,10))
+        
+        # Offline Maps
+        hit_sv_LL = pn.pane.PNG(osp.join(DASHBOARD_DIR,'SurfViews',sbj+'_'+run+'.offline.Hit_'+cap+'_'+str(idx+1).zfill(2)+'_Left_Lateral.png'), height=130)
+        hit_sv_LM = pn.pane.PNG(osp.join(DASHBOARD_DIR,'SurfViews',sbj+'_'+run+'.offline.Hit_'+cap+'_'+str(idx+1).zfill(2)+'_Left_Medial.png'), height=130)
+        hit_sv_RL = pn.pane.PNG(osp.join(DASHBOARD_DIR,'SurfViews',sbj+'_'+run+'.offline.Hit_'+cap+'_'+str(idx+1).zfill(2)+'_Right_Lateral.png'), height=130)
+        hit_sv_RM = pn.pane.PNG(osp.join(DASHBOARD_DIR,'SurfViews',sbj+'_'+run+'.offline.Hit_'+cap+'_'+str(idx+1).zfill(2)+'_Right_Medial.png'), height=130)
+        offline_pn_caps_sv = pn.GridBox(ncols=2,nrows=2, objects=[hit_sv_LL,hit_sv_RL,hit_sv_LM,hit_sv_RM], height=300, background='white', margin=(10,10))
+        layout.append(pn.Column(pn.Row(pn.layout.HSpacer(), pn_title, pn.layout.HSpacer()),
+                                pn_transcript,
+                                pn_radar, 
+                                pn.Row(pn.layout.HSpacer(), pn.pane.HTML('<h2>Realtime Preprocessing</h2>'), pn.layout.HSpacer()),
+                                rt_pn_caps_sv, 
+                                pn.Row(pn.layout.HSpacer(), pn.pane.HTML('<h2>Offline Preprocessing</h2>'), pn.layout.HSpacer()),
+                                offline_pn_caps_sv)) 
+    return layout
+
+
+@pn.depends(CAP_TYPE_Select.param.value, watch = True)
+def get_cap_surface(cap):
+    caps_LL_path = osp.join(PRJDIR,'Others','Video','CAPs_'+cap+'_Left_Lateral.png')
+    caps_LM_path = osp.join(PRJDIR,'Others','Video','CAPs_'+cap+'_Left_Medial.png')
+    caps_RL_path = osp.join(PRJDIR,'Others','Video','CAPs_'+cap+'_Right_Lateral.png')
+    caps_RM_path = osp.join(PRJDIR,'Others','Video','CAPs_'+cap+'_Right_Medial.png')
+    caps_LL = pn.pane.PNG(caps_LL_path, height=100)
+    caps_LM = pn.pane.PNG(caps_LM_path, height=100)
+    caps_RL = pn.pane.PNG(caps_RL_path, height=100)
+    caps_RM = pn.pane.PNG(caps_RM_path, height=100)
+    return pn.GridBox(ncols=2,nrows=2, objects=[caps_LL,caps_RL,caps_LM,caps_RM], height=210, background='white', margin=(10,10))
+
+@pn.depends(SBJ_Select.param.value,RUN_Select.param.value, CAP_TYPE_Select.param.value, watch=True)
+def get_cap_combined_radar(sbj,run,cap):
+    figure = generate_avg_radar_chart_for_cap(DF_Behav,cap,Question_Dict,sbj=sbj, run=run)
+    figure.height = 250
+    figure.width  = 250
+    output = pn.panel(figure)
+    return output
+
 
 
 # -
 
-pn.pane.HTML('<h3>hi</h3>', width=420)
-
 APP = pn.Column(Title,
-                pn.Row(SBJ_Select, RUN_Select, hit_count_table),
-                get_svrscore_plot,
-                CAP_TYPE_Select,
+                pn.Row(pn.Column(SBJ_Select, RUN_Select,hit_count_table, CAP_TYPE_Select), get_cap_surface, get_cap_combined_radar,get_svrscore_plot),
                 get_cap_hits_mosaic)
 
-APP.show()
+APP.servable()
 
-# ***
+
