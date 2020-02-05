@@ -62,7 +62,7 @@ def compute_spatial_corr(data_A_path, data_B_path, mask_path, discard=100):
         print('++ INFO: Dataset B (Corrected) Dimensions [Nv=%d,Nt=%d]' % (data_B_nv_c, data_B_nt_c))
     # Compute spatial correlations
     r   = []
-    for t in np.arange(data_A_nt):
+    for t in np.arange(data_A.shape[1]):
         a = data_A[:,t]
         b = data_B[:,t]
         r.append(np.corrcoef(a,b)[0,1])
@@ -72,9 +72,13 @@ def compute_spatial_corr(data_A_path, data_B_path, mask_path, discard=100):
 PRJDIR               = '/data/SFIMJGC/PRJ_rtCAPs/'
 SBJ                  = 'PILOT03'
 mask_path            = osp.join(PRJDIR,'PrcsData',SBJ,'D00_ScannerData','GMribbon_R4Feed.nii')
-afni_preZscore_path  = osp.join(PRJDIR,'PrcsData',SBJ,'D02_Training_Procpy',SBJ+'.results','errts.'+SBJ+'.tproject+orig.HEAD')
-afni_path            = osp.join(PRJDIR,'PrcsData',SBJ,'D02_Training_Procpy',SBJ+'.results','errts.'+SBJ+'.tproject.Zscore.nii')
-rtcaps_path          = osp.join(PRJDIR,'PrcsData',SBJ,'D00_ScannerData',SBJ+'_Training.pp_Zscore.nii')
+#afni_preZscore_path  = osp.join(PRJDIR,'PrcsData',SBJ,'D02_Training_Procpy',SBJ+'.results','errts.'+SBJ+'.tproject+orig.HEAD')
+#afni_path            = osp.join(PRJDIR,'PrcsData',SBJ,'D02_Training_Procpy',SBJ+'.results','errts.'+SBJ+'.tproject.Zscore.nii')
+#rtcaps_path          = osp.join(PRJDIR,'PrcsData',SBJ,'D00_ScannerData',SBJ+'_Training.pp_Zscore.nii')
+afni_preZscore_path  = osp.join(PRJDIR,'PrcsData',SBJ,'D02_Training_Procpy','errts.'+SBJ+'.tproject.sequential.nii')
+afni_path            = osp.join(PRJDIR,'PrcsData',SBJ,'D02_Training_Procpy','errts.'+SBJ+'.tproject.sequential.Zscore.nii')
+rtcaps_path          = osp.join(PRJDIR,'PrcsData',SBJ,'D02_Training_Procpy',SBJ+'_Training.sameACQs_as_sequential.nii')
+afni_static_path     = osp.join(PRJDIR,'PrcsData',SBJ,'D02_Training_Procpy','errts.'+SBJ+'.tproject.Zscore.sameACQs_as_sequential.nii')
 
 # +
 afni_preZscore_Img  = load_fMRI_file(afni_preZscore_path)
@@ -92,7 +96,7 @@ for t in np.arange(Nt):
 _ = unmask_fMRI_img(zData,mask_Img,afni_path)
 
 Graph_Title   = 'Final: rtCAPs vs. AfniProc'
-R = compute_spatial_corr(afni_path, rtcaps_path, mask_path)
+R = compute_spatial_corr(afni_path,afni_static_path,mask_path, discard=0)
 
 (hv.Curve(R, label='Afni vs. rtCAPs').opts(width=1500, tools=['hover'])).opts(show_legend=True, title=Graph_Title)
 
