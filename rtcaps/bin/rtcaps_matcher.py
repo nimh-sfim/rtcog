@@ -624,6 +624,7 @@ def processExperimentOptions (self, options=None):
     parser_save.add_argument("--save_all"  ,  help="Save 4D with incoming data  [default: %(default)s]", dest="save_all", default=False, action="store_true")
     parser_exp = parser.add_argument_group('Experiment/GUI Options')
     parser_exp.add_argument("-e","--exp_type", help="Type of Experimental Run [%(default)s]",      type=str, required=True,  choices=['preproc','esam', 'esam_test'], default='preproc')
+    parser_exp.add_argument("--no_gui", help="Do not open psychopy window. Only applies to pre-processing experiment type [%(default)s]", default=False, action="store_true", dest='no_gui')
     parser_exp.add_argument("--no_proc_chair", help="Hide crosshair during preprocessing run [%(default)s]", default=False,  action="store_true", dest='no_proc_chair')
     parser_exp.add_argument("--fscreen", help="Use full screen for Experiment [%(default)s]", default=False, action="store_true", dest="fullscreen")
     parser_exp.add_argument("--screen", help="Monitor to use [%(default)s]", default=1, action="store", dest="screen",type=int)
@@ -664,7 +665,8 @@ def main():
 
     # 2) Get additional info using the GUI
     # ------------------------------------
-    exp_info = get_experiment_info(opts)
+    if opts.no_gui == False:
+        exp_info = get_experiment_info(opts)
 
     # 3) Depending on the type of run.....
     # ------------------------------------
@@ -707,7 +709,7 @@ def main():
         # ------------------------
         cap_qa.close_psychopy_infrastructure()
     
-    if opts.exp_type == "preproc":
+    if opts.exp_type == "preproc" and (opts.no_gui == False):
         # 4) Start GUI
         rest_exp = experiment_Preproc(exp_info,opts)
 
