@@ -109,7 +109,7 @@ class Program(object):
         lm_results_flat_Z   = lm_results_flat_Z.reshape((lmr_nt,lmr_ncaps), order='F')
         self.lm_res_z       = pd.DataFrame(lm_results_flat_Z, columns=self.caps_labels, index=lm_results.index)
         #self.lm_res_z['TR'] = self.vols4training
-        
+
     def train_svrs(self):
         for cap_lab in tqdm(self.caps_labels):
             Training_Labels = self.lm_res_z[cap_lab]
