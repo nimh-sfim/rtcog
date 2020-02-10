@@ -4,7 +4,7 @@ from bokeh.palettes import Category10_7
 PRJDIR      = '/data/SFIMJGC/PRJ_rtCAPs'
 CAPS_DIR    = osp.join(PRJDIR,'Others')
 
-CAP_indexes = [25,4,18,28,24,11,21]
+CAP_indexes = [25,    4,    18,    28,    24,    11,    21]
 CAP_labels  = ['VPol','DMN','SMot','Audi','ExCn','rFPa','lFPa']
 CAPLabel2Int = {'VPol':25,'DMN':4,'Smot':18,'Audi':28,'ExCn':24,'rFPa':11,'lFPa':21}
 CAP_colors   = {x:y for x,y in zip(CAP_labels,Category10_7)}

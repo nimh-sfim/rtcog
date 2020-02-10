@@ -32,9 +32,16 @@ a.pkl.npy
 kl_devel.ipynb
 TMP
 rtcaps/profiles
-
 emails/
 rtcaps/bin/tj
 rtcaps/bin/deprecated
 deprecated/
 Realtime
+Dashboards
+Scripts/Visualization/.ipynb_checkpoints/
+Scripts/Visualization/*.ipynb
+rtcaps/tests/.ipynb_checkpoints/
+rtcaps/bin/__pycache__/
+rtcaps/bin/data/
+rtcaps/tests/*ipynb
+*.pyc
