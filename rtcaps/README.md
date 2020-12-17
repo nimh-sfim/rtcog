@@ -83,8 +83,11 @@ export AFNI_REALTIME_SHOW_TIMES=YES
 export AFNI_REALTIME_Mask_Vals=ROI_means
 export AFNI_REALTIME_Function=FIM
 ```
+
     3.4 Start AFNI in realtime mode
-        ```afni -rt```
+```bash
+afni -rt
+```
 
 > __NOTE__: Make sure you have the latest version of AFNI installed, as you will be using a data transfer option only available since 2020.
 
