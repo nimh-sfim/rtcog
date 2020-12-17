@@ -94,14 +94,14 @@ OUTPUTS:
 
 # Overview of what the Software does
 
-![](2020-12-09-13-18-35.png)
+![](./Documentation/Images/software_overview.png)
 ***
 
 # Targeted CAPs
 
 In July 2019, Xiao Liu (former post-doctoral fellow at Jeff Dyun group) was kind to share with me the CAPs template assocuated with his Frontiers 2013 paper. We provided me with the template for the 30 CAPs that were originally described on his work. Many of these CAPs are highly similar, so for our initial evaluation we decided to only use a subset of the CAPs (see figure below)
 
-![](2020-12-09-13-13-15.png)
+![](./Documentation/Images/selected_caps.png)
 
 ***
 
