@@ -169,7 +169,7 @@ fi
 # ===================================
 if [[ "${GM_TYPE}" == "Segsy_NoCer" ]]; then
  echo " + Removing Cerebellum......"
- 3dcalc -overwrite -a ${AFNIHOME}/MNI_Glasser_HCP_v1.0.nii.gz -expr 'step(a)' -prefix MNI_GMwithoutCerebellum.nii
+ 3dcalc -overwrite -a /home/sdc/javiergc/CAPs_Frontiers2013/jan15/MNI_Glasser_HCP_v1.0.nii.gz -expr 'step(a)' -prefix MNI_GMwithoutCerebellum.nii
  3dAllineate -final NN -overwrite \
              -input MNI_GMwithoutCerebellum.nii \
              -1Dmatrix_apply MNI2REF.Xaff12.1D \
@@ -188,3 +188,11 @@ else
        -expr 'a*b*step(abs(c))' \
        -prefix GMribbon_R4Feed.nii
 fi
+
+echo "### All Transformations finalized"
+echo "================================="
+Nvoxels_inGM=` 3dROIstats -nzvoxels -quiet -nomeanout -mask GMribbon_R4Feed.nii  GMribbon_R4Feed.nii | awk '{print $1}'`
+echo "  - Number of Voxels in GM Ribbon Mask = ${Nvoxels_inGM}"
+echo "  - Please copy necessary files to RT laptop using command:"
+echo "    scp  GMribbon_R4Feed.nii javiergc@10.0.1.75:/data/CAPS/"
+echo "    scp  ${CAPS_FILEPREFIX}_R4Feed.nii javiergc@10.0.1.75:/data/CAPS/"
