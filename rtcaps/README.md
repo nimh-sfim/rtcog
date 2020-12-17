@@ -69,10 +69,15 @@ The minimum parameters to ensure this mode of operation are:
 2. On the __Scanner__ terminal, create a new empty directory, and make sure to copy sample datasets. To a minimum you should have an anatomical dataset, a short EPI dataset to use as reference for alignment, and then two additional long EPI datasets: one will be used for training the classifier and the second one to simulate a real experience sampling run.
 
 3. On the __Realtime__ teminal, do the following:
+    
     3.1 Create a new empty directory.
+    
     3.2 Copy the 01_BringROIsToSubjectSpace.sh script here.
+    
     3.2 Copy the Frontiers2013_CAPs.nii file here.
+    
     3.3 Export the following variables
+
 ```bash
 export AFNI_REALTIME_Registration=3D:_realtime
 export AFNI_REALTIME_Base_Image=2
@@ -84,7 +89,10 @@ export AFNI_REALTIME_Mask_Vals=ROI_means
 export AFNI_REALTIME_Function=FIM
 ```
 
+hello
+
     3.4 Start AFNI in realtime mode
+
 ```bash
 afni -rt
 ```
