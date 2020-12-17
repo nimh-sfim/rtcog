@@ -78,6 +78,8 @@ The minimum parameters to ensure this mode of operation are:
     
     3.3 Export the following variables
 
+This is code
+
 ```bash
 export AFNI_REALTIME_Registration=3D:_realtime
 export AFNI_REALTIME_Base_Image=2
@@ -89,6 +91,7 @@ export AFNI_REALTIME_Mask_Vals=ROI_means
 export AFNI_REALTIME_Function=FIM
 ```
 
+This is more code
 
     3.4 Start AFNI in realtime mode
 
