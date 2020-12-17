@@ -31,7 +31,7 @@ First, let's have a look at the directories in here:
 ***
 # A Typical Scanning Session
 
-![](2020-12-09-13-15-27.png)
+![](./Documentation/Images/scan_session.png)
 
 Before subjects enter the scanner, the experimenter would provide subjects with instructions about the experiment and run a few samples of how things will work inside the scanner (Introspection Training).
 
@@ -131,7 +131,7 @@ Before we can run the experiment, several configuration steps are required:
 
 * In the laptop ensure Sound Output is set to External Headphones
 
-    ![](2020-12-09-13-45-49.png)
+    ![](./Documentation/Images/audio_input_config.png)
 
 ### 2. AUDIO RECORDING SYSTEM
 
@@ -140,12 +140,12 @@ Before we can run the experiment, several configuration steps are required:
     * MONITOR FORMI ON (Green)
     * Connect USB-A port from OptoAcoustics (USB OUT in back) to any USB-C port in the laptop using the small adaptors (Q)
 
-    ![](2020-12-09-13-52-21.png)
+    ![](./Documentation/Images/optoacustics_back.png)
 
     * Self Hearing Knob in the middle
     * Speaker Knob in the middle
 * In the laptop set Audio Input to USB Audio CODEC:
-    ![](2020-12-09-13-53-38.png)
+    ![](./Documentation/Images/audio_output_config.png)
 
 > NOTE: Don’t make any of the audio go through the CalDigital DOCK as it creates some sort of loop with the input and output of sound.
 
