@@ -86,10 +86,8 @@ export AFNI_REALTIME_MP_HOST_PORT=localhost:53214
 export AFNI_REALTIME_SEND_VER=YES
 export AFNI_REALTIME_SHOW_TIMES=YES
 export AFNI_REALTIME_Mask_Vals=ROI_means
-export AFNI_REALTIME_Function=FIM
-```
+export AFNI_REALTIME_Function=FIM```
 
-hello
 
     3.4 Start AFNI in realtime mode
 
