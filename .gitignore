@@ -45,3 +45,9 @@ rtcaps/bin/__pycache__/
 rtcaps/bin/data/
 rtcaps/tests/*ipynb
 *.pyc
+Orange_Introspection.ows
+Josh_Simulation
+Protocol
+Scripts/Realtime_Scanner/01_BringROIsToSubjectSpace.old.sh
+rtcaps/resources/likert_instr.png
+rtcaps/resources/forps_1x4d_pic.png
