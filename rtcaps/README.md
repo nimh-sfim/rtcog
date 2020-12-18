@@ -138,7 +138,7 @@ On the new window, ensure the following configurations:
 * Mask = GMribbon_R4Feed.nii
 * Val to Send = All Data (light)
 
-8. Start rtCAPs in pre-processing mode in the __Laptop__ terminal.
+<u>9. Start rtCAPs in pre-processing mode in the __Laptop__ terminal.</u>
 
 ```bash 
 python ../../rtcaps/bin/rtcaps_matcher.py \
@@ -150,7 +150,7 @@ python ../../rtcaps/bin/rtcaps_matcher.py \
         --out_prefix training
 ```
 
-9. Simulate acquisition of the traning run
+<u>10. Simulate acquisition of the traning run</u>
 
     In the __Scanner__ console, type:
 
@@ -169,7 +169,7 @@ The data will be send to AFNI, who in turn will do motion correction (towards th
 * ```$prefix.pp_LPfilter.nii```: data following the low pass filtering step.
 * ```$prefix.pp_Smotth.nii```: data following the spatial smoothing step.
 
-10. Train the SVR
+<u>11. Train the SVR</u>
 
 For that, in the __Laptop__ terminal, you should run:
 
@@ -195,11 +195,11 @@ Here is an example of the static training report
 
 ![Sample of Traning SVR Static Report](../Documentation/Images/training_svr.png)
 
-11. Start rtCAPs to deal with a real Experience Sampling Run
+<u>12. Start rtCAPs to deal with a real Experience Sampling Run</u>
 
 For that, on the __Laptop__ terminal run the following:
 
-```
+TO
 # Pre-processing of Traning Run
 
 Despite the lack of realtime experiment control during the training run (the subject will see the crosshair in the screen all the time), we still run software in the laptop during this run for two purposes:
