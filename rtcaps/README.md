@@ -166,14 +166,14 @@ rtfeedme TrainingRun+orig
 
 The data will be send to AFNI, who in turn will do motion correction (towards the EPI reference dataset), and then send the values of each voxel in the GMribbon mask to the rtCAPs program that is listening by default on port 53214. By the end of this step, in the __Laptop__ folder you should have the following files:
 
-** ```$prefix_Options.json```: record of all the options.
-** ```$prefix.Motion.1D```: motion estimates.
-** ```$prefix.Zscore.nii```: final per-TR activity map?
-** ```$prefix.pp_EMA.nii```: data following the EMA step.
-** ```$prefix.pp_iGLM.nii```: data following the incremental GLM step.
-** ```$pretix.pp_iGLM_$regressor.nii```: fitting (beta value) of each nuisance regressor.
-** ```$prefix.pp_LPfilter.nii```: data following the low pass filtering step.
-** ```$prefix.pp_Smotth.nii```: data following the spatial smoothing step.
+* ```$prefix_Options.json```: record of all the options.
+* ```$prefix.Motion.1D```: motion estimates.
+* ```$prefix.Zscore.nii```: final per-TR activity map?
+* ```$prefix.pp_EMA.nii```: data following the EMA step.
+* ```$prefix.pp_iGLM.nii```: data following the incremental GLM step.
+* ```$pretix.pp_iGLM_$regressor.nii```: fitting (beta value) of each nuisance regressor.
+* ```$prefix.pp_LPfilter.nii```: data following the low pass filtering step.
+* ```$prefix.pp_Smotth.nii```: data following the spatial smoothing step.
 
 10. Train the SVR
 
@@ -190,12 +190,12 @@ For that, in the __Laptop__ terminal, you should run:
 
 This will generate the following additional files in the __Laptop__ folder:
 
-**training_svr.pkl**: trained SVRs (needed for the rest of the experimental runs)
-**training_svr_training_vols.csv**: ?
-**training_svr_lm_R2.csv**: R2 for linear regerssion on training data
-**training_svr_lm_z_labels.csv**: TR-by-TR labels of SVRs (after Z-scoring) 
-**training_svr.png**: static summary of SVR traning
-**training_svr.html**: dynamic summary of SVR traning
+* ```training_svr.pkl```: trained SVRs (needed for the rest of the experimental runs)
+* ```training_svr_training_vols.csv```: ?
+* ```training_svr_lm_R2.csv```: R2 for linear regerssion on training data
+* ```training_svr_lm_z_labels.csv```: TR-by-TR labels of SVRs (after Z-scoring) 
+* ```training_svr.png```: static summary of SVR traning
+* ```training_svr.html```: dynamic summary of SVR traning
 
 Here is an example of the static training report
 
