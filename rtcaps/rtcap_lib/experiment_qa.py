@@ -14,7 +14,7 @@ import logging
 from playsound import playsound
 from .recorder import Recorder
 
-RESOURCES_DIR = '../../rtcaps/resources/'
+RESOURCES_DIR = '/data/SFIMJGC/PRJ_rtCAPS/rtcaps/resources/'
 ALERT_SOUND_FILE = 'bike_bell.wav'
 
 log     = logging.getLogger("experiment_qa")
