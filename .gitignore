@@ -51,3 +51,5 @@ Protocol
 Scripts/Realtime_Scanner/01_BringROIsToSubjectSpace.old.sh
 rtcaps/resources/likert_instr.png
 rtcaps/resources/forps_1x4d_pic.png
+Scripts/AfniProc/.ipynb_checkpoints/Untitled-checkpoint.ipynb
+rtcaps/rtcap_lib/utils/.ipynb_checkpoints/exp_defs-checkpoint.py
