@@ -347,7 +347,7 @@ class Experiment(object):
                                        self.caps_labels,
                                        self.svrscores,
                                        self.hit_zth,
-                                       self.hit_wl)
+                                       self.hit_v4hit)
             
             # Add one more line to the hits data structure with zeros (if a hit happen, a 1 will be added later)
             self.hits = np.append(self.hits, np.zeros((self.Ncaps,1)), axis=1)
