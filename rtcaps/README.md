@@ -156,19 +156,53 @@ python ../../rtcaps/bin/rtcaps_matcher.py \
         --out_prefix training
 ```
 
--rw-r--r--   1 javiergc  wheel   755B Dec 17 17:56 training_Options.json
--rw-r--r--   1 javiergc  wheel   178K Dec 17 18:35 training.Motion.1D
--rw-r--r--   1 javiergc  wheel   900M Dec 17 18:35 training.pp_Zscore.nii
--rw-r--r--   1 javiergc  wheel   900M Dec 17 18:35 training.pp_EMA.nii
--rw-r--r--   1 javiergc  wheel   900M Dec 17 18:35 training.pp_iGLM.nii
--rw-r--r--   1 javiergc  wheel   900M Dec 17 18:35 training.pp_LPfilter.nii
--rw-r--r--   1 javiergc  wheel   900M Dec 17 18:36 training.pp_Smooth.nii
--rw-r--r--   1 javiergc  wheel   900M Dec 17 18:36 training.pp_iGLM_Polort0.nii
--rw-r--r--   1 javiergc  wheel   900M Dec 17 18:36 training.pp_iGLM_Polort1.nii
--rw-r--r--   1 javiergc  wheel   900M Dec 17 18:36 training.pp_iGLM_roll.nii
--rw-r--r--   1 javiergc  wheel   900M Dec 17 18:36 training.pp_iGLM_pitch.nii
--rw-r--r--   1 javiergc  wheel   900M Dec 17 18:36 training.pp_iGLM_yaw.nii
--rw-r--r--   1 javiergc  wheel   900M Dec 17 18:36 training.pp_iGLM_dS.nii
--rw-r--r--   1 javiergc  wheel   900M Dec 17 18:37 training.pp_iGLM_dL.nii
-drwxr-xr-x  19 javiergc  wheel   608B Dec 17 18:37 .
--rw-r--r--   1 javiergc  wheel   900M Dec 17 18:37 training.pp_iGLM_dP.nii
+9. Simulate acquisition of the traning run
+
+    In the __Scanner__ console, type:
+
+```bash
+rtfeedme TrainingRun+orig
+```
+
+The data will be send to AFNI, who in turn will do motion correction (towards the EPI reference dataset), and then send the values of each voxel in the GMribbon mask to the rtCAPs program that is listening by default on port 53214. By the end of this step, in the __Laptop__ folder you should have the following files:
+
+** ```$prefix_Options.json```: record of all the options.
+** ```$prefix.Motion.1D```: motion estimates.
+** ```$prefix.Zscore.nii```: final per-TR activity map?
+** ```$prefix.pp_EMA.nii```: data following the EMA step.
+** ```$prefix.pp_iGLM.nii```: data following the incremental GLM step.
+** ```$pretix.pp_iGLM_$regressor.nii```: fitting (beta value) of each nuisance regressor.
+** ```$prefix.pp_LPfilter.nii```: data following the low pass filtering step.
+** ```$prefix.pp_Smotth.nii```: data following the spatial smoothing step.
+
+10. Train the SVR
+
+For that, in the __Laptop__ terminal, you should run:
+
+```bash
+ python ../../rtcaps/bin/online_trainSVRs.py \
+        -d ./training.pp_Zscore.nii \
+        -m ./GMribbon_R4Feed.nii \
+        -c ./Frontier2013_CAPs_R4Feed.nii \
+        -o ./ \
+        -p training_svr
+```
+
+This will generate the following additional files in the __Laptop__ folder:
+
+**training_svr.pkl**: trained SVRs (needed for the rest of the experimental runs)
+**training_svr_training_vols.csv**: ?
+**training_svr_lm_R2.csv**: R2 for linear regerssion on training data
+**training_svr_lm_z_labels.csv**: TR-by-TR labels of SVRs (after Z-scoring) 
+**training_svr.png**: static summary of SVR traning
+**training_svr.html**: dynamic summary of SVR traning
+
+Here is an example of the static training report
+
+![Sample of Traning SVR Static Report](../Documentation/Images/training_svr.png)
+
+11. Start rtCAPs to deal with a real Experience Sampling Run
+
+For that, on the __Laptop__ terminal run the following:
+
+```
