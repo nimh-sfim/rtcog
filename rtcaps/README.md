@@ -31,7 +31,7 @@ During an experiment, there are three different computers involved. Data flows i
 
 When developing this software, we will need to simulate the workings of these three systems, but using a single machine (our development machine). The rest of this section describes how to accomplish this process.
 
-1. Open a terminal and create three distinct folders:
+<u>1. Open a terminal and create three distinct folders:</u>
 
 * __Scanner__: This folder contains testing data (available here). Once you create this folder, download the testing data and place it here.
 
@@ -39,24 +39,26 @@ When developing this software, we will need to simulate the workings of these th
 
 * __Laptop__: This will be an empty folder, where rtCAPs software will save different output such as reports, trained classifiers, subject responses, etc.
 
-2. Open three different Terminals in your laptop, and give them the following names:
+<u>2. Open three different Terminals in your laptop, and give them the following names:</u>
 
 * __Scanner__: you will use this window to simulate the scanner sending data to AFNI realtime
 * __Realtime__: here you will start AFNI in realtime mode. It will take incoming data from the "fake" scanner, and after a few things sending on its way to the rtCAPs software.
 * __Laptop__: here you will start the rtCAPs software.
 
-2. On the __Scanner__ terminal, create a new empty directory, and make sure to copy sample datasets. To a minimum you should have an anatomical dataset, a short EPI dataset to use as reference for alignment, and then two additional long EPI datasets: one will be used for training the classifier and the second one to simulate a real experience sampling run.
-
  ![](../Documentation/Images/simulation_terminals.png)
 
-3. On the __Realtime__ teminal, do the following:
+<u>3. Go to the __Scanner__ terminal:</u>
+
+* Enter the empty __Scanner__ folder.
+* Download sample datasets to the __Scanner__ folder.
+
+To a minimum you should have an anatomical dataset, a short EPI dataset to use as reference for alignment, and then two additional long EPI datasets: one will be used for training the classifier and the second one to simulate a real experience sampling run.
+
+<u>4. Go to the __Realtime__ teminal:</u>
     
-* Create a new empty directory.
-    
+* Enter the empty __Realtime__ folder.
 * Copy the 01_BringROIsToSubjectSpace.sh script here.
-    
 * Copy the Frontiers2013_CAPs.nii file here.
-    
 * Export the following variables
 
 ```bash
@@ -76,7 +78,7 @@ export AFNI_REALTIME_Function=FIM
 
 > __NOTE__: Make sure you have the latest version of AFNI installed, as you will be using a data transfer option only available since 2020.
 
-4. Simulate acquisition of anatomical dataset
+<u>5. Simulate acquisition of anatomical dataset</u>
 
 On the __Scanner__ console, type:
 
@@ -84,9 +86,9 @@ On the __Scanner__ console, type:
 rtfeedme Anat+orig
 ```
 
-By the end of this step, you should have a new dataset (rt.__001+orig) that contains the anatomical data (but now in the realtime system)
+By the end of this step, you should have a new dataset (rt.__001+orig) that contains the anatomical data (but now in the realtime system) in the __Realtime__ folder.
 
-5. Simular acquisition of the EPI reference dataset
+<u>6. Simulate acquisition of the EPI reference dataset</u>
 
 On the __Scanner__ console, type:
 
@@ -94,23 +96,34 @@ On the __Scanner__ console, type:
 rtfeedmd EPI_Reference+orig
 ```
 
-By the end of this step, you should have a second dataset on __Realime__ (rt.__002+orig) that contains the EPI reference data (but now in the realtime system)
+By the end of this step, you should have a second dataset on __Realime__ (rt.__002+orig) on the __Realtime__ folder that contains the EPI reference data (but now in the realtime system)
 
-6. On the __Realime__ terminal, nun 01_BringROIsToSubjectSpace.sh as follows:
+<u>7. Pre-process Anatomical and bring masks to EPI Reference space</u>
+
+* Go to the __Realtime__ terminal
+* Run ```01_BringROIsToSubjectSpace.sh ``` as follows:
 
 ```bash
-sh ./01_BringROIsToSubjectSpace.sh rt.__002+orig. rt.__001+orig. Frontier2013_CAPs.nii
+sh ./01_BringROIsToSubjectSpace.sh \
+       rt.__002+orig. \
+       rt.__001+orig. \
+       Frontier2013_CAPs.nii
 ```
 
-This will generate a lot of new files, among the most important ones:
+This will generate a lot of new files. The key ones moving forward are:
 
-* EPIREF+orig: this will become our reference volume for realtime alignemnt.
-* GMribbon_R4Feed.nii: this will be our mask for sending data to the laptop.
-* Frontiers2013_R4Feed.nii: this will be our CAPs template aligned to the EPI data.
+* ```EPIREF+orig```: this will become our reference volume for realtime alignemnt.
+* ```GMribbon_R4Feed.nii```: this will be our mask for sending data to the laptop.
+* ```Frontiers2013_R4Feed.nii```: this will be our CAPs template aligned to the EPI data.
 
-The last two files need to be transfered to the __Laptop__ directory.
+The last two files need to be transfered (i.e., copied) to the __Laptop__ directory.
 
-7. Configure the realtime plugin for the rest of the experiment.
+```bash
+$cp ${REALTIME_FOLDER}/GMribbon_R4Feed.nii ${LAPTOP_FOLDER}
+$cp ${REALTIME_FOLDER}/Frontiers2013_R4Feed.nii ${LAPTOP_FOLDER}
+```
+
+<u>8. Configure the realtime plugin for the rest of the experiment.</u>
 
 In the main AFNI window, click on Define Datamode --> Plugins --> RT Options
 
