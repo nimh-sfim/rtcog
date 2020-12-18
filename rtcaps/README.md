@@ -199,7 +199,12 @@ Here is an example of the static training report
 
 For that, on the __Laptop__ terminal run the following:
 
-TO
+TO BE CONTINUED...
+
+***
+***
+
+
 # Pre-processing of Traning Run
 
 Despite the lack of realtime experiment control during the training run (the subject will see the crosshair in the screen all the time), we still run software in the laptop during this run for two purposes:
