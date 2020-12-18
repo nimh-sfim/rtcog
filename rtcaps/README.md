@@ -70,15 +70,13 @@ The minimum parameters to ensure this mode of operation are:
 
 3. On the __Realtime__ teminal, do the following:
     
-    3.1 Create a new empty directory.
+* Create a new empty directory.
     
-    3.2 Copy the 01_BringROIsToSubjectSpace.sh script here.
+* Copy the 01_BringROIsToSubjectSpace.sh script here.
     
-    3.2 Copy the Frontiers2013_CAPs.nii file here.
+* Copy the Frontiers2013_CAPs.nii file here.
     
-    3.3 Export the following variables
-
-This is code
+* Export the following variables
 
 ```bash
 export AFNI_REALTIME_Registration=3D:_realtime
@@ -91,12 +89,86 @@ export AFNI_REALTIME_Mask_Vals=ROI_means
 export AFNI_REALTIME_Function=FIM
 ```
 
-This is more code
+* Start AFNI in realtime mode
 
-    3.4 Start AFNI in realtime mode
-
-    afni -rt
+```$ afni -rt```
 
 > __NOTE__: Make sure you have the latest version of AFNI installed, as you will be using a data transfer option only available since 2020.
 
-1. Anatomical is acquired while realtime is up
+4. Simulate acquisition of anatomical dataset
+
+On the __Scanner__ console, type:
+
+```bash
+rtfeedme Anat+orig
+```
+
+By the end of this step, you should have a new dataset (rt.__001+orig) that contains the anatomical data (but now in the realtime system)
+
+5. Simular acquisition of the EPI reference dataset
+
+On the __Scanner__ console, type:
+
+```bash
+rtfeedmd EPI_Reference+orig
+```
+
+By the end of this step, you should have a second dataset on __Realime__ (rt.__002+orig) that contains the EPI reference data (but now in the realtime system)
+
+6. On the __Realime__ terminal, nun 01_BringROIsToSubjectSpace.sh as follows:
+
+```bash
+sh ./01_BringROIsToSubjectSpace.sh rt.__002+orig. rt.__001+orig. Frontier2013_CAPs.nii
+```
+
+This will generate a lot of new files, among the most important ones:
+
+* EPIREF+orig: this will become our reference volume for realtime alignemnt.
+* GMribbon_R4Feed.nii: this will be our mask for sending data to the laptop.
+* Frontiers2013_R4Feed.nii: this will be our CAPs template aligned to the EPI data.
+
+The last two files need to be transfered to the __Laptop__ directory.
+
+7. Configure the realtime plugin for the rest of the experiment.
+
+In the main AFNI window, click on Define Datamode --> Plugins --> RT Options
+
+On the new window, ensure the following configurations:
+
+* Registration = 3D: realtime
+* Resampling = Quintic
+* Reg Base = External Dataset
+* External Dset = EPIREF+orig
+* Base Image = 0
+* NR = 1200 (Or as many volumes as you are expecting in the next run)
+* Mask = GMribbon_R4Feed.nii
+* Val to Send = All Data (light)
+
+8. Start rtCAPs in pre-processing mode in the __Laptop__ terminal.
+
+```bash 
+python ../../rtcaps/bin/rtcaps_matcher.py \
+        --mask GMribbon_R4Feed.nii \
+        --nvols 1200 \
+        -e preproc \
+        --save_all \
+        --out_dir ./ \
+        --out_prefix training
+```
+
+-rw-r--r--   1 javiergc  wheel   755B Dec 17 17:56 training_Options.json
+-rw-r--r--   1 javiergc  wheel   178K Dec 17 18:35 training.Motion.1D
+-rw-r--r--   1 javiergc  wheel   900M Dec 17 18:35 training.pp_Zscore.nii
+-rw-r--r--   1 javiergc  wheel   900M Dec 17 18:35 training.pp_EMA.nii
+-rw-r--r--   1 javiergc  wheel   900M Dec 17 18:35 training.pp_iGLM.nii
+-rw-r--r--   1 javiergc  wheel   900M Dec 17 18:35 training.pp_LPfilter.nii
+-rw-r--r--   1 javiergc  wheel   900M Dec 17 18:36 training.pp_Smooth.nii
+-rw-r--r--   1 javiergc  wheel   900M Dec 17 18:36 training.pp_iGLM_Polort0.nii
+-rw-r--r--   1 javiergc  wheel   900M Dec 17 18:36 training.pp_iGLM_Polort1.nii
+-rw-r--r--   1 javiergc  wheel   900M Dec 17 18:36 training.pp_iGLM_roll.nii
+-rw-r--r--   1 javiergc  wheel   900M Dec 17 18:36 training.pp_iGLM_pitch.nii
+-rw-r--r--   1 javiergc  wheel   900M Dec 17 18:36 training.pp_iGLM_yaw.nii
+-rw-r--r--   1 javiergc  wheel   900M Dec 17 18:36 training.pp_iGLM_dS.nii
+-rw-r--r--   1 javiergc  wheel   900M Dec 17 18:37 training.pp_iGLM_dL.nii
+drwxr-xr-x  19 javiergc  wheel   608B Dec 17 18:37 .
+-rw-r--r--   1 javiergc  wheel   900M Dec 17 18:37 training.pp_iGLM_dP.nii
