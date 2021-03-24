@@ -1,0 +1,28 @@
+name: rtCAPS
+channels:
+- conda-forge
+dependencies:
+- bokeh
+- holoviews
+- hvplot
+- matplotlib
+- more-itertools
+- python=3.6
+- pandas
+- panel
+- pip
+- pyaudio
+- scipy
+- seaborn
+- pip:
+  - nibabel
+  - numpy
+  - playsound
+  - psychtoolbox
+  - pygame
+  - psychopy==3.2.3
+  - pyo
+  - pyparallel; platform_system != "Windows"
+  - scikit-learn
+  - SoundFile; platform_system == "Windows"
+  - websocket_client
