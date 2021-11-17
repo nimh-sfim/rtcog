@@ -123,7 +123,7 @@ In addition to the computers, other important pieces of hardware include:
 
 Before we can run the experiment, several configuration steps are required:
 
-### 1. AUDIO DELIERY SETUP
+### 1. AUDIO DELIVERY SETUP
 
 * To pass audio from the laptop to the OptoAcostics system use a headphones-like cable that goes from the laptop headphones connection to line 1 in the back of the optoacoustic box
 
