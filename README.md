@@ -181,6 +181,8 @@ With the modified plugin, we have two different "All Data" options:
 
 > NOTE: The modified plugin is in PRJ_rtCAPs/afni_plugin/plug_realtime.c
 
+> NOTE: The modified version of the plugin is not distributed with AFNI and available by default on the scanner.
+
 ### 2. Copy processing scripts to EXXXX directory
 
 1. Copy 01_BringROIsToSubjectSpace.sh from PRJ_Dir/Scripts/Realtime_Scanner/01_BringROIsToSubjectSpace.sh to the EXXXX directory in the realtime system. 
