@@ -6,7 +6,6 @@ import multiprocessing as mp
 from time import sleep
 from psychopy import event
 import holoviews as hv
-import hvplot.pandas
 import numpy as np
 import os.path as osp
 import sys, os
@@ -15,7 +14,7 @@ import pandas as pd
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from afni_lib.receiver       import ReceiverInterface
-from rtcap_lib.core          import unpack_extra, welford
+from rtcap_lib.core          import welford
 from rtcap_lib.rt_functions  import rt_EMA_vol, rt_regress_vol, rt_kalman_vol
 from rtcap_lib.rt_functions  import rt_smooth_vol, rt_snorm_vol, rt_svrscore_vol
 from rtcap_lib.rt_functions  import gen_polort_regressors
@@ -39,7 +38,7 @@ screen_size = [512, 288]
 CAP_indexes = [25,4,18,28,24,11,21]
 CAP_labels  = ['VPol','DMN','SMot','Audi','ExCn','rFPa','lFPa']
 
-class Experiment(object):
+class Experiment:
     def __init__(self, options, mp_evt_hit, mp_evt_end, mp_evt_qa_end):
 
         self.mp_evt_hit = mp_evt_hit           # Signals a CAP hit
@@ -140,7 +139,7 @@ class Experiment(object):
             self.mask_img = None
         else:
             self.mask_img  = load_fMRI_file(self.mask_path)
-            self.mask_Nv = np.sum(self.mask_img.get_data())
+            self.mask_Nv = np.sum(self.mask_img.get_fdata())
             log.debug('  Experiment_init_ - Number of Voxels in user-provided mask: %d' % self.mask_Nv)
 
         # Create Legendre Polynomial regressors
@@ -536,7 +535,20 @@ def comm_process(opts, mp_evt_hit, mp_evt_end, mp_evt_qa_end):
     
     # 4) Start Communications
     log.info('- comm_process - 3) Opening Communication Channel...')
-    receiver = ReceiverInterface(port=opts.tcp_port, show_data=opts.show_data)
+
+    # Marly: using updated RI
+    receiver = ReceiverInterface()
+
+    # This will print an error, because it automatically processes all sys.argv, most of which are not valid here
+    # You can ignore this error because it will still recognize the valid opts and just ignore the others.
+    receiver.process_options()
+
+
+    if receiver.RTI is None:
+        print("++ DEBUG: RTI is not initialized.")
+    else:
+        print("++ DEBUG: RTI initialized successfully.")
+
     if not receiver:
         return 1
 

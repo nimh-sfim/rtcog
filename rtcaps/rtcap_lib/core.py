@@ -1,4 +1,4 @@
-from scipy.signal import exponential
+from scipy.signal.windows import exponential
 import numpy as np
 
 def create_win(M, center=0, tau=3):
