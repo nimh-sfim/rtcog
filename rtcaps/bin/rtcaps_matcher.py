@@ -1,5 +1,7 @@
 import sys
+import shutil
 import argparse
+import getpass
 import logging
 import pickle
 import multiprocessing as mp 
@@ -11,9 +13,10 @@ import os.path as osp
 import sys, os
 import json
 import pandas as pd
+
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from afni_lib.receiver       import ReceiverInterface
+
 from rtcap_lib.core          import welford
 from rtcap_lib.rt_functions  import rt_EMA_vol, rt_regress_vol, rt_kalman_vol
 from rtcap_lib.rt_functions  import rt_smooth_vol, rt_snorm_vol, rt_svrscore_vol
@@ -22,6 +25,17 @@ from rtcap_lib.fMRI          import load_fMRI_file, unmask_fMRI_img
 from rtcap_lib.svr_methods   import is_hit_rt01
 from rtcap_lib.core          import create_win
 from rtcap_lib.experiment_qa import get_experiment_info, experiment_QA, experiment_Preproc
+
+afni_path = shutil.which('afni')
+
+if not afni_path:
+    print('AFNI binary not found in the system PATH')
+    sys.exit(-1)
+
+abin_path = os.path.dirname(afni_path)
+sys.path.insert(1, abin_path)
+from realtime_receiver import ReceiverInterface
+sys.path.remove(abin_path)
 
 from psychopy import prefs
 prefs.hardware['audioLib'] = ['pyo']
