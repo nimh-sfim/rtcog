@@ -1,7 +1,6 @@
 import sys
 import shutil
 import argparse
-import getpass
 import logging
 import pickle
 import multiprocessing as mp 
@@ -14,28 +13,17 @@ import sys, os
 import json
 import pandas as pd
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+sys.path.insert(0, osp.abspath(osp.join(osp.dirname(__file__), '..')))
 
-
-from rtcap_lib.core          import welford
-from rtcap_lib.rt_functions  import rt_EMA_vol, rt_regress_vol, rt_kalman_vol
-from rtcap_lib.rt_functions  import rt_smooth_vol, rt_snorm_vol, rt_svrscore_vol
-from rtcap_lib.rt_functions  import gen_polort_regressors
-from rtcap_lib.fMRI          import load_fMRI_file, unmask_fMRI_img
-from rtcap_lib.svr_methods   import is_hit_rt01
-from rtcap_lib.core          import create_win
-from rtcap_lib.experiment_qa import get_experiment_info, experiment_QA, experiment_Preproc
-
-afni_path = shutil.which('afni')
-
-if not afni_path:
-    print('AFNI binary not found in the system PATH')
-    sys.exit(-1)
-
-abin_path = os.path.dirname(afni_path)
-sys.path.insert(1, abin_path)
-from realtime_receiver import ReceiverInterface
-sys.path.remove(abin_path)
+from rtcap_lib.receiver_interface import ReceiverInterface
+from rtcap_lib.core               import welford
+from rtcap_lib.rt_functions       import rt_EMA_vol, rt_regress_vol, rt_kalman_vol
+from rtcap_lib.rt_functions       import rt_smooth_vol, rt_snorm_vol, rt_svrscore_vol
+from rtcap_lib.rt_functions       import gen_polort_regressors
+from rtcap_lib.fMRI               import load_fMRI_file, unmask_fMRI_img
+from rtcap_lib.svr_methods        import is_hit_rt01
+from rtcap_lib.core               import create_win
+from rtcap_lib.experiment_qa      import get_experiment_info, experiment_QA, experiment_Preproc
 
 from psychopy import prefs
 prefs.hardware['audioLib'] = ['pyo']
@@ -549,14 +537,9 @@ def comm_process(opts, mp_evt_hit, mp_evt_end, mp_evt_qa_end):
     
     # 4) Start Communications
     log.info('- comm_process - 3) Opening Communication Channel...')
-
-    # Marly: using updated RI
-    receiver = ReceiverInterface()
-
-    # This will print an error, because it automatically processes all sys.argv, most of which are not valid here
-    # You can ignore this error because it will still recognize the valid opts and just ignore the others.
-    receiver.process_options()
-
+    receiver = ReceiverInterface(port=opts.tcp_port, show_data=opts.show_data)
+    if not receiver:
+        return 1
 
     if receiver.RTI is None:
         print("++ DEBUG: RTI is not initialized.")
