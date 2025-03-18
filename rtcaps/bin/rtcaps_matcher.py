@@ -1,5 +1,4 @@
 import sys
-import shutil
 import argparse
 import logging
 import pickle
@@ -25,16 +24,31 @@ from rtcap_lib.svr_methods        import is_hit_rt01
 from rtcap_lib.core               import create_win
 from rtcap_lib.experiment_qa      import get_experiment_info, experiment_QA, experiment_Preproc
 
+
+log = logging.getLogger('online_preproc')
+
+# if not log.hasHandlers():
+    # print('++ LOGGER: setting')
+log.setLevel(logging.INFO)
+
+log_fmt = logging.Formatter('[%(levelname)s - %(filename)s]: %(message)s')
+
+# File Handler (overwriting the log each time)
+file_handler = logging.FileHandler('online_preproc.log', mode='w')
+file_handler.setFormatter(log_fmt)
+
+# Stream Handler (for console output)
+stream_handler = logging.StreamHandler()
+stream_handler.setFormatter(log_fmt)
+
+# Add handlers to the logger
+log.addHandler(file_handler)
+log.addHandler(stream_handler)
+# print(f'++ LOGGER HANDLERS: {log.handlers}')
+
+
 from psychopy import prefs
 prefs.hardware['audioLib'] = ['pyo']
-
-# Setup Logging Infrastructure
-log     = logging.getLogger("online_preproc")
-log_fmt = logging.Formatter('[%(levelname)s - Main]: %(message)s')
-log_ch  = logging.StreamHandler()
-log_ch.setFormatter(log_fmt)
-log.setLevel(logging.INFO)
-log.addHandler(log_ch)
 
 screen_size = [512, 288]
 CAP_indexes = [25,4,18,28,24,11,21]
@@ -164,11 +178,11 @@ class Experiment:
         # Keep a record of motion estimates
         self.motion_estimates.append(motion)
         # Update t (it always does)
-        self.t = self.t + 1
+        self.t += 1
 
         # Update n (only if not longer a discard volume)
         if self.t > self.nvols_discard - 1:
-            self.n = self.n + 1
+            self.n += 1
 
         log.info(' - Time point [t=%d, n=%d] | lastQA_endTR = %d | hit = %s | qa_end = %s | prg_end = %s' % (self.t, self.n, self.lastQA_endTR,
                                     self.mp_evt_hit.is_set(),
@@ -176,11 +190,15 @@ class Experiment:
                                     self.mp_evt_end.is_set()))
         
         # Read Data from socket
-        this_t_data = np.array(extra)
+        this_t_data = np.array([e[self.t] for e in extra])
+        log.debug(f'this_t_data[:10] = {this_t_data[:10]}')
+
+        # Overwriting to have only motion for this TR
+        motion = [i[self.t] for i in motion]
         
         # If first volume, then create empty structures and call it a day (TR)
         if self.t == 0:
-            self.Nv            = len(this_t_data)
+            self.Nv = len(this_t_data)
             log.info('Number of Voxels Nv=%d' % self.Nv)
             if self.exp_type == "esam" or self.exp_type == "esam_test":
                 # These two variables are only needed if this is an experimental
@@ -253,13 +271,18 @@ class Experiment:
         # Do EMA (if needed)
         # ==================
         ema_data_out, self.EMA_filt = rt_EMA_vol(self.n, self.t, self.EMA_th, self.Data_FromAFNI, self.EMA_filt, do_operation = self.do_EMA)
-        #log.debug('[t=%d,n=%d] Online - EMA - ema_data_out.shape      %s' % (self.t, self.n, str(ema_data_out.shape)))
         if self.save_ema: 
             self.Data_EMA = np.append(self.Data_EMA, ema_data_out, axis=1)
             log.debug('[t=%d,n=%d] Online - EMA - Data_EMA.shape      %s' % (self.t, self.n, str(self.Data_EMA.shape)))
         
         # Do iGLM (if needed)
         # ===================
+        # Only entering on TR=10 (0 index)?
+        log.debug('about to enter iGLM')
+        log.debug(f'legendre_pols.shape = {self.legendre_pols[self.t,:].shape}')
+        log.debug(f'legendre_pols[:10] = {self.legendre_pols[:10]}')
+        log.debug(f'motion = {motion}')
+        log.debug(f'len(motion) = {len(motion)}')
         if self.iGLM_motion:
             this_t_nuisance = np.concatenate((self.legendre_pols[self.t,:],motion))[:,np.newaxis]
         else:
@@ -542,12 +565,13 @@ def comm_process(opts, mp_evt_hit, mp_evt_end, mp_evt_qa_end):
         return 1
 
     if receiver.RTI is None:
-        print("++ DEBUG: RTI is not initialized.")
+        log.error('RTI is not initialized.')
     else:
-        print("++ DEBUG: RTI initialized successfully.")
+        log.debug('RTI initialized successfully.')
 
     if not receiver:
         return 1
+
 
     # 5) set signal handlers and look for data
     log.info('- comm_process - 4) Setting Signal Handlers...')
@@ -734,5 +758,6 @@ def main():
         rest_exp.close_psychopy_infrastructure()
     log.info(' - main - Reached end of Main in primary thread')
     return 1
+
 if __name__ == '__main__':
-   sys.exit(main())
+    sys.exit(main())
