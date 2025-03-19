@@ -175,10 +175,20 @@ class Experiment:
         hit_status    = self.mp_evt_hit.is_set()
         qa_end_status = self.mp_evt_qa_end.is_set()
 
-        # Keep a record of motion estimates
-        self.motion_estimates.append(motion)
         # Update t (it always does)
+        # Note: I think t was initialized to -1 because it's annoying to update it at multiple times in this function depending on if statements, so it's easier
+        # to just do it up front.
         self.t += 1
+
+        # Keep a record of motion estimates
+        # Moving here after t is updated
+        motion = [i[self.t] for i in motion]
+        self.motion_estimates.append(motion)
+        
+        #JAVIER USED TO this_t_data = np.array(extra)
+        this_t_data = np.array([e[self.t] for e in extra])
+        log.info(f'this_t_data[:10]  = {this_t_data[:10]}')
+        log.info(f'this_t_data.shape = {this_t_data.shape}')
 
         # Update n (only if not longer a discard volume)
         if self.t > self.nvols_discard - 1:
@@ -189,12 +199,15 @@ class Experiment:
                                     self.mp_evt_qa_end.is_set(),
                                     self.mp_evt_end.is_set()))
         
-        # Read Data from socket
-        this_t_data = np.array([e[self.t] for e in extra])
-        log.debug(f'this_t_data[:10] = {this_t_data[:10]}')
+        
+        #JAVIER USED TO this_t_data = np.array(extra)
+        #MARLY THINKS I AM WRONG ...this_t_data = np.array([e[self.t] for e in extra])
+        #log.debug(f'this_t_data[:10] = {this_t_data[:10]}')
 
         # Overwriting to have only motion for this TR
-        motion = [i[self.t] for i in motion]
+        #log.debug(f'Motion: {motion}')
+        #if self.t < 3:
+        #    print(f'this_t_data[:10] = {this_t_data[:10]}')
         
         # If first volume, then create empty structures and call it a day (TR)
         if self.t == 0:
@@ -234,6 +247,7 @@ class Experiment:
 
         # For any other vol, if still a discard volume
         if self.n == 0:
+        # if self.n == 0 and self.t > 0:
             if self.save_orig: 
                 self.Data_FromAFNI = np.append(self.Data_FromAFNI,this_t_data[:, np.newaxis], axis=1)
             else:
@@ -256,6 +270,8 @@ class Experiment:
                 self.svrscores = np.append(self.svrscores, np.zeros((self.Ncaps,1)), axis=1)
                 log.debug('[t=%d,n=%d] Discard - hits.shape      %s' % (self.t, self.n, str(self.hits.shape)))
                 log.debug('[t=%d,n=%d] Discard - svrscores.shape %s' % (self.t, self.n, str(self.svrscores.shape)))
+            
+            log.debug(f'Discard volume, self.Data_FromAFNI[:10]: {self.Data_FromAFNI[:10]}')
             return 1
 
         # Compute running mean and running std with welford
@@ -267,7 +283,10 @@ class Experiment:
         else:
             self.Data_FromAFNI = np.hstack((self.Data_FromAFNI[:,-1][:,np.newaxis],this_t_data[:, np.newaxis]))  # Only keep this one and previous
             log.debug('[t=%d,n=%d] Online - Input - Data_FromAFNI.shape %s' % (self.t, self.n, str(self.Data_FromAFNI.shape)))
-
+        
+        log.debug(f'self.Data_FromAFNI[:10]: {self.Data_FromAFNI[:10]}')
+        log.debug(f'self.Data_FromAFNI.shape: {self.Data_FromAFNI.shape}')
+        
         # Do EMA (if needed)
         # ==================
         ema_data_out, self.EMA_filt = rt_EMA_vol(self.n, self.t, self.EMA_th, self.Data_FromAFNI, self.EMA_filt, do_operation = self.do_EMA)
@@ -277,12 +296,6 @@ class Experiment:
         
         # Do iGLM (if needed)
         # ===================
-        # Only entering on TR=10 (0 index)?
-        log.debug('about to enter iGLM')
-        log.debug(f'legendre_pols.shape = {self.legendre_pols[self.t,:].shape}')
-        log.debug(f'legendre_pols[:10] = {self.legendre_pols[:10]}')
-        log.debug(f'motion = {motion}')
-        log.debug(f'len(motion) = {len(motion)}')
         if self.iGLM_motion:
             this_t_nuisance = np.concatenate((self.legendre_pols[self.t,:],motion))[:,np.newaxis]
         else:
@@ -300,6 +313,26 @@ class Experiment:
 
         # Do Kalman Low-Pass Filter (if needed)
         # =====================================
+        log.debug("about to do low-pass")
+        #pd.to_pickle(iGLM_data_out, f'iglm_data_out_{self.t}.pkl')
+        #pd.to_pickle(self.weldord_std, f'weldord_std_{self.t}.pkl')
+        #pd.to_pickle(self.S_x, f'S_x_{self.t}.pkl')
+        #pd.to_pickle(self.fPositDerivSpike, f'fPositDerivSpike_{self.t}.pkl')
+        #pd.to_pickle(self.n_cores, f'n_cores_{self.t}.pkl')
+        log.debug(self.pool)
+
+        # o_data = rt_kalman_vol(self.n,
+        #                                                                 self.t,
+        #                                                                 iGLM_data_out,
+        #                                                                 self.weldord_std,
+        #                                                                 self.S_x,
+        #                                                                 self.S_P,
+        #                                                                 self.fPositDerivSpike,
+        #                                                                 self.fNegatDerivSpike,
+        #                                                                 self.n_cores,
+        #                                                                 self.pool,
+        #                                                                 do_operation = self.do_kalman)
+        # pd.to_pickle(o_data, f'o_data.{self.t}')
         klm_data_out, self.S_x, self.S_P, self.fPositDerivSpike, self.fNegatDerivSpike = rt_kalman_vol(self.n,
                                                                         self.t,
                                                                         iGLM_data_out,
@@ -311,7 +344,7 @@ class Experiment:
                                                                         self.n_cores,
                                                                         self.pool,
                                                                         do_operation = self.do_kalman)
-                
+        
         if self.save_kalman: 
             self.Data_kalman      = np.append(self.Data_kalman, klm_data_out, axis = 1)
             log.debug('[t=%d,n=%d] Online - Kalman - Data_kalman.shape     %s' % (self.t, self.n, str(self.Data_kalman.shape)))
@@ -377,14 +410,15 @@ class Experiment:
             self.hits = np.append(self.hits, np.zeros((self.Ncaps,1)), axis=1)
 
             # If there was a hit, then add that one, inform the use, and set the hit event to true
-            if hit != None:
+            if hit is not None:
                 #if (hit != None) and ( hit_status == False ) and (self.t >= self.lastQA_endTR + self.vols_noqa):
                 log.info('[t=%d,n=%d] =============================================  CAP hit [%s]' % (self.t,self.n, hit))
                 self.qa_onsets.append(self.t)
                 self.hits[self.caps_labels.index(hit),self.t] = 1
                 self.mp_evt_hit.set()
 
-
+        log.debug("FINISHED compute_tr_data")
+        print(f'DATA: {np.unique(self.Data_norm)}')
         # Need to return something, otherwise the program thinks the experiment ended
         return 1
 
@@ -422,6 +456,9 @@ class Experiment:
             out_vars.append(self.Data_smooth)
             out_labels.append('.pp_Smooth.nii')
         for variable, file_suffix in zip(out_vars, out_labels):
+            print("HERE")
+            print(variable)
+            print(file_suffix)
             out = unmask_fMRI_img(variable, self.mask_img, osp.join(self.out_dir,self.out_prefix+file_suffix))
 
         if self.do_iGLM and self.save_iGLM:
@@ -565,9 +602,9 @@ def comm_process(opts, mp_evt_hit, mp_evt_end, mp_evt_qa_end):
         return 1
 
     if receiver.RTI is None:
-        log.error('RTI is not initialized.')
+        log.error('comm_process - RTI is not initialized.')
     else:
-        log.debug('RTI initialized successfully.')
+        log.debug('comm_process - RTI initialized successfully.')
 
     if not receiver:
         return 1
