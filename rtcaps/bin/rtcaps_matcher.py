@@ -187,9 +187,10 @@ class Experiment:
         
         #JAVIER USED TO this_t_data = np.array(extra)
         this_t_data = np.array([e[self.t] for e in extra])
-        log.info(f'this_t_data[:10]  = {this_t_data[:10]}')
+        log.info(f'AT TR={self.t}: this_t_data[:10]  = {this_t_data[:10]}')
         log.info(f'this_t_data.shape = {this_t_data.shape}')
 
+        
         # Update n (only if not longer a discard volume)
         if self.t > self.nvols_discard - 1:
             self.n += 1
@@ -247,7 +248,6 @@ class Experiment:
 
         # For any other vol, if still a discard volume
         if self.n == 0:
-        # if self.n == 0 and self.t > 0:
             if self.save_orig: 
                 self.Data_FromAFNI = np.append(self.Data_FromAFNI,this_t_data[:, np.newaxis], axis=1)
             else:
@@ -257,7 +257,7 @@ class Experiment:
             if self.save_kalman: self.Data_kalman = np.append(self.Data_kalman, np.zeros((self.Nv,1)), axis=1)
             if self.save_smooth: self.Data_smooth = np.append(self.Data_smooth, np.zeros((self.Nv,1)), axis=1)
             self.Data_norm     = np.append(self.Data_norm,   np.zeros((self.Nv,1)), axis=1)
-            if self.save_iGLM: self.iGLM_Coeffs   = np.append(self.iGLM_Coeffs, np.zeros((self.Nv,self.iGLM_num_regressors,1)), axis=2)
+            if self.save_iGLM: self.iGLM_Coeffs   = np.append(self.iGLM_Coeffs, np.zeros( (self.Nv,self.iGLM_num_regressors,1)), axis=2)
             log.debug('[t=%d,n=%d] Discard - Data_FromAFNI.shape %s' % (self.t, self.n, str(self.Data_FromAFNI.shape)))
             if self.save_ema:    log.debug('[t=%d,n=%d] Discard - Data_EMA.shape      %s' % (self.t, self.n, str(self.Data_EMA.shape)))
             if self.save_iGLM:   log.debug('[t=%d,n=%d] Discard - Data_iGLM.shape     %s' % (self.t, self.n, str(self.Data_iGLM.shape)))
@@ -273,9 +273,18 @@ class Experiment:
             
             log.debug(f'Discard volume, self.Data_FromAFNI[:10]: {self.Data_FromAFNI[:10]}')
             return 1
-
+        
+        # if self.t == 11:
+        #     pd.to_pickle(self.welford_M, 'welford_M_before.pkl')
+        #     pd.to_pickle(self.welford_S, 'welford_S_before.pkl')
+        #     sys.exit()
+        
         # Compute running mean and running std with welford
-        self.welford_M, self.welford_S, self.weldord_std = welford(self.n, this_t_data, self.welford_M, self.welford_S)
+        self.welford_M, self.welford_S, self.welford_std = welford(self.n, this_t_data, self.welford_M, self.welford_S)
+        log.info('Welford Method Ouputs: M=%s | S=%s | std=%s' % (str(self.welford_M), str(self.welford_S), str(self.welford_std)))
+        # if self.t == 11:
+        #     log.debug(f'self.welford_std = {self.welford_std}')
+        #     sys.exit()
         
         # If we reach this point, it means we have work to do
         if self.save_orig:
@@ -284,8 +293,10 @@ class Experiment:
             self.Data_FromAFNI = np.hstack((self.Data_FromAFNI[:,-1][:,np.newaxis],this_t_data[:, np.newaxis]))  # Only keep this one and previous
             log.debug('[t=%d,n=%d] Online - Input - Data_FromAFNI.shape %s' % (self.t, self.n, str(self.Data_FromAFNI.shape)))
         
-        log.debug(f'self.Data_FromAFNI[:10]: {self.Data_FromAFNI[:10]}')
-        log.debug(f'self.Data_FromAFNI.shape: {self.Data_FromAFNI.shape}')
+        # log.debug(f'At TR={self.t}: self.Data_FromAFNI[:10]: {self.Data_FromAFNI[:10]}')
+        # if self.t == 11: 
+        #     print("SAVING!!")
+        #     pd.to_pickle(self.Data_FromAFNI, 'Data_FromAFNI.11.pkl')
         
         # Do EMA (if needed)
         # ==================
@@ -293,7 +304,7 @@ class Experiment:
         if self.save_ema: 
             self.Data_EMA = np.append(self.Data_EMA, ema_data_out, axis=1)
             log.debug('[t=%d,n=%d] Online - EMA - Data_EMA.shape      %s' % (self.t, self.n, str(self.Data_EMA.shape)))
-        
+        log.info(f'AT TR={self.t}: ema_data_out[:10]  = {ema_data_out[:10]}')
         # Do iGLM (if needed)
         # ===================
         if self.iGLM_motion:
@@ -310,33 +321,13 @@ class Experiment:
             self.iGLM_Coeffs  = np.append(self.iGLM_Coeffs, Bn, axis = 2) 
             log.debug('[t=%d,n=%d] Online - iGLM - Data_iGLM.shape     %s' % (self.t, self.n, str(self.Data_iGLM.shape)))
             log.debug('[t=%d,n=%d] Online - iGLM - iGLM_Coeffs.shape   %s' % (self.t, self.n, str(self.iGLM_Coeffs.shape)))
-
+        log.info(f'AT TR={self.t}: iGLM_data_out[:10]  = {iGLM_data_out[:10]}')
         # Do Kalman Low-Pass Filter (if needed)
         # =====================================
-        log.debug("about to do low-pass")
-        #pd.to_pickle(iGLM_data_out, f'iglm_data_out_{self.t}.pkl')
-        #pd.to_pickle(self.weldord_std, f'weldord_std_{self.t}.pkl')
-        #pd.to_pickle(self.S_x, f'S_x_{self.t}.pkl')
-        #pd.to_pickle(self.fPositDerivSpike, f'fPositDerivSpike_{self.t}.pkl')
-        #pd.to_pickle(self.n_cores, f'n_cores_{self.t}.pkl')
-        log.debug(self.pool)
-
-        # o_data = rt_kalman_vol(self.n,
-        #                                                                 self.t,
-        #                                                                 iGLM_data_out,
-        #                                                                 self.weldord_std,
-        #                                                                 self.S_x,
-        #                                                                 self.S_P,
-        #                                                                 self.fPositDerivSpike,
-        #                                                                 self.fNegatDerivSpike,
-        #                                                                 self.n_cores,
-        #                                                                 self.pool,
-        #                                                                 do_operation = self.do_kalman)
-        # pd.to_pickle(o_data, f'o_data.{self.t}')
         klm_data_out, self.S_x, self.S_P, self.fPositDerivSpike, self.fNegatDerivSpike = rt_kalman_vol(self.n,
                                                                         self.t,
                                                                         iGLM_data_out,
-                                                                        self.weldord_std,
+                                                                        self.welford_std,
                                                                         self.S_x,
                                                                         self.S_P,
                                                                         self.fPositDerivSpike,
@@ -348,7 +339,7 @@ class Experiment:
         if self.save_kalman: 
             self.Data_kalman      = np.append(self.Data_kalman, klm_data_out, axis = 1)
             log.debug('[t=%d,n=%d] Online - Kalman - Data_kalman.shape     %s' % (self.t, self.n, str(self.Data_kalman.shape)))
-
+        log.info(f'AT TR={self.t}: np.squeeze(klm_data_out)[:10]  = {np.squeeze(klm_data_out)[:10]}')
         # Do Spatial Smoothing (if needed)
         # ================================
         smooth_out = rt_smooth_vol(np.squeeze(klm_data_out), self.mask_img, fwhm = self.FWHM, do_operation = self.do_smooth)
@@ -356,11 +347,16 @@ class Experiment:
             self.Data_smooth = np.append(self.Data_smooth, smooth_out, axis=1)
             log.debug('[t=%d,n=%d] Online - Smooth - Data_smooth.shape   %s' % (self.t, self.n, str(self.Data_smooth.shape)))
             log.debug('[t=%d,n=%d] Online - EMA - smooth_out.shape      %s' % (self.t, self.n, str(smooth_out.shape)))
-
+        log.info(f'AT TR={self.t}: smooth_out[:10]  = {smooth_out[:10]}')
         # Do Spatial Normalization (if needed)
         # ====================================
+        # log.debug(f"smooth_out: {np.unique(smooth_out)}")
         norm_out = rt_snorm_vol(np.squeeze(smooth_out), do_operation=self.do_snorm)
+        # log.debug(f'Norm out: {np.unique(norm_out)}')
+        log.debug(f"Data_norm.shape = {self.Data_norm.shape}")
+        log.debug(f"norm_out.shape = {norm_out.shape}")
         self.Data_norm = np.append(self.Data_norm, norm_out, axis=1)
+        # log.debug(f'Data_norm after appendng norm out: {self.Data_norm}')
 
         if self.exp_type == "esam" or self.exp_type == "esam_test":
 
@@ -418,7 +414,8 @@ class Experiment:
                 self.mp_evt_hit.set()
 
         log.debug("FINISHED compute_tr_data")
-        print(f'DATA: {np.unique(self.Data_norm)}')
+        print(f'DATA: {np.unique(self.Data_FromAFNI)}')
+        #print(f'DATA: {np.unique(self.Data_norm)}')
         # Need to return something, otherwise the program thinks the experiment ended
         return 1
 
@@ -455,6 +452,9 @@ class Experiment:
         if self.do_smooth and self.save_smooth:
             out_vars.append(self.Data_smooth)
             out_labels.append('.pp_Smooth.nii')
+        if self.save_orig:
+            out_vars.append(self.Data_FromAFNI)
+            out_labels.append('.orig.nii')
         for variable, file_suffix in zip(out_vars, out_labels):
             print("HERE")
             print(variable)

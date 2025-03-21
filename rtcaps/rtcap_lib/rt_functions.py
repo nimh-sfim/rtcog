@@ -6,6 +6,7 @@ import itertools
 from numpy.linalg import cholesky, inv
 import logging
 from sklearn.preprocessing import StandardScaler
+import sys
 
 # log     = logging.getLogger("rt_functions")
 # log.setLevel(logging.INFO)
@@ -248,7 +249,7 @@ def _kalman_filter(kalmTh, kalmIn, S, fPositDerivSpike, fNegatDerivSpike):
                 S['P'] = tmp_p
                 fNegatDerivSpike = fNegatDerivSpike + 1
                 # Forcing into array here
-                kalmOut = np.atleast_1d(kalmOut)
+                # kalmOut = np.atleast_1d(kalmOut)
             else:
                 kalmOut = H * S['x']
                 print(f"DEBUG, block 5:, {H} x {S['x']} = {kalmOut}, type = {type(kalmOut)}")
@@ -291,61 +292,64 @@ def _kalman_filter_mv(input_dict):
 
 def rt_kalman_vol(n,t,data,data_std,S_x,S_P,fPositDerivSpike,fNegatDerivSpike,num_cores,pool,do_operation=True):
     [Nv,_] = data.shape
-    if n > 2 and do_operation==True:
-        log.debug('[t=%d,n=%d] rt_kalman_vol - Time to do some math' % (t, n))
-        log.debug('[t=%d,n=%d] rt_kalman_vol - Num Cores = %d' % (t, n, num_cores))
-        log.debug('[t=%d,n=%d] rt_kalman_vol - Input Data Dimensions %s' % (t, n, str(data.shape)))
-        v_groups = [int(i) for i in np.linspace(0,data.shape[0],num_cores+1)]
-        v_start  = v_groups[:-1]
-        v_end = v_groups[1:]
-        log.debug('[t=%d,n=%d] rt_kalman_vol - v_start %s' % (t, n, str(v_start)))
-        log.debug('[t=%d,n=%d] rt_kalman_vol - v_end   %s' % (t, n, str(v_end)))
-        o_data, o_fPos, o_fNeg = [],[],[]
-        o_S_x, o_S_P           = [],[]
-        data_std_sq            = np.power(data_std,2) 
-        inputs = ({'d'   : data[v_s:v_e],
-                   'std' : data_std[v_s:v_e],
-                   'S_x' : S_x[v_s:v_e],
-                   'S_P' : S_P[v_s:v_e],
-                   'S_Q' : 0.25 * data_std_sq[v_s:v_e],
-                   'S_R' : data_std_sq[v_s:v_e],
-                   'fPos': fPositDerivSpike[v_s:v_e],
-                   'fNeg': fNegatDerivSpike[v_s:v_e],
-                   'vox' : np.arange(v_s,v_e)}
-                  for v_s,v_e in zip(v_start,v_end))
-        log.debug('[t=%d,n=%d] rt_kalman_vol - About to go parallel with %d cores' % (t, n, num_cores))
-        res = pool.map(_kalman_filter_mv,inputs)
-        log.debug('[t=%d,n=%d] rt_kalman_vol - All parallel operationsc completed.' % (t, n))
+    if do_operation:
+        if n > 2:
+            log.debug('[t=%d,n=%d] rt_kalman_vol - Time to do some math' % (t, n))
+            log.debug('[t=%d,n=%d] rt_kalman_vol - Num Cores = %d' % (t, n, num_cores))
+            log.debug('[t=%d,n=%d] rt_kalman_vol - Input Data Dimensions %s' % (t, n, str(data.shape)))
+            v_groups = [int(i) for i in np.linspace(0,data.shape[0],num_cores+1)]
+            v_start  = v_groups[:-1]
+            v_end = v_groups[1:]
+            log.debug('[t=%d,n=%d] rt_kalman_vol - v_start %s' % (t, n, str(v_start)))
+            log.debug('[t=%d,n=%d] rt_kalman_vol - v_end   %s' % (t, n, str(v_end)))
+            o_data, o_fPos, o_fNeg = [],[],[]
+            o_S_x, o_S_P           = [],[]
+            data_std_sq            = np.power(data_std,2) 
+            inputs = ({'d'   : data[v_s:v_e],
+                    'std' : data_std[v_s:v_e],
+                    'S_x' : S_x[v_s:v_e],
+                    'S_P' : S_P[v_s:v_e],
+                    'S_Q' : 0.25 * data_std_sq[v_s:v_e],
+                    'S_R' : data_std_sq[v_s:v_e],
+                    'fPos': fPositDerivSpike[v_s:v_e],
+                    'fNeg': fNegatDerivSpike[v_s:v_e],
+                    'vox' : np.arange(v_s,v_e)}
+                    for v_s,v_e in zip(v_start,v_end))
+            log.debug('[t=%d,n=%d] rt_kalman_vol - About to go parallel with %d cores' % (t, n, num_cores))
+            res = pool.map(_kalman_filter_mv,inputs)
+            log.debug('[t=%d,n=%d] rt_kalman_vol - All parallel operations completed.' % (t, n))
 
-        for j in np.arange(num_cores):
-            o_data.append(res[j][0])
-            o_fPos.append(res[j][1])
-            o_fNeg.append(res[j][2])
-            o_S_x.append(res[j][3])
-            o_S_P.append(res[j][4])
 
-        # After gathering the result data
-        log.debug(f"[t={t}, n={n}] Length of o_data before reshape: {len(o_data)}")
+            for j in np.arange(num_cores):
+                o_data.append(res[j][0])
+                o_fPos.append(res[j][1])
+                o_fNeg.append(res[j][2])
+                o_S_x.append(res[j][3])
+                o_S_P.append(res[j][4])
 
-        
-        # return o_data
-        log.debug(f"o_data before reshaping: {o_data[:10]}")
-        # o_data was for some reason a list of a list of numpy arrays, which makes this step fail. But it's inconsistent -- 28 of the 30,000 are scalars
-        # Due to block 4 above in _kalman_filter, just forced to be array
-        o_data = np.reshape(list(itertools.chain(*o_data)), newshape=(Nv,1))
-        log.debug(f"o_data after reshaping: {o_data}")
+            # return o_data
+            log.debug(f"o_data before reshaping: {o_data[:10]}")
+            log.debug(np.where(o_data == 0))
+            # o_data was for some reason a list of a list of numpy arrays, which makes this step fail. But it's inconsistent -- 28 of the 30,000 are scalars
+            # Due to block 4 above in _kalman_filter, just forced to be array
+            o_data = np.reshape(list(itertools.chain(*o_data)), newshape=(Nv,1))
+            log.debug(f"o_data after reshaping: {o_data}")
+            log.debug(f'o_S_x = {o_S_x[:10]}')
+            log.debug(np.where(o_S_x == 0))
 
-        o_fPos = np.reshape(list(itertools.chain(*o_fPos)), newshape=(Nv,))
-        o_fNeg = np.reshape(list(itertools.chain(*o_fNeg)), newshape=(Nv,))
-        o_S_x  = np.reshape(list(itertools.chain(*o_S_x)), newshape=(Nv,))
-        o_S_P  = np.reshape(list(itertools.chain(*o_S_P)), newshape=(Nv,))        
-        
-        out     = [ o_data, o_S_x, o_S_P, o_fPos, o_fNeg ]
-        
+            o_fPos = np.reshape(list(itertools.chain(*o_fPos)), newshape=(Nv,))
+            o_fNeg = np.reshape(list(itertools.chain(*o_fNeg)), newshape=(Nv,))
+            # Same thing happening for O_S_x (28 scalars)
+            o_S_x  = np.reshape(list(itertools.chain(*o_S_x)), newshape=(Nv,))
+            o_S_P  = np.reshape(list(itertools.chain(*o_S_P)), newshape=(Nv,))        
+            
+            out     = [ o_data, o_S_x, o_S_P, o_fPos, o_fNeg ]
+        else:
+            #log.debug('[t=%d,n=%d] rt_kalman_vol - Skip this pass. Return empty containsers.' % (t, n))
+            #out = [np.zeros((Nv,1)), [0]*Nv, [0]*Nv,[0]*Nv,[0]*Nv]
+            out = [np.zeros((Nv,1)), np.zeros(Nv),np.zeros(Nv),np.zeros(Nv),np.zeros(Nv)]
     else:
-        #log.debug('[t=%d,n=%d] rt_kalman_vol - Skip this pass. Return empty containsers.' % (t, n))
-        #out = [np.zeros((Nv,1)), [0]*Nv, [0]*Nv,[0]*Nv,[0]*Nv]
-        out = [np.zeros((Nv,1)), np.zeros(Nv),np.zeros(Nv),np.zeros(Nv),np.zeros(Nv)]
+        out = [data,None, None, None, None]
 
     return out
 
@@ -421,7 +425,7 @@ def _smooth_array(arr, affine, fwhm=None, ensure_finite=True, copy=True):
                 ndimage.gaussian_filter1d(arr, s, output=arr, axis=n)
     return arr
 
-def rt_smooth_vol(data_arr,mask_img,fwhm=4,do_operation=True):
+def rt_smooth_vol(data_arr, mask_img, fwhm=4, do_operation=True):
     if do_operation:
         x      = unmask_fMRI_img(data_arr, mask_img)
         x_sm   = _smooth_array(x, affine=mask_img.affine, fwhm=fwhm)
