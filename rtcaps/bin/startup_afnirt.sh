@@ -1,6 +1,7 @@
 # 03/28/2025 - Marly Rubin
 #
 # This script starts up AFNI realtime and sets all environment variables.
+# Requires REALTIME_DIR to be exported.
 # -------------------------------
 if [ -z "$REALTIME_DIR" ]; then
     echo "Error: REALTIME_DIR is not set. Exiting..."
