@@ -1,0 +1,86 @@
+# This is for testing the final outputs of rtcaps_matcher.py given different parameters (preproc mode)
+# -------------------------------
+import sys
+import os.path as osp
+import warnings
+import pytest
+import numpy as np
+import nibabel as nib
+import pandas as pd
+from sklearn.metrics import mean_squared_error
+from scipy.stats import pearsonr
+
+sys.path.append('../')
+from rtcap_lib.fMRI import mask_fMRI_img, unmask_fMRI_img
+from rtcap_lib.rt_functions import init_EMA, rt_EMA_vol
+
+
+cwd = osp.dirname(osp.abspath(__file__))
+DATA_DIR = osp.join(cwd, '../../../Simulation/outputs/')
+
+def load_nii(fname):
+    return nib.load(osp.join(DATA_DIR, fname))
+
+def load_pkl(fname):
+    return pd.read_pickle(osp.join(DATA_DIR, fname))
+
+def get_metrics(arr1, arr2):
+    mse = mean_squared_error(arr1.flatten(), arr2.flatten())
+    corr, _ = pearsonr(arr1.flatten(), arr2.flatten())
+
+    return mse, corr
+
+@pytest.fixture
+def mask_img():
+    return load_nii('GMribbon_R4Feed.nii')
+
+
+def test_snorm_only(mask_img):
+    snorm_offline = load_nii('offline_preproc.snorm.nii')
+    snorm_online = load_nii("online_preproc.pp_Zscore.snorm-on.nii")
+
+    snorm_off_masked = mask_fMRI_img(snorm_offline, mask_img)
+    snorm_on_masked = mask_fMRI_img(snorm_online, mask_img)
+
+    rmse, corr = get_metrics(snorm_off_masked, snorm_on_masked)
+
+    assert snorm_online.shape == snorm_offline.shape
+    
+    assert rmse < 0.1
+    assert corr >= 0.93
+
+
+def test_ema_only(mask_img):
+    # Not the best test because I’m just using the rt functions instead of something else
+    orig_data = load_pkl("DataFromAFNI.end.pkl")
+    n = 0
+
+    EMA_th, EMA_filt = init_EMA()
+
+    offline_ema = []
+
+    for t in range(10, orig_data.shape[1]):
+        n += 1
+        data_out, EMA_filt = rt_EMA_vol(n, t, EMA_th, orig_data[:, :t+1], EMA_filt, do_operation=True)
+            
+        offline_ema.append(data_out)
+
+    offline_ema = np.concatenate(offline_ema, axis=-1)
+    zeros = np.zeros((offline_ema.shape[0], 10))
+
+    offline_ema = np.hstack([zeros, offline_ema])
+
+    online_ema = mask_fMRI_img(load_nii('online_preproc.pp_EMA.nii').get_fdata(), mask_img)
+
+    rmse, corr = get_metrics(offline_ema, online_ema)
+
+
+    assert offline_ema.shape == online_ema.shape
+    # Need to come up with thresholds for this, maybe implement warnings instead of errors too?
+    assert rmse < 0.1
+    assert corr >= 0.93
+
+
+
+if __name__ == "__main__":
+    pytest.main()
