@@ -175,6 +175,7 @@ class Experiment:
         hit_status    = self.mp_evt_hit.is_set()
         qa_end_status = self.mp_evt_qa_end.is_set()
 
+
         # Update t (it always does)
         # Note: I think t was initialized to -1 because it's annoying to update it at multiple times in this function depending on if statements, so it's easier
         # to just do it up front.
@@ -184,13 +185,22 @@ class Experiment:
         # Moving here after t is updated
         motion = [i[self.t] for i in motion]
         self.motion_estimates.append(motion)
+        if len(motion) != 6:
+            log.error('Motion not read in correctly.')
+            log.error(f'Expected length: 6 | Actual length: {len(motion)}')
+            sys.exit(-1)
         
         #JAVIER USED TO this_t_data = np.array(extra)
         this_t_data = np.array([e[self.t] for e in extra])
+        if self.t > 0:
+            if len(this_t_data) != self.Nv:
+                log.error(f'Extra data not read in correctly.')
+                log.error(f'Expected length: {self.Nv} | Actual length: {len(this_t_data)}')
+                sys.exit(-1)
         log.info(f'AT TR={self.t}: this_t_data[:10]  = {this_t_data[:10]}')
         log.info(f'this_t_data.shape = {this_t_data.shape}')
 
-        
+
         # Update n (only if not longer a discard volume)
         if self.t > self.nvols_discard - 1:
             self.n += 1
@@ -202,13 +212,6 @@ class Experiment:
         
         
         #JAVIER USED TO this_t_data = np.array(extra)
-        #MARLY THINKS I AM WRONG ...this_t_data = np.array([e[self.t] for e in extra])
-        #log.debug(f'this_t_data[:10] = {this_t_data[:10]}')
-
-        # Overwriting to have only motion for this TR
-        #log.debug(f'Motion: {motion}')
-        #if self.t < 3:
-        #    print(f'this_t_data[:10] = {this_t_data[:10]}')
         
         # If first volume, then create empty structures and call it a day (TR)
         if self.t == 0:
@@ -273,12 +276,7 @@ class Experiment:
             
             log.debug(f'Discard volume, self.Data_FromAFNI[:10]: {self.Data_FromAFNI[:10]}')
             return 1
-        
-        # if self.t == 11:
-        #     pd.to_pickle(self.welford_M, 'welford_M_before.pkl')
-        #     pd.to_pickle(self.welford_S, 'welford_S_before.pkl')
-        #     sys.exit()
-        
+
         # Compute running mean and running std with welford
         self.welford_M, self.welford_S, self.welford_std = welford(self.n, this_t_data, self.welford_M, self.welford_S)
         log.info('Welford Method Ouputs: M=%s | S=%s | std=%s' % (str(self.welford_M), str(self.welford_S), str(self.welford_std)))
@@ -293,13 +291,9 @@ class Experiment:
             self.Data_FromAFNI = np.hstack((self.Data_FromAFNI[:,-1][:,np.newaxis],this_t_data[:, np.newaxis]))  # Only keep this one and previous
             log.debug('[t=%d,n=%d] Online - Input - Data_FromAFNI.shape %s' % (self.t, self.n, str(self.Data_FromAFNI.shape)))
         
-        # log.debug(f'At TR={self.t}: self.Data_FromAFNI[:10]: {self.Data_FromAFNI[:10]}')
-        # if self.t == 11: 
-        #     print("SAVING!!")
-        #     pd.to_pickle(self.Data_FromAFNI, 'Data_FromAFNI.11.pkl')
         
         # Do EMA (if needed)
-        # ==================
+        # =================
         ema_data_out, self.EMA_filt = rt_EMA_vol(self.n, self.t, self.EMA_th, self.Data_FromAFNI, self.EMA_filt, do_operation = self.do_EMA)
         if self.save_ema: 
             self.Data_EMA = np.append(self.Data_EMA, ema_data_out, axis=1)
@@ -342,7 +336,7 @@ class Experiment:
         log.info(f'AT TR={self.t}: np.squeeze(klm_data_out)[:10]  = {np.squeeze(klm_data_out)[:10]}')
         # Do Spatial Smoothing (if needed)
         # ================================
-        smooth_out = rt_smooth_vol(np.squeeze(klm_data_out), self.mask_img, fwhm = self.FWHM, do_operation = self.do_smooth)
+        smooth_out = rt_smooth_vol(np.squeeze(klm_data_out), self.mask_img, fwhm=self.FWHM, do_operation=self.do_smooth)
         if self.save_smooth:
             self.Data_smooth = np.append(self.Data_smooth, smooth_out, axis=1)
             log.debug('[t=%d,n=%d] Online - Smooth - Data_smooth.shape   %s' % (self.t, self.n, str(self.Data_smooth.shape)))
@@ -352,11 +346,13 @@ class Experiment:
         # ====================================
         # log.debug(f"smooth_out: {np.unique(smooth_out)}")
         norm_out = rt_snorm_vol(np.squeeze(smooth_out), do_operation=self.do_snorm)
-        # log.debug(f'Norm out: {np.unique(norm_out)}')
+        log.debug(f'Norm out: {norm_out}')
         log.debug(f"Data_norm.shape = {self.Data_norm.shape}")
         log.debug(f"norm_out.shape = {norm_out.shape}")
+        # Just putting an extra value on the end of each list in Data_norm. Not sure what this does
+        # norm_out is not used elsewhere in preproc, nor is it indexed into in Data_norm
         self.Data_norm = np.append(self.Data_norm, norm_out, axis=1)
-        # log.debug(f'Data_norm after appendng norm out: {self.Data_norm}')
+        log.debug(f'Data_norm after appending norm out: {self.Data_norm}')
 
         if self.exp_type == "esam" or self.exp_type == "esam_test":
 
@@ -414,9 +410,6 @@ class Experiment:
                 self.mp_evt_hit.set()
 
         log.debug("FINISHED compute_tr_data")
-        print(f'DATA: {np.unique(self.Data_FromAFNI)}')
-        #print(f'DATA: {np.unique(self.Data_norm)}')
-        # Need to return something, otherwise the program thinks the experiment ended
         return 1
 
     def final_steps(self):
@@ -459,12 +452,12 @@ class Experiment:
             print("HERE")
             print(variable)
             print(file_suffix)
-            out = unmask_fMRI_img(variable, self.mask_img, osp.join(self.out_dir,self.out_prefix+file_suffix))
+            unmask_fMRI_img(variable, self.mask_img, osp.join(self.out_dir,self.out_prefix+file_suffix))
 
         if self.do_iGLM and self.save_iGLM:
             for i,lab in enumerate(self.nuisance_labels):
                 data = self.iGLM_Coeffs[:,i,:]
-                out = unmask_fMRI_img(data, self.mask_img, osp.join(self.out_dir,self.out_prefix+'.pp_iGLM_'+lab+'.nii'))    
+                unmask_fMRI_img(data, self.mask_img, osp.join(self.out_dir,self.out_prefix+'.pp_iGLM_'+lab+'.nii'))    
 
         if self.exp_type == "esam" or self.exp_type == "esam_test":
             svrscores_path = osp.join(self.out_dir,self.out_prefix+'.svrscores')
@@ -601,7 +594,7 @@ def comm_process(opts, mp_evt_hit, mp_evt_end, mp_evt_qa_end):
     if not receiver:
         return 1
 
-    if receiver.RTI is None:
+    if not receiver.RTI:
         log.error('comm_process - RTI is not initialized.')
     else:
         log.debug('comm_process - RTI initialized successfully.')
@@ -622,7 +615,7 @@ def comm_process(opts, mp_evt_hit, mp_evt_end, mp_evt_qa_end):
     log.info('- comm_process - 5) Prepare for Incoming Connections...')
     if receiver.RTI.open_incoming_socket():
         return 1
-
+    
     #8) Vinai's alternative
     log.info('6) Here we go...')
     rv = receiver.process_one_run()
