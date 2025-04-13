@@ -1,8 +1,10 @@
-# This is for testing the final outputs of rtcaps_matcher.py given different parameters (preproc mode)
+"""
+This is for testing the final outputs of rtcaps_matcher.py given different parameters (preproc mode) against files created offline.
+The process of generating the files is manual right now, but should be automated later.
+"""
 # -------------------------------
 import sys
 import os.path as osp
-import warnings
 import pytest
 import numpy as np
 import nibabel as nib
@@ -10,29 +12,34 @@ import pandas as pd
 from sklearn.metrics import mean_squared_error
 from scipy.stats import pearsonr
 
+
 sys.path.append('../')
 from rtcap_lib.fMRI import mask_fMRI_img, unmask_fMRI_img
 from rtcap_lib.rt_functions import init_EMA, rt_EMA_vol
+from config import OUTPUT_DIR
 
-
-cwd = osp.dirname(osp.abspath(__file__))
-DATA_DIR = osp.join(cwd, '../../../Simulation/outputs/')
 
 def load_nii(fname):
-    return nib.load(osp.join(DATA_DIR, fname))
+    return nib.load(osp.join(OUTPUT_DIR, fname))
 
 def load_pkl(fname):
-    return pd.read_pickle(osp.join(DATA_DIR, fname))
+    return pd.read_pickle(osp.join(OUTPUT_DIR, fname))
 
 def get_metrics(arr1, arr2):
-    mse = mean_squared_error(arr1.flatten(), arr2.flatten())
-    corr, _ = pearsonr(arr1.flatten(), arr2.flatten())
+    arr1, arr2 = arr1.flatten(), arr2.flatten()
+    rmse = mean_squared_error(arr1, arr2)
+    corr, _ = pearsonr(arr1, arr2)
 
-    return mse, corr
+    return rmse, corr
+
 
 @pytest.fixture
 def mask_img():
     return load_nii('GMribbon_R4Feed.nii')
+
+
+def test_all_off(mask_img):
+    pass
 
 
 def test_snorm_only(mask_img):
@@ -74,13 +81,34 @@ def test_ema_only(mask_img):
 
     rmse, corr = get_metrics(offline_ema, online_ema)
 
-
     assert offline_ema.shape == online_ema.shape
     # Need to come up with thresholds for this, maybe implement warnings instead of errors too?
     assert rmse < 0.1
     assert corr >= 0.93
 
 
+def test_smooth_only(mask_img):
+    pass
+
+
+def test_iglm_only(mask_img):
+    pass
+
+
+def test_kalman_only(mask_img):
+    pass
+
+
+def test_all_on(mask_img):
+    pass
+
+
+def test_1d_motion(mask_img):
+    pass
+
+
+def test_blur(mask_img):
+    pass
 
 if __name__ == "__main__":
     pytest.main()

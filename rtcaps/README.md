@@ -2,10 +2,6 @@
 
 This is the main folder for the software. Here you can find the following sub-folders:
 
-* ```afni_lib```: a copy of realtime.py and receiver.py that contain all the functions for stabilishing the communication between AFNI realtime plugin and this software.
-
-> __NOTE__: It may be nice to change the software to use whatever of these get distributed with AFNI in the afniInterfaceRT folder. That way if AFNI updates these functions, the program will be up-to-date. Yet, it would be good to have some automatic test to ensure any changes in the AFNI part, does not break this software.
-
 * ```bin```: this folder contains the main executables, including ```rtcaps_matcher.py``` (which does realtime preprocessing and experience sampling), and ```online_trainSVRs.py``` (which train SVRs). It includes additional small programs to test each pre-processing step, sound, keyboard, etc.
 
 * ```notebooks```: includes python notebooks used during the development of this code.
@@ -93,7 +89,7 @@ By the end of this step, you should have a new dataset (rt.__001+orig) that cont
 On the __Scanner__ console, type:
 
 ```bash
-rtfeedmd EPI_Reference+orig
+rtfeedme EPI_Reference+orig
 ```
 
 By the end of this step, you should have a second dataset on __Realime__ (rt.__002+orig) on the __Realtime__ folder that contains the EPI reference data (but now in the realtime system)
