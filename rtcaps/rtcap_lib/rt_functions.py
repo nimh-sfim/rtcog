@@ -1,7 +1,7 @@
 from .fMRI import unmask_fMRI_img, mask_fMRI_img
 import numpy as np
 from scipy.special import legendre
-from scipy import ndimage
+from scipy import ndimage, odr
 import itertools
 from numpy.linalg import cholesky, inv
 import logging
@@ -104,7 +104,6 @@ def _iGLMVol(n,Yn,Fn,Dn,Cn,s2n):
         An    = (1/n) * np.matmul(Dn,iNn.T)  # Eq. 14
         Bn    = np.matmul(An,iNn)            # Eq. 16
     else:
-        #print ('%d non positive definite'% n)
         Bn = np.zeros((nv,nrBasFct))
     return Bn,Cn,Dn,s2n
 
@@ -206,7 +205,6 @@ def _kalman_filter(kalmTh, kalmIn, S, fPositDerivSpike, fNegatDerivSpike):
     A = 1
     H = 1
     I = 1
-    #kalmOut = 0
     
     # Kalman Filter
     S['x'] = A * S['x']
@@ -222,45 +220,31 @@ def _kalman_filter(kalmTh, kalmIn, S, fPositDerivSpike, fNegatDerivSpike):
     S['P'] = (I - (K * H)) * S['P']
     # Spikes identification and correction
     if np.abs(diff) < kalmTh:
-        #print('np.abs(diff) < kalmTh')
         kalmOut = H * S['x']
-        # print(f"DEBUG, block 1: {H} x {S['x']} = {kalmOut}, type = {type(kalmOut)}")
         fNegatDerivSpike = 0;
         fPositDerivSpike = 0;
     else:
-        #print('np.abs(diff) > kalmTh')
         if diff > 0:
             if fPositDerivSpike < 1:
                 kalmOut = H * tmp_x
-                print(f"DEBUG, block 2: {H} x {tmp_x} = {kalmOut}, type = {type(kalmOut)}")
                 S['x'] = tmp_x
                 S['P'] = tmp_p
                 fPositDerivSpike = fPositDerivSpike + 1
             else:
                 kalmOut = H * S['x']
-                print(f"DEBUG, block 3: {H} x {S['x']} = {kalmOut}, type = {type(kalmOut)}")
                 fPositDerivSpike = 0
         else:
             if fNegatDerivSpike < 1:
                 kalmOut = H * tmp_x
-                print(f"DEBUG, block 4: {H} x {tmp_x} = {kalmOut}, type = {type(kalmOut)}")
                 S['x'] = tmp_x
                 S['P'] = tmp_p
                 fNegatDerivSpike = fNegatDerivSpike + 1
-                # Forcing into array here
-                # kalmOut = np.atleast_1d(kalmOut)
             else:
                 kalmOut = H * S['x']
-                print(f"DEBUG, block 5:, {H} x {S['x']} = {kalmOut}, type = {type(kalmOut)}")
                 fNegatDerivSpike = 0
-    # # Prnting this demonstrates that the majority of times, kalmOut is an np.dnarray, but occasionally it is np.float64
-    # # Seems to be occuring in what I labeled block 4. The vast majority of the time it's in block 1, but sometimes it goes to block 4, resulting in different kalmOut.
-    # # DEBUG, block 1: 1 x [-1.63856] = [-1.63856], type = <class 'numpy.ndarray'>
-    # # DEBUG, block 4: 1 x 0.0 = 0.0, type = <class 'numpy.float64'>
-
-    # print(f'DEBUG: {type(kalmOut)}')
 
     return kalmOut,S,fPositDerivSpike,fNegatDerivSpike
+
 
 def _kalman_filter_mv(input_dict):
     Nv = input_dict['vox'].shape[0]
@@ -282,7 +266,6 @@ def _kalman_filter_mv(input_dict):
         kalmTh     = 0.9 * input_ts_STD
         [out_d, out_S, out_fPos, out_fNeg] = _kalman_filter(kalmTh, input_d,input_S, input_fPos, input_fNeg)
 
-        # print(f"DEBUG: Output type check - out_d: {type(out_d)}, out_fPos: {type(out_fPos)}, out_fNeg: {type(out_fNeg)}, out_S_x: {type(out_S['x'])}, out_S_P: {type(out_S['P'])}")
 
         for (l,i) in zip([out_d_mv,out_fPos_mv,out_fNeg_mv,out_S_x_mv,out_S_P_mv, out_vox_mv],
                          [out_d,   out_fPos,   out_fNeg,   out_S['x'],out_S['P'],input_dict['vox'][v]]):
@@ -290,6 +273,10 @@ def _kalman_filter_mv(input_dict):
     return [out_d_mv, out_fPos_mv, out_fNeg_mv, out_S_x_mv, out_S_P_mv, out_vox_mv]
 
 def rt_kalman_vol(n,t,data,data_std,S_x,S_P,fPositDerivSpike,fNegatDerivSpike,num_cores,pool,do_operation=True):
+    """
+    Returns:
+    [o_data, o_S_x, o_S_P, o_fPos, o_fNeg]
+    """
     [Nv,_] = data.shape
     if do_operation:
         if n > 2:
@@ -326,26 +313,17 @@ def rt_kalman_vol(n,t,data,data_std,S_x,S_P,fPositDerivSpike,fNegatDerivSpike,nu
                 o_S_x.append(res[j][3])
                 o_S_P.append(res[j][4])
 
-            # return o_data
-            log.debug(f"o_data before reshaping: {o_data[:10]}")
-            log.debug(np.where(o_data == 0))
-            # o_data was for some reason a list of a list of numpy arrays, which makes this step fail. But it's inconsistent -- 28 of the 30,000 are scalars
-            # Due to block 4 above in _kalman_filter, just forced to be array
-            o_data = np.reshape(list(itertools.chain(*o_data)), newshape=(Nv,1))
-            log.debug(f"o_data after reshaping: {o_data}")
-            log.debug(f'o_S_x = {o_S_x[:10]}')
-            log.debug(np.where(o_S_x == 0))
+            # What we are returning, and their resulting shapes
+            vars_list = [o_data, o_S_x, o_S_P, o_fPos, o_fNeg]
+            shapes = [(Nv,1), (Nv,), (Nv,), (Nv,), (Nv,)]
 
-            o_fPos = np.reshape(list(itertools.chain(*o_fPos)), newshape=(Nv,))
-            o_fNeg = np.reshape(list(itertools.chain(*o_fNeg)), newshape=(Nv,))
-            # Same thing happening for O_S_x (28 scalars)
-            o_S_x  = np.reshape(list(itertools.chain(*o_S_x)), newshape=(Nv,))
-            o_S_P  = np.reshape(list(itertools.chain(*o_S_P)), newshape=(Nv,))        
+            # Set dtype as object to avoid error from incosistent dimensions
+            all_arrs = [np.array(list(itertools.chain(*var)), dtype='object') for var in vars_list]
             
-            return [o_data, o_S_x, o_S_P, o_fPos, o_fNeg]
+            # Return final list of reshaped variables
+            return [np.reshape(arr, shape) for arr, shape in zip(all_arrs, shapes)]
+            
         else:
-            #log.debug('[t=%d,n=%d] rt_kalman_vol - Skip this pass. Return empty containsers.' % (t, n))
-            #out = [np.zeros((Nv,1)), [0]*Nv, [0]*Nv,[0]*Nv,[0]*Nv]
             return [np.zeros((Nv,1)), np.zeros(Nv),np.zeros(Nv),np.zeros(Nv),np.zeros(Nv)]
     else:
         return [data, None, None, None, None]
