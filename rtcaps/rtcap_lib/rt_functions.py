@@ -6,7 +6,6 @@ import itertools
 from numpy.linalg import cholesky, inv
 import logging
 from sklearn.preprocessing import StandardScaler
-import sys
 
 # log     = logging.getLogger("rt_functions")
 # log.setLevel(logging.INFO)
@@ -40,7 +39,7 @@ def gen_polort_regressors(polort, nt):
     out = np.zeros((nt, polort))
     for n in range(polort):
         Pn = legendre(n)
-        x  = np.linspace(-1.0, 1.0,nt)
+        x  = np.linspace(-1.0, 1.0, nt)
         out[:,n] = Pn(x).T
     return(out)
 
@@ -343,21 +342,23 @@ def rt_kalman_vol(n,t,data,data_std,S_x,S_P,fPositDerivSpike,fNegatDerivSpike,nu
             o_S_x  = np.reshape(list(itertools.chain(*o_S_x)), newshape=(Nv,))
             o_S_P  = np.reshape(list(itertools.chain(*o_S_P)), newshape=(Nv,))        
             
-            out     = [ o_data, o_S_x, o_S_P, o_fPos, o_fNeg ]
+            return [o_data, o_S_x, o_S_P, o_fPos, o_fNeg]
         else:
             #log.debug('[t=%d,n=%d] rt_kalman_vol - Skip this pass. Return empty containsers.' % (t, n))
             #out = [np.zeros((Nv,1)), [0]*Nv, [0]*Nv,[0]*Nv,[0]*Nv]
-            out = [np.zeros((Nv,1)), np.zeros(Nv),np.zeros(Nv),np.zeros(Nv),np.zeros(Nv)]
+            return [np.zeros((Nv,1)), np.zeros(Nv),np.zeros(Nv),np.zeros(Nv),np.zeros(Nv)]
     else:
-        out = [data,None, None, None, None]
-
-    return out
+        return [data, None, None, None, None]
 
 # Smoothing Functions
 # ===================
 def _smooth_array(arr, affine, fwhm=None, ensure_finite=True, copy=True):
-    """Smooth images by applying a Gaussian filter.
+    """
+    Smooth images by applying a Gaussian filter.
     Apply a Gaussian filter along the three first dimensions of arr.
+
+    Based on https://github.com/nilearn/nilearn/blob/main/nilearn/image/image.py
+
     Parameters
     ----------
     arr: numpy.ndarray
@@ -396,7 +397,7 @@ def _smooth_array(arr, affine, fwhm=None, ensure_finite=True, copy=True):
     # Here, we have to investigate use cases of fwhm. Particularly, if fwhm=0.
     # See issue #1537
     if isinstance(fwhm, (int, float)) and (fwhm == 0.0):
-        warnings.warn("The parameter 'fwhm' for smoothing is specified "
+        log.warning("The parameter 'fwhm' for smoothing is specified "
                       "as {0}. Setting it to None "
                       "(no smoothing will be performed)"
                       .format(fwhm))
@@ -411,8 +412,8 @@ def _smooth_array(arr, affine, fwhm=None, ensure_finite=True, copy=True):
     if ensure_finite:
         # SPM tends to put NaNs in the data outside the brain
         arr[np.logical_not(np.isfinite(arr))] = 0
-    if isinstance(fwhm, str) and (fwhm == 'fast'):
-        arr = _fast_smooth_array(arr)
+    # if isinstance(fwhm, str) and (fwhm == 'fast'):
+    #     arr = _fast_smooth_array(arr)
     elif fwhm is not None:
         fwhm = np.asarray(fwhm)
         fwhm = np.where(fwhm == None, 0.0, fwhm)  # noqa: E711
@@ -438,15 +439,19 @@ def rt_smooth_vol(data_arr, mask_img, fwhm=4, do_operation=True):
 # ==========================
 def rt_snorm_vol(data, do_operation=True):
     data = data[:,np.newaxis]
+    
+    if not do_operation:
+        return data
+    
     sc  = StandardScaler(with_mean=True, with_std=True)
-    out = sc.fit_transform(data)
-    return out
+    return sc.fit_transform(data)
 
 # Decoding Functions
 # ==================
 def rt_svrscore_vol(data, SVRs, caps_labels):
     out = []
+
     for cap_lab in caps_labels:
         out.append(SVRs[cap_lab].predict(data[:,np.newaxis].T)[0])
-    out = np.array(out)[:,np.newaxis]
-    return out
+
+    return np.array(out)[:,np.newaxis]
