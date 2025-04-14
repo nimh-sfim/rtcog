@@ -3,7 +3,8 @@ PrcsData/
 Others/
 OpenNFT/
 Psychopy/
-Simulation/
+!Simulation/*/
+Simulation/*/*
 Josh_Simulation/
 Protocol/
 Dashboards/
