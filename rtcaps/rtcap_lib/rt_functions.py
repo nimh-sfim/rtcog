@@ -246,7 +246,7 @@ def _kalman_filter(kalmTh, kalmIn, S, fPositDerivSpike, fNegatDerivSpike):
     return kalmOut,S,fPositDerivSpike,fNegatDerivSpike
 
 
-def _kalman_filter_mv(input_dict):
+def kalman_filter_mv(input_dict):
     Nv = input_dict['vox'].shape[0]
     out_d_mv    = []
     out_fPos_mv = []
@@ -302,7 +302,7 @@ def rt_kalman_vol(n,t,data,data_std,S_x,S_P,fPositDerivSpike,fNegatDerivSpike,nu
                     'vox' : np.arange(v_s,v_e)}
                     for v_s,v_e in zip(v_start,v_end))
             log.debug('[t=%d,n=%d] rt_kalman_vol - About to go parallel with %d cores' % (t, n, num_cores))
-            res = pool.map(_kalman_filter_mv,inputs)
+            res = pool.map(kalman_filter_mv,inputs)
             log.debug('[t=%d,n=%d] rt_kalman_vol - All parallel operations completed.' % (t, n))
 
 

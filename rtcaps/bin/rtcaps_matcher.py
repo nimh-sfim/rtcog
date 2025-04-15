@@ -16,7 +16,7 @@ sys.path.insert(0, osp.abspath(osp.join(osp.dirname(__file__), '..')))
 
 from rtcap_lib.receiver_interface import ReceiverInterface
 from rtcap_lib.core               import welford
-from rtcap_lib.rt_functions       import rt_EMA_vol, rt_regress_vol, rt_kalman_vol
+from rtcap_lib.rt_functions       import rt_EMA_vol, rt_regress_vol, rt_kalman_vol, kalman_filter_mv
 from rtcap_lib.rt_functions       import rt_smooth_vol, rt_snorm_vol, rt_svrscore_vol
 from rtcap_lib.rt_functions       import gen_polort_regressors
 from rtcap_lib.fMRI               import load_fMRI_file, unmask_fMRI_img
@@ -152,6 +152,7 @@ class Experiment:
             sys.exit(-1)
         
         if self.mask_path is None:
+            log.warning('  Experiment_init_ - No mask was provided!')
             self.mask_img = None
         else:
             self.mask_img  = load_fMRI_file(self.mask_path)
@@ -167,22 +168,38 @@ class Experiment:
         # If kalman needed, create a pool
         if self.do_kalman:
             self.pool = mp.Pool(processes=self.n_cores)
+            if self.mask_Nv is not None:
+                log.info(f'   Experiment_init_ - Initializing Kalman pool with {self.n_cores} worker processes using dummy data.')
+                _ = self.pool.map(kalman_filter_mv, self._initialize_kalman_pool())
         else:
             self.pool = None
 
+    def _initialize_kalman_pool(self):
+        Nv = int(self.mask_Nv)
+        return [
+            {
+                'd': np.random.rand(Nv, 1),
+                'std': np.random.rand(Nv),
+                'S_x': np.zeros(Nv),
+                'S_P': np.zeros(Nv),
+                'S_Q': np.random.rand(Nv),
+                'S_R': np.random.rand(Nv),
+                'fPos': np.zeros(Nv),
+                'fNeg': np.zeros(Nv),
+                'vox': np.arange(Nv)
+            }
+            for _ in range(self.n_cores)
+        ]
+ 
     def compute_TR_data(self, motion, extra):
         # Status as we enter the function
         hit_status    = self.mp_evt_hit.is_set()
         qa_end_status = self.mp_evt_qa_end.is_set()
 
-
-        # Update t (it always does)
-        # Note: I think t was initialized to -1 because it's annoying to update it at multiple times in this function depending on if statements, so it's easier
-        # to just do it up front.
+        # Update t up front
         self.t += 1
 
         # Keep a record of motion estimates
-        # Moving here after t is updated
         motion = [i[self.t] for i in motion]
         self.motion_estimates.append(motion)
         if len(motion) != 6:
@@ -190,15 +207,14 @@ class Experiment:
             log.error(f'Expected length: 6 | Actual length: {len(motion)}')
             sys.exit(-1)
         
-        #JAVIER USED TO this_t_data = np.array(extra)
         this_t_data = np.array([e[self.t] for e in extra])
         if self.t > 0:
             if len(this_t_data) != self.Nv:
                 log.error(f'Extra data not read in correctly.')
                 log.error(f'Expected length: {self.Nv} | Actual length: {len(this_t_data)}')
                 sys.exit(-1)
-        log.info(f'AT TR={self.t}: this_t_data[:10]  = {this_t_data[:10]}')
-        log.info(f'this_t_data.shape = {this_t_data.shape}')
+        log.debug(f'AT TR={self.t}: this_t_data[:10]  = {this_t_data[:10]}')
+        log.debug(f'this_t_data.shape = {this_t_data.shape}')
 
 
         # Update n (only if not longer a discard volume)
@@ -409,7 +425,6 @@ class Experiment:
                 self.hits[self.caps_labels.index(hit),self.t] = 1
                 self.mp_evt_hit.set()
 
-        log.debug("FINISHED compute_tr_data")
         return 1
 
     def final_steps(self):
@@ -711,7 +726,6 @@ def main():
     log.info('1) Reading input parameters...')
     opts = processExperimentOptions(sys.argv)
     log.debug('User Options: %s' % str(opts))
-    log.info('type(opts) %s' % type(opts))
 
     opts_tofile_path = osp.join(opts.out_dir, opts.out_prefix+'_Options.json')
     with open(opts_tofile_path, "w") as write_file:
