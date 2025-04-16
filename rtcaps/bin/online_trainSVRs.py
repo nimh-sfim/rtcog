@@ -1,22 +1,8 @@
 import logging
-mpl_logger = logging.getLogger('matplotlib')
-mpl_logger.setLevel(logging.WARNING)
-
-import ntpath
 import os.path as osp
 import sys
-import numpy as np
-import pandas as pd
-from sklearn import linear_model
 from scipy.stats import zscore
-from sklearn.svm import SVR
-import pickle
 import argparse
-import matplotlib.pyplot as plt
-import csv
-
-import holoviews as hv
-import hvplot.pandas
 
 log     = logging.getLogger("trainSVRs")
 log_fmt = logging.Formatter('[%(levelname)s - Main]: %(message)s')

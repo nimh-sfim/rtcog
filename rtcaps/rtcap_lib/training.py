@@ -1,9 +1,10 @@
+import sys
 import os.path as osp
 from .fMRI import load_fMRI_file, mask_fMRI_img
 import numpy as np
 import pandas as pd
 from sklearn import linear_model
-from sklearn.preprocessing import StandardScaler, MaxAbsScaler
+from sklearn.preprocessing import MaxAbsScaler
 from scipy.stats import zscore
 from sklearn.svm import SVR
 from tqdm import tqdm
@@ -181,29 +182,13 @@ class SVRtrainer(object):
         res = pool.map(train_one_svr, inputs)
         log.info(' +++ All parallel operations completed.')
         self.SVRs = {cap_lab:res[c] for c,cap_lab in enumerate(self.caps_labels)}
+        
+        # Shut down pool 
+        pool.close()
+        pool.join()
+
         return 1
 
-    # def train_one_svr(self,inputs):
-    #     cap_lab = inputs['cap_label']
-    #     print(' +++ Entering %s' % cap_lab)
-    #     data    = self.data_masked[:,self.vols4training].T
-    #     labels  = self.lm_res_z[cap_lab][self.vols4training]
-    #     C       = self.C
-    #     epsilon = self.epsilon
-    #     svr = SVR(kernel='linear', C=C, epsilon=epsilon)
-    #     svr.fit(data,labels)
-    #     print(' --- Exiting %s' % cap_lab)
-    #     return svr
-    #
-    # def train_svrs_mp(self):
-    #     num_cores = len(self.caps_labels)
-    #     inputs = ({'cap_label':cap_label} for cap_label in self.caps_labels)
-    #     pool = mp.Pool(processes=num_cores)  # Create as many processes as SVRs need to be trained
-    #     log.info(' +++ About to go parallel with %d cores' % (num_cores))
-    #     res = pool.map(self.train_one_svr, inputs)
-    #     log.info(' +++ All parallel operations completed.')
-    #     self.SVRs = {cap_lab:res[c] for c,cap_lab in enumerate(self.caps_labels)}
-    #     return 1
 
     def save_results(self):
         # Save Trained Models
@@ -271,3 +256,4 @@ class SVRtrainer(object):
         #renderer.save(LM_Layout, self.outhtml)
         log.info(' - save_results - Saved Label Computation Results (Dynamic View) to [%s.html]' % self.outhtml)
         return 1
+    
