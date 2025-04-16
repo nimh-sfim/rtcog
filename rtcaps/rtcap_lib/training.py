@@ -239,7 +239,8 @@ class SVRtrainer(object):
         plt.xlabel('Time [TRs]')
         plt.ylabel('Z-Score')
         plt.legend(self.caps_labels)
-        plt.savefig(self.outpng, dpi=200, layout='tight')
+        plt.tight_layout()
+        plt.savefig(self.outpng, dpi=200)
         log.info(' - save_results - Saved Label Computation Results to [%s]' % self.outpng)
 
         # Save Dynamic Figures
