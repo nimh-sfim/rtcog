@@ -1,41 +1,31 @@
+from random import sample
 import sys
 import pytest
 import numpy as np
 
-sys.path.append('../')
-from rtcap_lib.fMRI import *
+sys.path.append('..')
+from rtcap_lib.fMRI import mask_fMRI_img, unmask_fMRI_img
 
-@pytest.fixture
-def simulated_data():
-    """Generates simulated fMRI data"""
-    n_voxels = (64, 64, 32)
-    n_t = 150
-    data = np.random.rand(n_voxels[0], n_voxels[1], n_voxels[2], n_t)
 
-    mask_data = np.zeros(n_voxels)
-    mask_data[30:50, 30:50, 15:20] = 1
+def test_mask_fMRI_img(sample_data):
+    orig_img, mask_img = sample_data.get_imgs()
 
-    affine = np.eye(4)
-    data_img = nib.Nifti1Image(data, affine)
-    mask_img = nib.Nifti1Image(mask_data, affine)
+    masked_data = mask_fMRI_img(orig_img, mask_img)
+    expected_shape = (np.sum(mask_img.get_fdata() == 1), orig_img.shape[3])
 
-    return data_img, mask_img
-
-def test_mask_fMRI_img(simulated_data):
-    data_img, mask_img = simulated_data
-
-    masked_data = mask_fMRI_img(data_img, mask_img)
+    assert masked_data.shape == expected_shape
+    assert masked_data.shape[0] == sample_data.Nv
+    assert masked_data.shape[1] == sample_data.t
     
-    expected_shape = (np.sum(mask_img.get_fdata() == 1), data_img.shape[3])
-    assert masked_data.shape == expected_shape, f'Expected shape {expected_shape}, but got {masked_data.shape}'
 
-def test_unmask_fMRI_img(simulated_data):
-    data_img, mask_img = simulated_data
-    masked_data = mask_fMRI_img(data_img, mask_img)
+def test_unmask_fMRI_img(sample_data):
+    orig_img, mask_img = sample_data.get_imgs()
+    masked_data = mask_fMRI_img(orig_img, mask_img)
 
     unmasked_data = unmask_fMRI_img(masked_data, mask_img)
 
-    assert unmasked_data.shape == data_img.shape, f'Expected shape {data_img.shape}, but got {unmasked_data.shape}'
+    assert unmasked_data.shape == orig_img.shape
+
 
 if __name__ == "__main__":
     pytest.main()

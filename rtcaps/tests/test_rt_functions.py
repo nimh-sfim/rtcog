@@ -1,3 +1,4 @@
+from random import sample
 import sys
 import pytest
 import numpy as np
@@ -5,13 +6,12 @@ import nibabel as nib
 from numpy.testing import assert_array_equal
 
 sys.path.append('../')
-from rtcap_lib.fMRI import unmask_fMRI_img, mask_fMRI_img
 
-sys.path.append('../')
 from rtcap_lib.rt_functions import gen_polort_regressors, _is_pos_def, _iGLMVol, rt_regress_vol
 from rtcap_lib.rt_functions import rt_EMA_vol
 from rtcap_lib.rt_functions import init_kalman, _kalman_filter, rt_kalman_vol
 from rtcap_lib.rt_functions import rt_smooth_vol, rt_snorm_vol, rt_svrscore_vol
+
 
 def test_gen_polort_regressors():
     result = gen_polort_regressors(3, 5)
@@ -90,7 +90,20 @@ def test_rt_EMA_vol_no_operation():
     data_out, filt_out = rt_EMA_vol(n, t, th, data, filt_in, do_operation=False)
     
     assert_array_equal(data_out, np.array([[3], [6]]))
-    assert filt_out is None, 'filt_out should be None when do_operation=False'
+    assert filt_out is None
+
+
+# def test_rt_EMA_vol_real_data(sample_data):
+#     n = 1
+#     t = 10
+#     th = 0.98
+#     data = np.array([[1, 2, 3], [4, 5, 6]])
+#     filt_in = None
+    
+#     data_out, filt_out = rt_EMA_vol(n, t, th, data, filt_in, do_operation=True)
+    
+#     assert len(data_out) == 2
+#     assert len(filt_out) == 2
 
 
 def test_init_kalman():
@@ -102,6 +115,7 @@ def test_init_kalman():
                                  f'Expected:\n[[0.0, 0.0], [0.0, 0.0]]\n'
                                  f'Got:\n{x}')
 
+
 def test_kalman_filter():
     pass
 
@@ -110,16 +124,67 @@ def test_kalman_filter_mv():
     pass
 
 
-def test_rt_kalman_vol():
-    pass
+def test_rt_kalman_vol_no_kalman(sample_data):
+    data = sample_data.get_this_t_data()
+    res = rt_kalman_vol(
+        sample_data.n,
+        sample_data.t,
+        data.reshape(-1, 1),
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        do_operation=False
+    )
+
+    assert_array_equal(data, np.squeeze(res[0]))
+    assert all(x is None for x in res[1:])
+
+def test_rt_smooth_vol(sample_data):
+    _, mask_img = sample_data.get_imgs()
+    data = sample_data.get_this_t_data()
+
+    res = rt_smooth_vol(data, mask_img, fwhm=4)
+
+    assert isinstance(res, np.ndarray)
+    assert res.ndim == 2
+    assert res.shape == (data.shape[0], 1)
+
+    assert not np.allclose(res[:, 0], data)
+    
+
+def test_rt_smooth_vol_no_operation(sample_data):
+    _, mask_img = sample_data.get_imgs()
+    data = sample_data.get_this_t_data()
+    res = rt_smooth_vol(data, mask_img, do_operation=False)
+
+    assert isinstance(res, np.ndarray)
+    assert res.ndim == 2
+    assert res.shape == (data.shape[0], 1)
+
+    assert res.all() == data[:, np.newaxis].all()
 
 
-def test_rt_smooth_vol_no_operation():
-    pass
+def test_rt_snorm_vol(sample_data):
+    data = sample_data.get_this_t_data()
+    print(data)
+    res = rt_snorm_vol(data)
+
+    assert res.shape[0] == (data.shape[0])
+    assert np.isclose(np.mean(res), 0.0)
+    assert np.isclose(np.std(res), 1.0)
 
 
-def test_rt_snorm_vol():
-    pass
+def test_rt_snorm_vol_no_operation(sample_data):
+    data = sample_data.get_this_t_data()
+    res = rt_snorm_vol(data, do_operation=False)
+
+    assert res.shape[0] == (data.shape[0])
+    assert np.array_equal(res.flatten(), data)    
+
 
 if __name__ == "__main__":
     pytest.main()
