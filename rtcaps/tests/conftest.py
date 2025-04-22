@@ -22,16 +22,7 @@ class SampleData:
         self.t = self.orig_data.shape[-1]
         self.n = self.t - 10
     
-    def get_imgs(self):
-        return self.orig_img, self.mask_img
-    
-    def get_arrs(self):
-        return self.orig_data, self.mask_data
-    
-    def get_this_t_data(self):
-        return self.this_t_data
-    
 
-@pytest.fixture(scope="class")
+@pytest.fixture(scope="session")
 def sample_data():
     return SampleData()

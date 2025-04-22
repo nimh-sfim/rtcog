@@ -125,11 +125,10 @@ def test_kalman_filter_mv():
 
 
 def test_rt_kalman_vol_no_kalman(sample_data):
-    data = sample_data.get_this_t_data()
     res = rt_kalman_vol(
         sample_data.n,
         sample_data.t,
-        data.reshape(-1, 1),
+        sample_data.this_t_data.reshape(-1, 1),
         None,
         None,
         None,
@@ -140,50 +139,43 @@ def test_rt_kalman_vol_no_kalman(sample_data):
         do_operation=False
     )
 
-    assert_array_equal(data, np.squeeze(res[0]))
+    assert_array_equal(sample_data.this_t_data, np.squeeze(res[0]))
     assert all(x is None for x in res[1:])
 
-def test_rt_smooth_vol(sample_data):
-    _, mask_img = sample_data.get_imgs()
-    data = sample_data.get_this_t_data()
 
-    res = rt_smooth_vol(data, mask_img, fwhm=4)
+def test_rt_smooth_vol(sample_data):
+    res = rt_smooth_vol(sample_data.this_t_data, sample_data.mask_img, fwhm=4)
 
     assert isinstance(res, np.ndarray)
     assert res.ndim == 2
-    assert res.shape == (data.shape[0], 1)
+    assert res.shape == (sample_data.this_t_data.shape[0], 1)
 
-    assert not np.allclose(res[:, 0], data)
+    assert not np.allclose(res[:, 0], sample_data.this_t_data)
     
 
 def test_rt_smooth_vol_no_operation(sample_data):
-    _, mask_img = sample_data.get_imgs()
-    data = sample_data.get_this_t_data()
-    res = rt_smooth_vol(data, mask_img, do_operation=False)
+    res = rt_smooth_vol(sample_data.this_t_data, sample_data.mask_img, do_operation=False)
 
     assert isinstance(res, np.ndarray)
     assert res.ndim == 2
-    assert res.shape == (data.shape[0], 1)
+    assert res.shape == (sample_data.this_t_data.shape[0], 1)
 
-    assert res.all() == data[:, np.newaxis].all()
+    assert res.all() == sample_data.this_t_data[:, np.newaxis].all()
 
 
 def test_rt_snorm_vol(sample_data):
-    data = sample_data.get_this_t_data()
-    print(data)
-    res = rt_snorm_vol(data)
+    res = rt_snorm_vol(sample_data.this_t_data)
 
-    assert res.shape[0] == (data.shape[0])
+    assert res.shape[0] == (sample_data.this_t_data.shape[0])
     assert np.isclose(np.mean(res), 0.0)
     assert np.isclose(np.std(res), 1.0)
 
 
 def test_rt_snorm_vol_no_operation(sample_data):
-    data = sample_data.get_this_t_data()
-    res = rt_snorm_vol(data, do_operation=False)
+    res = rt_snorm_vol(sample_data.this_t_data, do_operation=False)
 
-    assert res.shape[0] == (data.shape[0])
-    assert np.array_equal(res.flatten(), data)    
+    assert res.shape[0] == (sample_data.this_t_data.shape[0])
+    assert np.array_equal(res.flatten(), sample_data.this_t_data)    
 
 
 if __name__ == "__main__":
