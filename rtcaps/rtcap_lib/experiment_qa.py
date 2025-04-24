@@ -51,7 +51,7 @@ def get_experiment_info(opts):
     dlg = gui.DlgFromDict(dictionary=expInfo, sortKeys=False, title='rtCAPs Thought Sampling')
     if dlg.OK == False:
         core.quit()  # user pressed cancel
-    expInfo['date']    = data.getDateStr()
+    expInfo['date'] = data.getDateStr()
     return expInfo
 
 class DefaultScreen:
@@ -84,7 +84,7 @@ class DefaultScreen:
             fullscr=self.fscreen, screen=self.screen, size=(1920,1080),
             winType='pyglet', allowGUI=True, allowStencil=False,
             color=[0,0,0], colorSpace='rgb',
-            blendMode='avg', useFBO=True, 
+            blendMode='avg', useFBO=True,
             units='norm')
     
     def _draw_stims(self, stims, flip=True):
@@ -103,34 +103,34 @@ class DefaultScreen:
         psychopy_logging.flush()
         core.quit()
 
+
 class QAScreen(DefaultScreen):
     def __init__(self, expInfo, opts):
         super().__init__(expInfo, opts)
         self.hitID = 1
-        self.red_color = [0.4, -0.9, -0.9]
 
         self.key_left   = expInfo['leftKey']
         self.key_right  = expInfo['rightKey']
         self.key_select = expInfo['acceptKey']
+        self.red_color = [0.4, -0.9, -0.9]
         self.likert_order = None
         
-        # Beep / Recording Screen
-        self.beep_inst = [
+        # Recording Screen
+        self.rec_inst = [
             TextStim(win=self.ewin, text='Describe aloud what you were', pos=(0.0, 0.54)),
             TextStim(win=self.ewin, text='when you heard the beep', pos=(0.0,0.3)),
-            TextStim(win=self.ewin, text='[ RECORDING ]', color=self.red_color, pos=(0.0,0.0), bold=True),
             TextStim(win=self.ewin, text='Press any key to stop recording', pos=(0.0,-0.3)),
             TextStim(win=self.ewin, text='when you finish.', pos=(0.0,-0.42)),
             ImageStim(win=self.ewin, image=osp.join(RESOURCES_DIR,'microphone_pic.png'), pos=(-0.5,0.0), size=(.2,.2))
-
         ]
+
+        self.rec_chair = TextStim(win=self.ewin, text='[ RECORDING ]', color=self.red_color, pos=(0.0,0.0), bold=True)
 
         # Post-recording screen
         self.mic_ack_rec = [
             TextStim(win=self.ewin, text='Recoding Successful', pos=(0.0,0.06), color='green', bold=True),
             TextStim(win=self.ewin, text='Thank you!', pos=(0.0,-0.06), color='green', bold=True)
         ]
-
 
         #Likert Initial Instructions
         self.likert_qa_inst = [
@@ -140,7 +140,6 @@ class QAScreen(DefaultScreen):
             TextStim(win=self.ewin, text='right before the beep',      pos=(0.0, 0.42)),
             TextStim(win=self.ewin, text='Press any key when ready',   pos=(0.0, -0.42)),
             ImageStim(win=self.ewin, image=osp.join(RESOURCES_DIR,'resp_box_form.png'), pos=(0.0,0.0), size=(0.6,0.55))
-            
         ]
 
         # Likert Questions
@@ -163,51 +162,39 @@ class QAScreen(DefaultScreen):
             'labelHeight': 0.05
         }
 
-    def draw_alert_screen(self):
-        self._draw_stims(self.beep_inst)
-        playsound(osp.join(RESOURCES_DIR, 'bike_bell.wav'))
-    
     def record_oral_descr(self):
+        self._draw_stims(self.rec_inst + [self.rec_chair])
+        playsound(osp.join(RESOURCES_DIR, 'bike_bell.wav'))
+        
         rec = Recorder(channels=1)
-        i = 0
-        op = 1
-        rec_path = osp.join(self.out_dir,self.out_prefix+'.hit'+str(self.hitID).zfill(3)+'.wav')
-        with rec.open(rec_path,'wb') as rec_file:
+
+        rec_path = osp.join(self.out_dir, self.out_prefix + '.hit' + str(self.hitID).zfill(3) + '.wav')
+        with rec.open(rec_path, 'wb') as rec_file:
+            print("Opening file")
             rec_file.start_recording()
+
+            clock = core.Clock()
+            toggle_interval = 0.6
+            last_toggle_time = 0
+
             while not event.getKeys():
-                i = i + 1
-                if i > 5000:
-                    i  = 0
-                    op = int(not(op))
-                    self.beep_inst_top_01.draw()
-                    self.beep_inst_top_02.draw()
-                    self.beep_inst_top_03.draw()
-                    self.beep_chair = TextStim(win=self.ewin, text='[ RECORDING ]', color=self.red_color, pos=(0.0,0.0), bold=True, opacity=op)
-                    self.beep_chair.draw()
-                    self.beep_inst_bot_01.draw()
-                    self.beep_inst_bot_02.draw()
-                    self.mic_image.draw()
-                    self.ewin.flip()
+                # Toggle [ RECORDING ] text every 0.6sec
+                if clock.getTime() - last_toggle_time >= toggle_interval:
+                    last_toggle_time = clock.getTime()
+                    self.rec_chair.text = "[ RECORDING ]" if not self.rec_chair.text else ""
+                
+                self._draw_stims(self.rec_inst + [self.rec_chair])
+
             rec_file.stop_recording()
     
     def draw_ack_recording_screen(self):
         self._draw_stims(self.mic_ack_rec)
         sleep(1)
         
-    def close_psychopy_infrastructure(self):
-        log.info(' - close_psychopy_infrastructure - Function called.')
-        self.ewin.flip()
-        self.ewin.close()
-        psychopy_logging.flush()
-        core.quit()
-        
     def draw_likert_instructions(self):
         self._draw_stims(self.likert_qa_inst)
         
-        while True:
-            keys = event.getKeys()
-            if keys:
-                break
+        while not event.getKeys():
             sleep(0.01)
 
     def draw_likert_questions(self, order=None):
@@ -259,9 +246,7 @@ class QAScreen(DefaultScreen):
                         core.quit()
                 
                 slider.markerPos = current_pos
-                q_text.draw()
-                slider.draw()
-                self.ewin.flip()
+                self._draw_stims([q_text, slider])
 
                 if rating is not None:
                     break
