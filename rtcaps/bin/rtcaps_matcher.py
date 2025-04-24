@@ -1,15 +1,16 @@
+from re import M
 import sys
 import argparse
 import logging
+import json
 import pickle
+import os.path as osp
 import multiprocessing as mp 
 from time import sleep
 from psychopy import event
 import holoviews as hv
+import hvplot.pandas
 import numpy as np
-import os.path as osp
-import sys, os
-import json
 import pandas as pd
 
 sys.path.insert(0, osp.abspath(osp.join(osp.dirname(__file__), '..')))
@@ -22,7 +23,7 @@ from rtcap_lib.rt_functions       import gen_polort_regressors
 from rtcap_lib.fMRI               import load_fMRI_file, unmask_fMRI_img
 from rtcap_lib.svr_methods        import is_hit_rt01
 from rtcap_lib.core               import create_win
-from rtcap_lib.experiment_qa      import get_experiment_info, experiment_QA, experiment_Preproc
+from rtcap_lib.experiment_qa      import get_experiment_info, DefaultScreen, QAScreen
 
 
 log = logging.getLogger('online_preproc')
@@ -192,6 +193,7 @@ class Experiment:
         ]
  
     def compute_TR_data(self, motion, extra):
+        # NOTE: stop saving extra data_fromAFNI variable -- extra is already that.
         # Status as we enter the function
         hit_status    = self.mp_evt_hit.is_set()
         qa_end_status = self.mp_evt_qa_end.is_set()
@@ -347,7 +349,7 @@ class Experiment:
                                                                         do_operation = self.do_kalman)
         
         if self.save_kalman: 
-            self.Data_kalman      = np.append(self.Data_kalman, klm_data_out, axis = 1)
+            self.Data_kalman      = np.append(self.Data_kalman, klm_data_out, axis=1)
             log.debug('[t=%d,n=%d] Online - Kalman - Data_kalman.shape     %s' % (self.t, self.n, str(self.Data_kalman.shape)))
         log.info(f'AT TR={self.t}: np.squeeze(klm_data_out)[:10]  = {np.squeeze(klm_data_out)[:10]}')
         # Do Spatial Smoothing (if needed)
@@ -416,6 +418,10 @@ class Experiment:
             
             # Add one more line to the hits data structure with zeros (if a hit happen, a 1 will be added later)
             self.hits = np.append(self.hits, np.zeros((self.Ncaps,1)), axis=1)
+
+            # Add fake hit for testing purposes
+            if self.t in [10,20,30,40,50]:
+                hit = "VPol"
 
             # If there was a hit, then add that one, inform the use, and set the hit event to true
             if hit is not None:
@@ -716,7 +722,8 @@ def processExperimentOptions (self, options=None):
     parser_dec.add_argument("--svr_mot_activate", help="Consider a hit if excessive motion [%(default)s]", dest="hit_domot", action="store_true", default=False )
     parser_dec.add_argument("--svr_mot_th", help="Framewise Displacement Treshold for motion [%(default)s]",  action="store", type=float, dest="svr_mot_th", default=1.2)
     parser_dec.add_argument("--svr_hit_mehod", help="Method for deciding hits [%(default)s]", type=str, choices=["method01"], default="method01", action="store", dest="hit_method")
-    parser_dec.add_argument("--svr_vols_noqa", help="Min. number of volumes to wait since end of last QA before declaing a new hit. [%(default)s]", type=int, dest='vols_noqa', default=45, action="store")
+    parser_dec.add_argument("--svr_vols_noqa", help="Min. number of volumes to wait since end of last QA before declaing a new hit. [%(default)s]", type=int, dest='vols_noqa', default=45, action="store"),
+    parser_dec.add_argument("--q_path", help="The path to the questions json file containing the question stimuli. If not a full path, it will default to look in RESOURCES_DIR", type=str, dest='q_path', default="experiment_v1", action="store")
 
     return parser.parse_args(options)
 
@@ -732,10 +739,10 @@ def main():
         json.dump(vars(opts), write_file)
     log.info('  - Options written to disk [%s]'% opts_tofile_path)
     
-    # 3) Create Multi-processing infra-structure
+    # 3) Create Multi-processing infrastructure
     # ------------------------------------------
-    mp_evt_hit    = mp.Event()    # Start with false
-    mp_evt_end    = mp.Event()    # Start with false
+    mp_evt_hit    = mp.Event() # Start with false
+    mp_evt_end    = mp.Event() # Start with false
     mp_evt_qa_end = mp.Event() # Start with false
     mp_prc_comm   = mp.Process(target=comm_process, args=(opts, mp_evt_hit, mp_evt_end, mp_evt_qa_end))
     mp_prc_comm.start()
@@ -750,7 +757,7 @@ def main():
     if opts.exp_type == "esam":
         # 4) Start GUI
         # ------------
-        cap_qa = experiment_QA(exp_info,opts)
+        cap_qa = QAScreen(exp_info,opts)
     
         # 5) Wait for things to happen
         # ----------------------------
@@ -772,7 +779,7 @@ def main():
     if opts.exp_type == "esam_test":
         # 4) Start GUI
         # ------------
-        cap_qa = experiment_QA(exp_info,opts)
+        cap_qa = QAScreen(exp_info,opts)
     
         # 5) Wait for things to happen
         # ----------------------------
@@ -788,7 +795,7 @@ def main():
     
     if opts.exp_type == "preproc" and (opts.no_gui == False):
         # 4) Start GUI
-        rest_exp = experiment_Preproc(exp_info,opts)
+        rest_exp = DefaultScreen(exp_info,opts)
 
         # 5) Keep the experiment going, until it ends
         while not mp_evt_end.is_set():
