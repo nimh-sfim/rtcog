@@ -69,7 +69,7 @@ class DefaultScreen:
         if expInfo['screen'] == 'External':
             self.screen = 1
 
-        self.ewin       = self._create_experiment_window()
+        self.ewin = self._create_experiment_window()
         
         # Default Screen
         self.default_inst = [
@@ -132,7 +132,7 @@ class QAScreen(DefaultScreen):
             TextStim(win=self.ewin, text='Thank you!', pos=(0.0,-0.06), color='green', bold=True)
         ]
 
-        #Likert Initial Instructions
+        # Likert Instructions
         self.likert_qa_inst = [
             TextStim(win=self.ewin, text='Now, please use the response box', pos=(0.0, 0.78)),
             TextStim(win=self.ewin, text='to answer additional questions',   pos=(0.0, 0.66)),
@@ -264,7 +264,6 @@ class QAScreen(DefaultScreen):
         self.draw_alert_screen()
         
         # 2) Record oral description
-        event.clearEvents()
         self.record_oral_descr()
         
         # 3) Acknowledge successful recording
@@ -273,12 +272,17 @@ class QAScreen(DefaultScreen):
         # 4) Show instructions for likert part of QA
         self.draw_likert_instructions()
         
-        # 5) Do the Likert Questionare
+        # 5) Do the Likert Questionare and write to file
         resp_dict = self.draw_likert_questions(self.likert_order)
+        
         resp_timestr = time.strftime("%Y%m%d-%H%M%S")
-        resp_path = osp.join(self.out_dir,self.out_prefix+'.'+resp_timestr+'.LikertResponses'+str(self.hitID).zfill(3)+'.txt')
-        w = csv.writer(open(resp_path, "w"))
-        for key, val in resp_dict.items():
-            w.writerow([key, val])
-        self.hitID = self.hitID + 1
+        resp_path = osp.join(self.out_dir, f'{self.out_prefix}.{resp_timestr}.LikertResponses{str(self.hitID).zfill(3)}.txt')
+        
+        with open(resp_path, 'w') as f:
+            w = csv.writer(f)
+            for key, val in resp_dict.items():
+                w.writerow([key, val])
+
+        self.hitID += 1
+
         return resp_dict

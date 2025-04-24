@@ -15,13 +15,13 @@
         "name": "valence"
     },
     {
-        "text": "Were was your attention focused?",
+        "text": "Where was your attention focused?",
         "labels": ["Fully in\ninternal world", "Mostly in\ninternal world", "Not Sure", "Mostly in\nexternal world", "Fully in\nexternal world"],
-        "name": "rs_time"
+        "name": "focus"
     },
     {
         "text": "Were you in control of your thoughts/experience or did it emerge spontaneously?",
-        "labels": ["Not at all", "Somewhat effortful", "Very effortful", "Extremely effortful"],
+        "labels": ["Fully in control","Somewhat in control","Not Sure","Somewhat spontaneously","Fully spontaneously"],
         "name": "intention"
     },
     {
