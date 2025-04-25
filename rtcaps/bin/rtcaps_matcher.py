@@ -15,6 +15,7 @@ import pandas as pd
 
 sys.path.insert(0, osp.abspath(osp.join(osp.dirname(__file__), '..')))
 
+from config                       import RESOURCES_DIR
 from rtcap_lib.receiver_interface import ReceiverInterface
 from rtcap_lib.core               import welford
 from rtcap_lib.rt_functions       import rt_EMA_vol, rt_regress_vol, rt_kalman_vol, kalman_filter_mv
@@ -175,6 +176,7 @@ class Experiment:
         else:
             self.pool = None
 
+
     def _initialize_kalman_pool(self):
         Nv = int(self.mask_Nv)
         return [
@@ -215,9 +217,6 @@ class Experiment:
                 log.error(f'Extra data not read in correctly.')
                 log.error(f'Expected length: {self.Nv} | Actual length: {len(this_t_data)}')
                 sys.exit(-1)
-        log.debug(f'AT TR={self.t}: this_t_data[:10]  = {this_t_data[:10]}')
-        log.debug(f'this_t_data.shape = {this_t_data.shape}')
-
 
         # Update n (only if not longer a discard volume)
         if self.t > self.nvols_discard - 1:
@@ -364,13 +363,9 @@ class Experiment:
         # ====================================
         # log.debug(f"smooth_out: {np.unique(smooth_out)}")
         norm_out = rt_snorm_vol(np.squeeze(smooth_out), do_operation=self.do_snorm)
-        log.debug(f'Norm out: {norm_out}')
-        log.debug(f"Data_norm.shape = {self.Data_norm.shape}")
-        log.debug(f"norm_out.shape = {norm_out.shape}")
         # Just putting an extra value on the end of each list in Data_norm. Not sure what this does
         # norm_out is not used elsewhere in preproc, nor is it indexed into in Data_norm
         self.Data_norm = np.append(self.Data_norm, norm_out, axis=1)
-        log.debug(f'Data_norm after appending norm out: {self.Data_norm}')
 
         if self.exp_type == "esam" or self.exp_type == "esam_test":
 
@@ -419,10 +414,6 @@ class Experiment:
             # Add one more line to the hits data structure with zeros (if a hit happen, a 1 will be added later)
             self.hits = np.append(self.hits, np.zeros((self.Ncaps,1)), axis=1)
 
-            # Add fake hit for testing purposes
-            if self.t in [10,20,30,40,50]:
-                hit = "VPol"
-
             # If there was a hit, then add that one, inform the use, and set the hit event to true
             if hit is not None:
                 #if (hit != None) and ( hit_status == False ) and (self.t >= self.lastQA_endTR + self.vols_noqa):
@@ -470,9 +461,6 @@ class Experiment:
             out_vars.append(self.Data_FromAFNI)
             out_labels.append('.orig.nii')
         for variable, file_suffix in zip(out_vars, out_labels):
-            print("HERE")
-            print(variable)
-            print(file_suffix)
             unmask_fMRI_img(variable, self.mask_img, osp.join(self.out_dir,self.out_prefix+file_suffix))
 
         if self.do_iGLM and self.save_iGLM:
@@ -574,6 +562,7 @@ class Experiment:
             log.error(traceback.format_exc(e))
             self.mp_evt_end.set()
             sys.exit(-1)
+
         self.Ncaps = len(self.SVRs.keys())
         self.caps_labels = list(self.SVRs.keys())
         log.info('- setup_esam_run - List of CAPs to be tested: %s' % str(self.caps_labels))
@@ -648,31 +637,6 @@ def comm_process(opts, mp_evt_hit, mp_evt_end, mp_evt_qa_end):
     print('- comm_process - ready to end ')
     return rv
 
-# ===================================================
-# =========   Functions (for GUI Process)   =========
-# ===================================================
-def create_psychopy_win(opts):
-    #create a window
-    if opts.fullscreen:
-        ewin = Window(fullscr = opts.fullscreen, allowGUI=False, units='norm')
-    else:
-        ewin = Window(screen_size, allowGUI=False, units='norm')
-    return ewin
-
-def show_initial_screen(ewin):
-    #create some stimuli
-    text_inst_line01 = TextStim(win=ewin, text='Please fixate on x-hair,',pos=(0.0,0.4))
-    text_inst_line02 = TextStim(win=ewin, text='remain awake,',           pos=(0.0,0.28))
-    text_inst_line03 = TextStim(win=ewin, text='and let your mind wander.',pos=(0.0,0.16))
-    text_inst_chair  = TextStim(win=ewin, text='X', pos=(0,0))
-
-    #plot on the screen
-    text_inst_line01.draw()
-    text_inst_line02.draw()
-    text_inst_line03.draw()
-    text_inst_chair.draw()
-    ewin.flip()
-    return 1
 
 def processExperimentOptions (self, options=None):
     parser = argparse.ArgumentParser(description="rtCAPs experimental software. Based on NIH-neurofeedback software")
@@ -723,7 +687,7 @@ def processExperimentOptions (self, options=None):
     parser_dec.add_argument("--svr_mot_th", help="Framewise Displacement Treshold for motion [%(default)s]",  action="store", type=float, dest="svr_mot_th", default=1.2)
     parser_dec.add_argument("--svr_hit_mehod", help="Method for deciding hits [%(default)s]", type=str, choices=["method01"], default="method01", action="store", dest="hit_method")
     parser_dec.add_argument("--svr_vols_noqa", help="Min. number of volumes to wait since end of last QA before declaing a new hit. [%(default)s]", type=int, dest='vols_noqa', default=45, action="store"),
-    parser_dec.add_argument("--q_path", help="The path to the questions json file containing the question stimuli. If not a full path, it will default to look in RESOURCES_DIR", type=str, dest='q_path', default="experiment_v1", action="store")
+    parser_dec.add_argument("--q_path", help="The path to the questions json file containing the question stimuli. If not a full path, it will default to look in RESOURCES_DIR", type=str, dest='q_path', default="questions_v1", action="store")
 
     return parser.parse_args(options)
 
@@ -733,6 +697,24 @@ def main():
     log.info('1) Reading input parameters...')
     opts = processExperimentOptions(sys.argv)
     log.debug('User Options: %s' % str(opts))
+
+    # Load Likert questions before starting up GUI
+    if opts.exp_type in ["esam", "esam_test"]:
+        if not opts.q_path:
+            log.error('Path to Likert questions was not provided. Program will exit.')
+            sys.exit(-1)
+        if not osp.isfile(opts.q_path):
+            fname = opts.q_path + ".json" if not opts.q_path.endswith(".json") else opts.q_path 
+            opts.q_path = osp.join(RESOURCES_DIR, fname)
+        try:
+            with open(opts.q_path, 'r') as f:
+                opts.likert_questions = json.load(f)
+        except json.JSONDecodeError:
+            log.error(f'The question file at {opts.q_path} is not a valid JSON.')
+            sys.exit(-1)
+        except Exception as e:
+            log.error(f'Error loading questions at {opts.q_path}: {e}')
+            sys.exit(-1)
 
     opts_tofile_path = osp.join(opts.out_dir, opts.out_prefix+'_Options.json')
     with open(opts_tofile_path, "w") as write_file:
@@ -757,7 +739,7 @@ def main():
     if opts.exp_type == "esam":
         # 4) Start GUI
         # ------------
-        cap_qa = QAScreen(exp_info,opts)
+        cap_qa = QAScreen(exp_info, opts)
     
         # 5) Wait for things to happen
         # ----------------------------
@@ -795,7 +777,7 @@ def main():
     
     if opts.exp_type == "preproc" and (opts.no_gui == False):
         # 4) Start GUI
-        rest_exp = DefaultScreen(exp_info,opts)
+        rest_exp = DefaultScreen(exp_info, opts)
 
         # 5) Keep the experiment going, until it ends
         while not mp_evt_end.is_set():

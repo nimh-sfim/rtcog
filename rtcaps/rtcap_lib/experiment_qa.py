@@ -143,12 +143,7 @@ class QAScreen(DefaultScreen):
         ]
 
         # Likert Questions
-        self.q_path = opts.q_path
-        if not osp.isfile(self.q_path):
-            fname = self.q_path + ".json" if not self.q_path.endswith(".json") else self.q_path 
-            self.q_path = osp.join(RESOURCES_DIR, fname)
-        with open (self.q_path, 'r') as f:
-            self.likert_questions = json.load(f)
+        self.likert_questions = opts.likert_questions
 
         # Likert slider opts
         self.slider_opts = {
@@ -200,16 +195,10 @@ class QAScreen(DefaultScreen):
             order = range(len(self.likert_questions))
         
         for q_idx in order:
-            start_time = core.getTime()
+            clock = core.Clock()
             q = self.likert_questions[q_idx]
             
-            q_text = TextStim(
-                win=self.ewin, 
-                text=q['text'], 
-                pos=(0.0, 0.2), 
-                color='black',
-                height=0.1
-            )
+            q_text = TextStim(win=self.ewin, text=q['text'], pos=(0.0, 0.2), color='black',height=0.1)
 
             labels = q.get('labels', ['Strongly\ndisagree', 'Somewhat\ndisagree', 'Neutral', 'Somewhat agree', 'Strongly agree']) # Fall back on default labels
             ticks = list(range(1, len(labels) + 1))
@@ -245,7 +234,7 @@ class QAScreen(DefaultScreen):
                 self._draw_stims([q_text, slider])
 
                 if rating is not None:
-                    rt = core.getTime() - start_time
+                    rt = clock.getTime()
                     break
 
             responses[q['name']] = (rating, rt)
@@ -279,7 +268,9 @@ class QAScreen(DefaultScreen):
             for key, val in resp_dict.items():
                 rating, rt = val
                 w.writerow([key, rating, round(rt, 2)])
-
+        
+        log.info(f'Likert responses written to {resp_path}')
+        
         self.hitID += 1
 
         return resp_dict
