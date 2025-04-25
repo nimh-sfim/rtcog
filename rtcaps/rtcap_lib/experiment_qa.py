@@ -5,7 +5,7 @@ import csv
 import json
 import logging
 from playsound import playsound
-from recorder import Recorder
+from .recorder import Recorder
 
 from psychopy import core, event, gui, data
 from psychopy.hardware import keyboard
@@ -14,10 +14,10 @@ from psychopy.visual import TextStim, Window, ImageStim
 from psychopy.visual.slider import Slider 
 
 
-# from config import RESOURCES_DIR
-this_dir = osp.dirname(osp.realpath(__file__))
-code_dir = osp.abspath(osp.join(this_dir, '..'))
-RESOURCES_DIR = osp.join(code_dir, 'resources/')
+from config import RESOURCES_DIR
+# this_dir = osp.dirname(osp.realpath(__file__))
+# code_dir = osp.abspath(osp.join(this_dir, '..'))
+# RESOURCES_DIR = osp.join(code_dir, 'resources/')
 
 log = logging.getLogger("experiment_qa")
 log.setLevel(logging.INFO)
@@ -83,9 +83,9 @@ class DefaultScreen:
         return Window(
             fullscr=self.fscreen, screen=self.screen, size=(1920,1080),
             winType='pyglet', allowGUI=True, allowStencil=False,
-            color=[0,0,0], colorSpace='rgb',
-            blendMode='avg', useFBO=True,
-            units='norm')
+            color=[0,0,0], colorSpace='rgb', blendMode='avg',
+            useFBO=True, units='norm'
+        )
     
     def _draw_stims(self, stims, flip=True):
         for stim in stims:
@@ -170,7 +170,6 @@ class QAScreen(DefaultScreen):
 
         rec_path = osp.join(self.out_dir, self.out_prefix + '.hit' + str(self.hitID).zfill(3) + '.wav')
         with rec.open(rec_path, 'wb') as rec_file:
-            print("Opening file")
             rec_file.start_recording()
 
             clock = core.Clock()
@@ -193,9 +192,7 @@ class QAScreen(DefaultScreen):
         
     def draw_likert_instructions(self):
         self._draw_stims(self.likert_qa_inst)
-        
-        while not event.getKeys():
-            sleep(0.01)
+        event.waitKeys()
 
     def draw_likert_questions(self, order=None):
         responses = {}
@@ -203,8 +200,8 @@ class QAScreen(DefaultScreen):
             order = range(len(self.likert_questions))
         
         for q_idx in order:
+            start_time = core.getTime()
             q = self.likert_questions[q_idx]
-            print(f"Drawing question {q_idx + 1}: {q['text']}")
             
             q_text = TextStim(
                 win=self.ewin, 
@@ -230,7 +227,6 @@ class QAScreen(DefaultScreen):
             rating = None
             event.clearEvents()
             
-            # NOTE: add RT to response dict?
             while True:
                 keys = event.getKeys()
                 for key in keys:
@@ -249,10 +245,11 @@ class QAScreen(DefaultScreen):
                 self._draw_stims([q_text, slider])
 
                 if rating is not None:
+                    rt = core.getTime() - start_time
                     break
 
-            responses[q['name']] = rating
-            print(f"Rating: {rating}")
+            responses[q['name']] = (rating, rt)
+            
             core.wait(0.5)
             self.ewin.flip()
 
@@ -260,28 +257,28 @@ class QAScreen(DefaultScreen):
 
 
     def run_full_QA(self):
-        # 1) Play beep and instruct subject to talk
-        self.draw_alert_screen()
-        
-        # 2) Record oral description
+        # 1) Play beep and record oral description
         self.record_oral_descr()
         
-        # 3) Acknowledge successful recording
+        # 2) Acknowledge successful recording
         self.draw_ack_recording_screen()
         
-        # 4) Show instructions for likert part of QA
+        # 3) Show instructions for likert part of QA
         self.draw_likert_instructions()
         
-        # 5) Do the Likert Questionare and write to file
+        # 4) Do the Likert questionnaire
         resp_dict = self.draw_likert_questions(self.likert_order)
-        
-        resp_timestr = time.strftime("%Y%m%d-%H%M%S")
+
+        # 5) Write results to file
+        resp_timestr = time.strftime('%Y%m%d-%H%M%S')
         resp_path = osp.join(self.out_dir, f'{self.out_prefix}.{resp_timestr}.LikertResponses{str(self.hitID).zfill(3)}.txt')
         
         with open(resp_path, 'w') as f:
             w = csv.writer(f)
+            w.writerow(['question', 'rating', 'rt'])
             for key, val in resp_dict.items():
-                w.writerow([key, val])
+                rating, rt = val
+                w.writerow([key, rating, round(rt, 2)])
 
         self.hitID += 1
 
