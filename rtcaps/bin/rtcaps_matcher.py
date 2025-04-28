@@ -1,5 +1,5 @@
-from re import M
 import sys
+import time
 import argparse
 import logging
 import json
@@ -195,7 +195,7 @@ class Experiment:
         ]
  
     def compute_TR_data(self, motion, extra):
-        # NOTE: stop saving extra data_fromAFNI variable -- extra is already that.
+        # TODO: stop saving extra data_fromAFNI variable -- extra is already that.
         # Status as we enter the function
         hit_status    = self.mp_evt_hit.is_set()
         qa_end_status = self.mp_evt_qa_end.is_set()
@@ -315,7 +315,6 @@ class Experiment:
         if self.save_ema: 
             self.Data_EMA = np.append(self.Data_EMA, ema_data_out, axis=1)
             log.debug('[t=%d,n=%d] Online - EMA - Data_EMA.shape      %s' % (self.t, self.n, str(self.Data_EMA.shape)))
-        log.info(f'AT TR={self.t}: ema_data_out[:10]  = {ema_data_out[:10]}')
         # Do iGLM (if needed)
         # ===================
         if self.iGLM_motion:
@@ -332,7 +331,6 @@ class Experiment:
             self.iGLM_Coeffs  = np.append(self.iGLM_Coeffs, Bn, axis = 2) 
             log.debug('[t=%d,n=%d] Online - iGLM - Data_iGLM.shape     %s' % (self.t, self.n, str(self.Data_iGLM.shape)))
             log.debug('[t=%d,n=%d] Online - iGLM - iGLM_Coeffs.shape   %s' % (self.t, self.n, str(self.iGLM_Coeffs.shape)))
-        log.info(f'AT TR={self.t}: iGLM_data_out[:10]  = {iGLM_data_out[:10]}')
         # Do Kalman Low-Pass Filter (if needed)
         # =====================================
         klm_data_out, self.S_x, self.S_P, self.fPositDerivSpike, self.fNegatDerivSpike = rt_kalman_vol(self.n,
@@ -358,10 +356,8 @@ class Experiment:
             self.Data_smooth = np.append(self.Data_smooth, smooth_out, axis=1)
             log.debug('[t=%d,n=%d] Online - Smooth - Data_smooth.shape   %s' % (self.t, self.n, str(self.Data_smooth.shape)))
             log.debug('[t=%d,n=%d] Online - EMA - smooth_out.shape      %s' % (self.t, self.n, str(smooth_out.shape)))
-        log.info(f'AT TR={self.t}: smooth_out[:10]  = {smooth_out[:10]}')
         # Do Spatial Normalization (if needed)
         # ====================================
-        # log.debug(f"smooth_out: {np.unique(smooth_out)}")
         norm_out = rt_snorm_vol(np.squeeze(smooth_out), do_operation=self.do_snorm)
         # Just putting an extra value on the end of each list in Data_norm. Not sure what this does
         # norm_out is not used elsewhere in preproc, nor is it indexed into in Data_norm
@@ -394,7 +390,7 @@ class Experiment:
             # ========================
             # IF QA ended during the past TR (as I saved the status as soon as compute_TR started), then
             # update the last_QA_endTR and clear events
-            if qa_end_status == True:
+            if qa_end_status is True:
                 self.lastQA_endTR = self.t
                 self.qa_offsets.append(self.t)
                 self.mp_evt_qa_end.clear()
@@ -403,6 +399,7 @@ class Experiment:
             # IF needed (e.g., not in hit mode, and late enough since last time), then compute if
             # a hit is taking place or not.
             if (hit_status == True) or (self.t <= self.lastQA_endTR + self.vols_noqa):
+                print(f"+++ Here")
                 hit = None
             else:
                 hit = self.hit_method_func(self.t,
@@ -731,7 +728,7 @@ def main():
 
     # 2) Get additional info using the GUI
     # ------------------------------------
-    if opts.no_gui == False:
+    if not opts.no_gui:
         exp_info = get_experiment_info(opts)
 
     # 3) Depending on the type of run.....
@@ -775,20 +772,27 @@ def main():
         # ------------------------
         cap_qa.close_psychopy_infrastructure()
     
-    if opts.exp_type == "preproc" and (opts.no_gui == False):
-        # 4) Start GUI
-        rest_exp = DefaultScreen(exp_info, opts)
+    if opts.exp_type == "preproc":
+        if not opts.no_gui:
+            # 4) Start GUI
+            rest_exp = DefaultScreen(exp_info, opts)
 
-        # 5) Keep the experiment going, until it ends
-        while not mp_evt_end.is_set():
-            rest_exp.draw_resting_screen()
-            if event.getKeys(['escape']):
-                log.info('- User pressed escape key')
-                mp_evt_end.set()
+            # 5) Keep the experiment going, until it ends
+            while not mp_evt_end.is_set():
+                rest_exp.draw_resting_screen()
+                if event.getKeys(['escape']):
+                    log.info('- User pressed escape key')
+                    mp_evt_end.set()
+
+            # 6) Close Psychopy Window
+            # ------------------------
+            rest_exp.close_psychopy_infrastructure()
+        else:
+            # 4) In no_gui mode, wait passively for experiment to end
+            while not mp_evt_end.is_set():
+                time.sleep(0.1)
         
-        # 6) Close Psychopy Window
-        # ------------------------
-        rest_exp.close_psychopy_infrastructure()
+        
     log.info(' - main - Reached end of Main in primary thread')
     return 1
 
