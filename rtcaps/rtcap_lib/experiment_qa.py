@@ -2,7 +2,6 @@ from time import sleep
 import time
 import os.path as osp
 import csv
-import json
 import logging
 from playsound import playsound
 from .recorder import Recorder
@@ -158,6 +157,7 @@ class QAScreen(DefaultScreen):
         }
 
     def record_oral_descr(self):
+        event.clearEvents()
         self._draw_stims(self.rec_inst + [self.rec_chair])
         playsound(osp.join(RESOURCES_DIR, 'bike_bell.wav'))
         
@@ -195,7 +195,6 @@ class QAScreen(DefaultScreen):
             order = range(len(self.likert_questions))
         
         for q_idx in order:
-            clock = core.Clock()
             q = self.likert_questions[q_idx]
             
             q_text = TextStim(win=self.ewin, text=q['text'], pos=(0.0, 0.2), color='black',height=0.1)
@@ -215,6 +214,10 @@ class QAScreen(DefaultScreen):
 
             rating = None
             event.clearEvents()
+
+            slider.markerPos = current_pos
+            self._draw_stims([q_text, slider])
+            clock = core.Clock()
             
             while True:
                 keys = event.getKeys()
