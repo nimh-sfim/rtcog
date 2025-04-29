@@ -52,7 +52,6 @@ log.addHandler(stream_handler)
 from psychopy import prefs
 prefs.hardware['audioLib'] = ['pyo']
 
-screen_size = [512, 288]
 CAP_indexes = [25,4,18,28,24,11,21]
 CAP_labels  = ['VPol','DMN','SMot','Audi','ExCn','rFPa','lFPa']
 
@@ -195,7 +194,8 @@ class Experiment:
         ]
  
     def compute_TR_data(self, motion, extra):
-        # TODO: stop saving extra data_fromAFNI variable -- extra is already that.
+        # NOTE: extra and save_orig's data_FromAFNI are identical
+        # TODO: stop appending motion_estimates
         # Status as we enter the function
         hit_status    = self.mp_evt_hit.is_set()
         qa_end_status = self.mp_evt_qa_end.is_set()
@@ -218,6 +218,8 @@ class Experiment:
                 log.error(f'Expected length: {self.Nv} | Actual length: {len(this_t_data)}')
                 sys.exit(-1)
 
+        del extra # Save resources
+
         # Update n (only if not longer a discard volume)
         if self.t > self.nvols_discard - 1:
             self.n += 1
@@ -226,9 +228,6 @@ class Experiment:
                                     self.mp_evt_hit.is_set(),
                                     self.mp_evt_qa_end.is_set(),
                                     self.mp_evt_end.is_set()))
-        
-        
-        #JAVIER USED TO this_t_data = np.array(extra)
         
         # If first volume, then create empty structures and call it a day (TR)
         if self.t == 0:
@@ -298,7 +297,7 @@ class Experiment:
         self.welford_M, self.welford_S, self.welford_std = welford(self.n, this_t_data, self.welford_M, self.welford_S)
         log.info('Welford Method Ouputs: M=%s | S=%s | std=%s' % (str(self.welford_M), str(self.welford_S), str(self.welford_std)))
         # if self.t == 11:
-        #     log.debug(f'self.welford_std = {self.welford_std}')
+        #     log.debug(f'self.welford_std = {self.welford_std}') 
         #     sys.exit()
         
         # If we reach this point, it means we have work to do
@@ -348,7 +347,6 @@ class Experiment:
         if self.save_kalman: 
             self.Data_kalman      = np.append(self.Data_kalman, klm_data_out, axis=1)
             log.debug('[t=%d,n=%d] Online - Kalman - Data_kalman.shape     %s' % (self.t, self.n, str(self.Data_kalman.shape)))
-        log.info(f'AT TR={self.t}: np.squeeze(klm_data_out)[:10]  = {np.squeeze(klm_data_out)[:10]}')
         # Do Spatial Smoothing (if needed)
         # ================================
         smooth_out = rt_smooth_vol(np.squeeze(klm_data_out), self.mask_img, fwhm=self.FWHM, do_operation=self.do_smooth)
@@ -422,10 +420,6 @@ class Experiment:
         return 1
 
     def final_steps(self):
-        #if self.ewin is not None:
-        #        log.info('Psychopy UI closing.')
-        #        self.ewin.close()
-
         # Write out motion
         self.motion_estimates = [item for sublist in self.motion_estimates for item in sublist]
         log.info('self.motion_estimates length is %d' % len(self.motion_estimates))
@@ -636,7 +630,22 @@ def comm_process(opts, mp_evt_hit, mp_evt_end, mp_evt_qa_end):
 
 
 def processExperimentOptions (self, options=None):
-    parser = argparse.ArgumentParser(description="rtCAPs experimental software. Based on NIH-neurofeedback software")
+    pre_parser = argparse.ArgumentParser(add_help=False)
+    pre_parser.add_argument("-c", "--config", dest="config", help="JSON file containing experiment options")
+    pre_args, _ = pre_parser.parse_known_args(options)
+
+    if pre_args.config:
+        # Load options from json file and return as Namespace
+        with open(pre_args.config, 'r') as f:
+            config_data = json.load(f)
+        return argparse.Namespace(**config_data)
+
+    # If no json file is provided, parse args as usual
+    parser = argparse.ArgumentParser(
+    description="rtCAPs experimental software. Based on NIH-neurofeedback software. "
+                "You can optionally provide a JSON config file via --config to set all options."
+    )
+
     parser_gen = parser.add_argument_group("General Options")
     parser_gen.add_argument("-d", "--debug", action="store_true", dest="debug",  help="Enable debugging output [%(default)s]", default=False)
     parser_gen.add_argument("-s", "--silent",   action="store_true", dest="silent", help="Minimal text messages [%(default)s]", default=False)
