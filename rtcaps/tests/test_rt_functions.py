@@ -56,12 +56,11 @@ def test_rt_regress_vol():
 
 def test_rt_EMA_vol_do_operation_first():
     n = 1
-    t = 10
     th = 0.98
     data = np.array([[1, 2, 3], [4, 5, 6]])
     filt_in = None
     
-    data_out, filt_out = rt_EMA_vol(n, t, th, data, filt_in, do_operation=True)
+    data_out, filt_out = rt_EMA_vol(n, th, data, filt_in, do_operation=True)
     
     assert len(data_out) == 2
     assert len(filt_out) == 2
@@ -69,12 +68,11 @@ def test_rt_EMA_vol_do_operation_first():
 
 def test_rt_EMA_vol_do_operation_second():
     n = 2
-    t = 10
     th = 0.98
     data = np.array([[1, 2, 3], [4, 5, 6]])
     filt_in = [[1], [2]]
     
-    data_out, filt_out = rt_EMA_vol(n, t, th, data, filt_in, do_operation=True)
+    data_out, filt_out = rt_EMA_vol(n, th, data, filt_in, do_operation=True)
     
     assert len(data_out) == 2
     assert len(filt_out) == 2
@@ -82,12 +80,11 @@ def test_rt_EMA_vol_do_operation_second():
 
 def test_rt_EMA_vol_no_operation():
     n = 2
-    t = 1
     th = 0.98
     data = np.array([[1, 2, 3], [4, 5, 6]])
     filt_in = None
     
-    data_out, filt_out = rt_EMA_vol(n, t, th, data, filt_in, do_operation=False)
+    data_out, filt_out = rt_EMA_vol(n, th, data, filt_in, do_operation=False)
     
     assert_array_equal(data_out, np.array([[3], [6]]))
     assert filt_out is None
@@ -95,12 +92,11 @@ def test_rt_EMA_vol_no_operation():
 
 # def test_rt_EMA_vol_real_data(sample_data):
 #     n = 1
-#     t = 10
 #     th = 0.98
 #     data = np.array([[1, 2, 3], [4, 5, 6]])
 #     filt_in = None
     
-#     data_out, filt_out = rt_EMA_vol(n, t, th, data, filt_in, do_operation=True)
+#     data_out, filt_out = rt_EMA_vol(n, th, data, filt_in, do_operation=True)
     
 #     assert len(data_out) == 2
 #     assert len(filt_out) == 2

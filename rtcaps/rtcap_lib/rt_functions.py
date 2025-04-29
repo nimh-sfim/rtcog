@@ -53,7 +53,7 @@ def _is_pos_def(x):
         
     Returns:
     --------
-    out: boolean
+    out: bool
     """
     return np.all(np.linalg.eigvals(x) > 1e-10)
 
@@ -78,10 +78,10 @@ def _iGLMVol(n,Yn,Fn,Dn,Cn,s2n):
     Cn: np.array []
         matrix for Cholesky decomposition at time n-1 (Eq. 15)
     s2n: np.array []
-        sigma square estimate for n-1 
+        sigma square estimate for n-1
+
     Returns:
     --------
-    
     Bn: np.array []
         current estimates for linear regression coefficients at time n
     Cn: np.array []
@@ -107,20 +107,52 @@ def _iGLMVol(n,Yn,Fn,Dn,Cn,s2n):
         Bn = np.zeros((nv,nrBasFct))
     return Bn,Cn,Dn,s2n
 
-def rt_regress_vol(n,Yn,Fn,prev, do_operation = True):
+def rt_regress_vol(n, Yn, Fn, prev, do_operation=True):
+    """Apply real-time regression to fMRI data.
+
+    This function performs real-time regression using a General Linear Model (GLM) to estimate the 
+    regression coefficients (Bn) and remove the effects of nuisance regressors from the input fMRI data 
+    (Yn). It updates the GLM matrices (Cn, Dn) and the sigma square estimate (s2n) for each new data point.
+
+    Parameters:
+    -----------
+    n: int
+        Current volume number. Not to be confused with the current
+        acquisition number.
+    Yn: np.ndarray, shape (Nvoxels, 1)
+        The current fMRI data point (masked).
+    Fn: np.ndarray, shape (Nregressors, 1)
+        The current regressor values (e.g., motion, trends, etc.)
+    prev: dict
+        A dictionary containing the previous state of the GLM, including 'Cn', 'Dn', and 's2n' from 
+        the previous time point.
+    do_operation: bool, optional
+        A flag to determine whether the operation should be applied. If False, it returns the 
+        input data without modification. Default is True.
+
+    Returns:
+    --------
+    np.ndarray
+        The residual (detrended) fMRI data after removing the effects of the nuisance regressors, 
+        reshaped into a 2D array.
+    dict
+        A dictionary containing the updated GLM state, including the updated 'Cn', 'Dn', and 's2n'.
+    np.ndarray
+        The updated regression coefficient estimates for the current volume (Bn), reshaped into a 3D array.
+    """
     if not do_operation:
-        L   = Fn.shape[0]                               # Number of Regressors
+        L   = Fn.shape[0] # Number of Regressors
         Nv  = Yn.shape[0]
         b_out = np.zeros((Nv,L,1))
         p_out = {'Cn':None, 'Dn':None,'s2n':None}
         y_out = Yn
         return y_out, p_out, b_out
     if n == 1:
-        L   = Fn.shape[0]                               # Number of Regressors
+        L   = Fn.shape[0] # Number of Regressors
         Nv  = Yn.shape[0]
-        Cn  = np.zeros((L,L), dtype='float64')                  # Matrix for Cholesky decomposition
-        Dn  = np.zeros((Nv, L), dtype='float64')   # Dn
-        s2n = np.zeros((Nv, 1), dtype='float64')   # Sigma Estimates
+        Cn  = np.zeros((L,L), dtype='float64') # Matrix for Cholesky decomposition
+        Dn  = np.zeros((Nv, L), dtype='float64') # Dn
+        s2n = np.zeros((Nv, 1), dtype='float64') # Sigma Estimates
     else:
         Cn  = prev['Cn']
         Dn  = prev['Dn']
@@ -141,20 +173,43 @@ def init_EMA():
     EMA_filt    = None
     return EMA_th, EMA_filt
 
-def _apply_EMA_filter(a,emaIn,filtInput):
+def _apply_EMA_filter(a, emaIn, filtInput):
     A            = (np.array([a,1-a])[:,np.newaxis]).T
     EMA_filt_out = np.dot(A, np.hstack([filtInput,emaIn]).T).T
     EMA_out      = emaIn - EMA_filt_out
     return EMA_out,EMA_filt_out
 
-def rt_EMA_vol(n,t,th,data,filt_in, do_operation=True):
+def rt_EMA_vol(n, th, data, filt_in, do_operation=True):
+    """ Calculate the rate of change of Exponential Moving Average (EMA) for a given time series data.
+
+    Parameters:
+    -----------
+    n: int
+        Current volume number entering the function. Not to be confused with the current
+        acquisition number.
+    th: float
+        The threshold value for the EMA filter.
+    data: np.ndarray
+        The data to be processed.
+    filt_in: np.ndarray
+        The previous output of the EMA filter, used as an input to the next filtering step.
+    do_operation: bool, optional
+        A flag that determines whether to apply the operation. If set to True, the operation is performed.
+        Default is True.
+
+    Returns:
+    --------
+    data_out: np.ndarray
+        The output data after applying the operation.
+    filt_out: np.ndarray or None
+        The updated filter state after applying the EMA operation, or None if the operation is skipped.
+    """
     if do_operation: # Apply this operation
         if n == 1:   # First step
             filt_out = data[:,-1][:,np.newaxis]
             data_out = (data[:,-1] - data[:,-2])[:,np.newaxis] 
-        else:        # Any other step
+        else:
             data_out, filt_out = _apply_EMA_filter(th,data[:,-1][:,np.newaxis],filt_in)
-            #data_out = np.squeeze(data_out)
     else: # Do not apply this operation
         data_out = data[:,-1][:,np.newaxis]
         filt_out = None
@@ -458,6 +513,27 @@ def _smooth_array(arr, affine, fwhm=None, ensure_finite=True, copy=True):
     return arr
 
 def rt_smooth_vol(data_arr, mask_img, fwhm=4, do_operation=True):
+    """Apply smoothing to fMRI data volumes.
+
+    Parameters:
+    -----------
+    data_arr: np.ndarray
+        The input fMRI data array to be processed.
+    mask_img: nibabel.Nifti1Image
+        A binary mask image.
+    fwhm: float, optional
+        The full width at half maximum (FWHM) value used to define the smoothing kernel. 
+        The default is 4 mm.
+    do_operation: bool, optional
+        A flag indicating whether to apply the smoothing operation. If False, the input data 
+        is returned without modification. Default is True.
+
+    Returns:
+    --------
+    np.ndarray
+        The smoothed fMRI data, or the original data if `do_operation` is False. The result 
+        is returned as a 2D array with a new axis for compatibility with downstream operations.
+    """
     if do_operation:
         x      = unmask_fMRI_img(data_arr, mask_img)
         x_sm   = _smooth_array(x, affine=mask_img.affine, fwhm=fwhm)
@@ -469,6 +545,21 @@ def rt_smooth_vol(data_arr, mask_img, fwhm=4, do_operation=True):
 # Spatial Z-scoring Function
 # ==========================
 def rt_snorm_vol(data, do_operation=True):
+    """Perform spatial Z-scoring on the input data.
+
+    Parameters:
+    -----------
+    data: np.ndarray
+        The input data to be normalized.
+    do_operation: bool, optional
+        A flag indicating whether to perform the normalization operation. If False, the 
+        input data is returned without modification. Default is True.
+
+    Returns:
+    --------
+    np.ndarray
+        The normalized data (Z-scored), or the original data if `do_operation` is False.
+    """
     data = data[:,np.newaxis]
     
     if not do_operation:
@@ -480,6 +571,24 @@ def rt_snorm_vol(data, do_operation=True):
 # Decoding Functions
 # ==================
 def rt_svrscore_vol(data, SVRs, caps_labels):
+    """Compute SVR scores using pretrained
+
+    Parameters:
+    -----------
+    data: np.ndarray
+        The input data to be used for making predictions.
+    SVRs: dict
+        A dictionary of trained Support Vector Regressor (SVR) models, where the keys are 
+        label names and the values are the corresponding SVR models.
+    caps_labels: list of str
+        A list of labels corresponding to the SVRs in `SVRs`. The function will use these 
+        labels to predict the values from the respective SVRs.
+
+    Returns:
+    --------
+    np.ndarray
+        The predicted values from each SVR for each label.
+    """
     out = []
 
     for cap_lab in caps_labels:

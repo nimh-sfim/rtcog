@@ -310,7 +310,7 @@ class Experiment:
         
         # Do EMA (if needed)
         # =================
-        ema_data_out, self.EMA_filt = rt_EMA_vol(self.n, self.t, self.EMA_th, self.Data_FromAFNI, self.EMA_filt, do_operation = self.do_EMA)
+        ema_data_out, self.EMA_filt = rt_EMA_vol(self.n, self.EMA_th, self.Data_FromAFNI, self.EMA_filt, do_operation=self.do_EMA)
         if self.save_ema: 
             self.Data_EMA = np.append(self.Data_EMA, ema_data_out, axis=1)
             log.debug('[t=%d,n=%d] Online - EMA - Data_EMA.shape      %s' % (self.t, self.n, str(self.Data_EMA.shape)))
@@ -379,7 +379,6 @@ class Experiment:
             if self.t < self.dec_start_vol:   # We don't want to start decoding before iGLM is stable.
                 self.svrscores = np.append(self.svrscores, np.zeros((self.Ncaps,1)), axis=1)
             else:
-                #this_t_svrscores = rt_svrscore_vol(self.Data_wind[:, self.t], self.SVRs, self.caps_labels)
                 this_t_svrscores = rt_svrscore_vol(np.squeeze(out_data_windowed), self.SVRs, self.caps_labels)
                 self.svrscores   = np.append(self.svrscores, this_t_svrscores, axis=1)
             log.debug('[t=%d,n=%d] Online - SVRs - svrscores.shape   %s' % (self.t, self.n, str(self.svrscores.shape)))
