@@ -2,7 +2,7 @@
 
 This is the main folder for the software. Here you can find the following sub-folders:
 
-* ```bin```: this folder contains the main executables, including ```rtcaps_matcher.py``` (which does realtime preprocessing and experience sampling), and ```online_trainSVRs.py``` (which train SVRs). It includes additional small programs to test each pre-processing step, sound, keyboard, etc.
+* ```bin```: this folder contains the main executables, including ```rtcaps_matcher.py``` (which does realtime preprocessing and experience sampling), and ```online_trainSVRs.py``` (which trains SVRs). It includes additional small programs to test each pre-processing step, sound, keyboard, etc.
 
 * ```notebooks```: includes python notebooks used during the development of this code.
 
@@ -47,23 +47,10 @@ To a minimum you should have an anatomical dataset, a short EPI dataset to use a
 * Enter the empty __Realtime__ folder.
 * Copy the 01_BringROIsToSubjectSpace.sh script here.
 * Copy the Frontiers2013_CAPs.nii file here.
-* Export the following variables
-
+* Start up afni realtime: 
 ```bash
-export AFNI_REALTIME_Registration=3D:_realtime
-export AFNI_REALTIME_Base_Image=2
-export AFNI_REALTIME_Graph=Realtime
-export AFNI_REALTIME_MP_HOST_PORT=localhost:53214
-export AFNI_REALTIME_SEND_VER=YES
-export AFNI_REALTIME_SHOW_TIMES=YES
-export AFNI_REALTIME_Mask_Vals=ROI_means
-export AFNI_REALTIME_Function=FIM
+sh ../../rtcaps/bin/startup_afnirt.sh --reference
 ```
-
-* Start AFNI in realtime mode
-
-```afni -rt```
-
 > __NOTE__: Make sure you have the latest version of AFNI installed, as you will be using a data transfer option only available since 2020.
 
 <u>4. Simulate acquisition of anatomical dataset</u>
@@ -131,7 +118,7 @@ python ../../rtcaps/bin/rtcaps_matcher.py \
         --out_prefix training
 ```
 
-<u>9. Simulate acquisition of the traning run</u>
+<u>9. Simulate acquisition of the training run</u>
 
 In the __Scanner__ console, type:
 
@@ -152,7 +139,7 @@ The data will be send to AFNI, who in turn will do motion correction (towards th
 
 <u>10. Train the SVR</u>
 
-For that, in the __Laptop__ terminal, you should run:
+Go to the __Laptop__ terminal and run:
 
 ```bash
  python ../../rtcaps/bin/online_trainSVRs.py \
@@ -160,7 +147,8 @@ For that, in the __Laptop__ terminal, you should run:
         -m ./GMribbon_R4Feed.nii \
         -c ./Frontier2013_CAPs_R4Feed.nii \
         -o ./ \
-        -p training_svr
+        -p training_svr \
+        --no_lasso
 ```
 
 This will generate the following additional files in the __Laptop__ folder:
@@ -180,8 +168,16 @@ Here is an example of the static training report
 
 For that, on the __Laptop__ terminal run the following:
 
-TO BE CONTINUED...
-
+```bash
+python ../../rtcaps/bin/rtcaps_matcher.py
+       --nvols 1200 \
+       --mask GMribbon_R4Feed.nii \
+       --out_dir ./ \
+       --out_prefix esam \
+       -e esam \
+       --svr_path training_svr.pkl \
+       --svr_win_activate
+```
 ***
 ***
 
