@@ -38,15 +38,17 @@ def get_avail_keyboards():
 
 def get_experiment_info(opts):
     available_keyboards, available_keyboards_labels = get_avail_keyboards()
-    expInfo = {'prefix':      opts.out_prefix,
-               'out_dir':     opts.out_dir,
-               'keyboard':    available_keyboards_labels,
-               'screen':      ['Laptop','External'],
-               'fullScreen':  ['Yes','No'],
-               'leftKey':     '3',
-               'rightKey':    '1',
-               'acceptKey':   '2',
-               'triggerKey':  '5'}
+    expInfo = {
+        'prefix':      opts.out_prefix,
+        'out_dir':     opts.out_dir,
+        'keyboard':    available_keyboards_labels,
+        'screen':      ['Laptop','External'],
+        'fullScreen':  ['Yes','No'],
+        'leftKey':     '3',
+        'rightKey':    '1',
+        'acceptKey':   '2',
+        'triggerKey':  '5'
+    }
     dlg = gui.DlgFromDict(dictionary=expInfo, sortKeys=False, title='rtCAPs Thought Sampling')
     if dlg.OK == False:
         core.quit()  # user pressed cancel

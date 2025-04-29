@@ -37,34 +37,32 @@ def is_hit_method01(vol, CAP_labels, hit_opts, SVRscores, rtPredictions, Vol_Las
     return matches, hit
 
 def is_hit_rt01(t,caps_labels,svrscores,hit_thr,hit_v4hit):
-    print(' ============== entering is_hit_rt01 [t=%d] [thr=%f]=======================' % (t,hit_thr))
+    log.info(' ============== entering is_hit_rt01 [t=%d] [thr=%f]=======================' % (t,hit_thr))
     hit = None
     this_t_svrscores = svrscores[:,t] 
-    #log.debug('is_hit_rt01 - this_t_svrscores: ' + ', '.join(f'{f:.2f}' for f in this_t_svrscores))
-    print(' === is_hit_rt01 - this_t_svrscores: ' + ', '.join(f'{f:.3f}' for f in this_t_svrscores))
+    log.debug(' === is_hit_rt01 - this_t_svrscores: ' + ', '.join(f'{f:.3f}' for f in this_t_svrscores))
     this_t_above_thr = this_t_svrscores >= hit_thr
-    print(' === is_hit_rt01 - this_t_above_thr: ' + ', '.join(f'{f:.3f}' for f in this_t_above_thr))
+    log.debug(' === is_hit_rt01 - this_t_above_thr: ' + ', '.join(f'{f:.3f}' for f in this_t_above_thr))
     this_t_nmatches  = np.sum(this_t_above_thr)
-    #log.debug('is_hit_rt01 - this_t_nmatches %d' % this_t_nmatches)
-    print(' === is_hit_rt01 - this_t_nmatches %d' % this_t_nmatches)
+    log.debug(' === is_hit_rt01 - this_t_nmatches %d' % this_t_nmatches)
     # Obtain list of CAPs with svrscore > th at this given t volume
     if this_t_nmatches > 0:
         this_t_matches = [caps_labels[i] for i in np.where(this_t_svrscores >= hit_thr)[0]]
     else:
         this_t_matches = None
-    print(' === is_hit_rt01 - this_t_nmatches [%s]' % str(this_t_matches))
+    log.debug(' === is_hit_rt01 - this_t_nmatches [%s]' % str(this_t_matches))
     # I will consider this volume a hit, only if a single CAP is above threshold
     if this_t_nmatches == 1:
         this_t_hit   = this_t_matches[0]            # CAP with svrscore > thresh for volume (t)
         above_thr    = np.repeat(False,hit_v4hit-1) # Container with False for all previous volumes (whether or not the CAP was also a hit)
-        print(' === is_hit_rt01 - above_thr %s' % str(above_thr))
+        log.debug(' === is_hit_rt01 - above_thr %s' % str(above_thr))
         for ii,tt in enumerate(np.arange(t-hit_v4hit+1, t)):
             aux_svrscores = svrscores[:,tt]
             aux_matches   = [caps_labels[i] for i in np.where(aux_svrscores >= hit_thr)[0]]
             if this_t_hit in aux_matches:
                 above_thr[ii] = True
-            print(' === is_hit_rt01 [%d] - above_thr %s' % (tt,str(above_thr)))
-        print(' === is_hit_rt01 [FINAL] - above_thr %s' % str(above_thr))
+            log.debug(' === is_hit_rt01 [%d] - above_thr %s' % (tt,str(above_thr)))
+        log.info(' === is_hit_rt01 [FINAL] - above_thr %s' % str(above_thr))
         if np.all(above_thr):
             hit = this_t_hit
     return hit

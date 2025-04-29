@@ -80,7 +80,7 @@ class SVRtrainer(object):
         self.data_img = load_fMRI_file(self.data_path, verbose=True)
 
         self.caps_masked = mask_fMRI_img(self.caps_img,self.mask_img)
-        self.caps_masked = self.caps_masked[:, self.caps_indexes]  # Select only CAPs of intrest 
+        self.caps_masked = self.caps_masked[:, self.caps_indexes]  # Select only CAPs of interest 
         self.data_masked = mask_fMRI_img(self.data_img, self.mask_img)
         [self.data_nv, self.data_nt] = self.data_masked.shape
         log.debug('Masked CAPs Dimensions: %s' % str(self.caps_masked.shape))

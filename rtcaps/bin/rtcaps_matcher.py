@@ -700,7 +700,7 @@ def main():
         if not opts.q_path:
             log.error('Path to Likert questions was not provided. Program will exit.')
             sys.exit(-1)
-        if not osp.isfile(opts.q_path):
+        if not osp.isfile(opts.q_path): # If not file, assume in RESOURCES_DIR
             fname = opts.q_path + ".json" if not opts.q_path.endswith(".json") else opts.q_path 
             opts.q_path = osp.join(RESOURCES_DIR, fname)
         try:

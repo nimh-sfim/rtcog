@@ -1,7 +1,7 @@
 from .fMRI import unmask_fMRI_img, mask_fMRI_img
 import numpy as np
 from scipy.special import legendre
-from scipy import ndimage, odr
+from scipy import ndimage
 import itertools
 from numpy.linalg import cholesky, inv
 import logging
@@ -272,11 +272,64 @@ def kalman_filter_mv(input_dict):
             l.append(i)
     return [out_d_mv, out_fPos_mv, out_fNeg_mv, out_S_x_mv, out_S_P_mv, out_vox_mv]
 
-def rt_kalman_vol(n,t,data,data_std,S_x,S_P,fPositDerivSpike,fNegatDerivSpike,num_cores,pool,do_operation=True):
+def rt_kalman_vol(
+        n,
+        t,
+        data,
+        data_std,
+        S_x,
+        S_P,
+        fPositDerivSpike,
+        fNegatDerivSpike,
+        num_cores,
+        pool,
+        do_operation=True
+):
+    """ Run Kalman on a single TR. Parallelizes via pools. Outputs are fed into the next TR.
+    
+    Parameters:
+    -----------
+    n : int
+        The number of data points, i.e. number of processed volumes.
+    t : int
+        The total number of received volumes.
+    data :
+        The input data for this TR.
+    data_std :
+        The welford stdev.
+    S_x :
+        The
+    S_P :
+        The
+    fPositDerivSpike :
+        Counter for spikes with positive derivative 
+    fNegatDerivSpike :
+        Counter for spikes with negative derivative
+    num_cores : Int
+        The number of cores used for parallel processing.
+    pool : multiprocessing.pool
+        Multiprocessing pool for parallel processing.
+    do_operation : Bool
+        Whether or not to perform Kalman. If False, return the data unchanged.
+        Default is True.
+    
+    Returns
+    -----------
+    list
+        A list containing:
+        
+        o_data : type
+            Output data.
+        o_S_x : type
+            Description of o_S_x.
+        o_S_P : type
+            Description of o_S_P.
+        o_fPos : type
+            Description of o_fPos.
+        o_fNeg : type
+            Description of o_fNeg.
     """
-    Returns:
-    [o_data, o_S_x, o_S_P, o_fPos, o_fNeg]
-    """
+
     [Nv,_] = data.shape
     if do_operation:
         if n > 2:
@@ -390,8 +443,8 @@ def _smooth_array(arr, affine, fwhm=None, ensure_finite=True, copy=True):
     if ensure_finite:
         # SPM tends to put NaNs in the data outside the brain
         arr[np.logical_not(np.isfinite(arr))] = 0
-    # if isinstance(fwhm, str) and (fwhm == 'fast'):
-    #     arr = _fast_smooth_array(arr)
+    if isinstance(fwhm, str) and (fwhm == 'fast'):
+        arr = _fast_smooth_array(arr)
     elif fwhm is not None:
         fwhm = np.asarray(fwhm)
         fwhm = np.where(fwhm == None, 0.0, fwhm)  # noqa: E711
