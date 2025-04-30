@@ -53,7 +53,7 @@ def is_hit_rt01(t,caps_labels,svrscores,hit_thr,hit_v4hit):
     log.debug(' === is_hit_rt01 - this_t_nmatches [%s]' % str(this_t_matches))
     # I will consider this volume a hit, only if a single CAP is above threshold
     if this_t_nmatches == 1:
-        this_t_hit   = this_t_matches[0]            # CAP with svrscore > thresh for volume (t)
+        this_t_hit   = this_t_matches[0] # CAP with svrscore > thresh for volume (t)
         above_thr    = np.repeat(False,hit_v4hit-1) # Container with False for all previous volumes (whether or not the CAP was also a hit)
         log.debug(' === is_hit_rt01 - above_thr %s' % str(above_thr))
         for ii,tt in enumerate(np.arange(t-hit_v4hit+1, t)):

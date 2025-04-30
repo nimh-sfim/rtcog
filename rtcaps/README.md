@@ -137,6 +137,10 @@ The data will be send to AFNI, who in turn will do motion correction (towards th
 * ```$prefix.pp_LPfilter.nii```: data following the low pass filtering step.
 * ```$prefix.pp_Smotth.nii```: data following the spatial smoothing step.
 
+> __NOTE__: Instead of manually configuring options in the future, you can simply supply the json file:
+>
+>`python ../../rtcaps/bin/rtcaps_matcher.py --config path/to/$prefix_Options.json`
+
 <u>10. Train the SVR</u>
 
 Go to the __Laptop__ terminal and run:

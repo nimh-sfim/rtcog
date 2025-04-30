@@ -15,7 +15,7 @@ import pandas as pd
 
 sys.path.insert(0, osp.abspath(osp.join(osp.dirname(__file__), '..')))
 
-from config                       import RESOURCES_DIR
+from config                       import RESOURCES_DIR, CAP_labels
 from rtcap_lib.receiver_interface import ReceiverInterface
 from rtcap_lib.core               import welford
 from rtcap_lib.rt_functions       import rt_EMA_vol, rt_regress_vol, rt_kalman_vol, kalman_filter_mv
@@ -51,9 +51,6 @@ log.addHandler(stream_handler)
 
 from psychopy import prefs
 prefs.hardware['audioLib'] = ['pyo']
-
-CAP_indexes = [25,4,18,28,24,11,21]
-CAP_labels  = ['VPol','DMN','SMot','Audi','ExCn','rFPa','lFPa']
 
 class Experiment:
     def __init__(self, options, mp_evt_hit, mp_evt_end, mp_evt_qa_end):
@@ -195,7 +192,6 @@ class Experiment:
  
     def compute_TR_data(self, motion, extra):
         # NOTE: extra and save_orig's data_FromAFNI are identical
-        # TODO: stop appending motion_estimates
         # Status as we enter the function
         hit_status    = self.mp_evt_hit.is_set()
         qa_end_status = self.mp_evt_qa_end.is_set()
@@ -296,9 +292,6 @@ class Experiment:
         # Compute running mean and running std with welford
         self.welford_M, self.welford_S, self.welford_std = welford(self.n, this_t_data, self.welford_M, self.welford_S)
         log.info('Welford Method Ouputs: M=%s | S=%s | std=%s' % (str(self.welford_M), str(self.welford_S), str(self.welford_std)))
-        # if self.t == 11:
-        #     log.debug(f'self.welford_std = {self.welford_std}') 
-        #     sys.exit()
         
         # If we reach this point, it means we have work to do
         if self.save_orig:
@@ -320,11 +313,15 @@ class Experiment:
             this_t_nuisance = np.concatenate((self.legendre_pols[self.t,:],motion))[:,np.newaxis]
         else:
             this_t_nuisance = (self.legendre_pols[self.t,:])[:,np.newaxis]
-        iGLM_data_out, self.iGLM_prev, Bn = rt_regress_vol(self.n, 
-                                                           ema_data_out,
-                                                           this_t_nuisance,
-                                                           self.iGLM_prev,
-                                                           do_operation = self.do_iGLM)
+            
+        iGLM_data_out, self.iGLM_prev, Bn = rt_regress_vol(
+            self.n, 
+            ema_data_out,
+            this_t_nuisance,
+            self.iGLM_prev,
+            do_operation=self.do_iGLM
+        )
+        
         if self.save_iGLM: 
             self.Data_iGLM    = np.append(self.Data_iGLM, iGLM_data_out, axis=1)
             self.iGLM_Coeffs  = np.append(self.iGLM_Coeffs, Bn, axis = 2) 
@@ -332,17 +329,19 @@ class Experiment:
             log.debug('[t=%d,n=%d] Online - iGLM - iGLM_Coeffs.shape   %s' % (self.t, self.n, str(self.iGLM_Coeffs.shape)))
         # Do Kalman Low-Pass Filter (if needed)
         # =====================================
-        klm_data_out, self.S_x, self.S_P, self.fPositDerivSpike, self.fNegatDerivSpike = rt_kalman_vol(self.n,
-                                                                        self.t,
-                                                                        iGLM_data_out,
-                                                                        self.welford_std,
-                                                                        self.S_x,
-                                                                        self.S_P,
-                                                                        self.fPositDerivSpike,
-                                                                        self.fNegatDerivSpike,
-                                                                        self.n_cores,
-                                                                        self.pool,
-                                                                        do_operation = self.do_kalman)
+        klm_data_out, self.S_x, self.S_P, self.fPositDerivSpike, self.fNegatDerivSpike = rt_kalman_vol(
+            self.n,
+            self.t,
+            iGLM_data_out,
+            self.welford_std,
+            self.S_x,
+            self.S_P,
+            self.fPositDerivSpike,
+            self.fNegatDerivSpike,
+            self.n_cores,
+            self.pool,
+            do_operation=self.do_kalman
+        )
         
         if self.save_kalman: 
             self.Data_kalman      = np.append(self.Data_kalman, klm_data_out, axis=1)

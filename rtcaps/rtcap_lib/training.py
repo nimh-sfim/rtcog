@@ -18,6 +18,8 @@ import panel as pn
 from bokeh.palettes import Category10_7
 tqdm().pandas()
 
+from config import CAP_indexes, CAP_labels
+
 import logging
 log     = logging.getLogger("training")
 log_fmt = logging.Formatter('[%(levelname)s - training]: %(message)s')
@@ -71,8 +73,8 @@ class SVRtrainer(object):
             sys.exit(-1)
         
         self.caps_path   = opts.caps_path
-        self.caps_indexes = [25,4,18,28,24,11,21]
-        self.caps_labels  = ['VPol','DMN','SMot','Audi','ExCn','rFPa','lFPa']
+        self.caps_indexes = CAP_indexes
+        self.caps_labels  = CAP_labels
     
     def load_datasets(self):
         self.caps_img = load_fMRI_file(self.caps_path, verbose=True)

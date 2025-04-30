@@ -10,3 +10,6 @@ LAPTOP_DIR = osp.join(SIMULATION_DIR, 'Laptop/')
 REALTIME_DIR = osp.join(SIMULATION_DIR, 'Realtime/')
 SCANNER_DIR = osp.join(SIMULATION_DIR, 'Scanner/')
 OUTPUT_DIR = osp.join(SIMULATION_DIR, 'outputs')
+
+CAP_labels = ['VPol','DMN','SMot','Audi','ExCn','rFPa','lFPa']
+CAP_indexes = [25, 4, 18, 28, 24, 11, 21]
