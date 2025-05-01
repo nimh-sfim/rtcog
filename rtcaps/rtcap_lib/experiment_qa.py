@@ -115,7 +115,9 @@ class QAScreen(DefaultScreen):
         self.key_select = expInfo['acceptKey']
         self.red_color = [0.4, -0.9, -0.9]
         self.likert_order = None
-        
+
+        self.recorder = Recorder(channels=1)
+
         # Recording Screen
         self.rec_inst = [
             TextStim(win=self.ewin, text='Describe aloud what you were', pos=(0.0, 0.54)),
@@ -162,11 +164,10 @@ class QAScreen(DefaultScreen):
         event.clearEvents()
         self._draw_stims(self.rec_inst + [self.rec_chair])
         playsound(osp.join(RESOURCES_DIR, 'bike_bell.wav'))
-        
-        rec = Recorder(channels=1)
 
         rec_path = osp.join(self.out_dir, self.out_prefix + '.hit' + str(self.hitID).zfill(3) + '.wav')
-        with rec.open(rec_path, 'wb') as rec_file:
+
+        with self.recorder.open(rec_path, 'wb') as rec_file:
             rec_file.start_recording()
 
             clock = core.Clock()
@@ -178,8 +179,10 @@ class QAScreen(DefaultScreen):
                 if clock.getTime() - last_toggle_time >= toggle_interval:
                     last_toggle_time = clock.getTime()
                     self.rec_chair.text = "[ RECORDING ]" if not self.rec_chair.text else ""
-                
+
                 self._draw_stims(self.rec_inst + [self.rec_chair])
+                
+                core.wait(0.1)
 
             rec_file.stop_recording()
     
