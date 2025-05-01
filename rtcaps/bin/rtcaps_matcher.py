@@ -249,10 +249,10 @@ class Experiment:
             if self.save_smooth: self.Data_smooth   = np.zeros((self.Nv,1))
             self.Data_norm     = np.zeros((self.Nv,1))
             if self.save_iGLM:   self.iGLM_Coeffs   = np.zeros((self.Nv,self.iGLM_num_regressors,1))
-            self.S_x           = np.zeros(self.Nv) #[0]*self.Nv 
-            self.S_P           = np.zeros(self.Nv) #[0]*self.Nv 
-            self.fPositDerivSpike = np.zeros(self.Nv) #[0]*self.Nv 
-            self.fNegatDerivSpike = np.zeros(self.Nv) #[0]*self.Nv
+            self.S_x           = np.zeros(self.Nv)
+            self.S_P           = np.zeros(self.Nv) 
+            self.fPositDerivSpike = np.zeros(self.Nv)
+            self.fNegatDerivSpike = np.zeros(self.Nv)
             if self.save_orig:   log.debug('[t=%d,n=%d] Init - Data_FromAFNI.shape %s' % (self.t, self.n, str(self.Data_FromAFNI.shape)))
             if self.save_ema:    log.debug('[t=%d,n=%d] Init - Data_EMA.shape      %s' % (self.t, self.n, str(self.Data_EMA.shape)))
             if self.save_iGLM:   log.debug('[t=%d,n=%d] Init - Data_iGLM.shape     %s' % (self.t, self.n, str(self.Data_iGLM.shape)))
@@ -402,7 +402,8 @@ class Experiment:
                                        self.caps_labels,
                                        self.svrscores,
                                        self.hit_zth,
-                                       self.hit_v4hit)
+                                       self.nconsec_vols)
+
             
             # Add one more line to the hits data structure with zeros (if a hit happen, a 1 will be added later)
             self.hits = np.append(self.hits, np.zeros((self.Ncaps,1)), axis=1)
@@ -503,9 +504,9 @@ class Experiment:
                     hit_ID = 1
                     for vol in Hits_DF[Hits_DF[cap]==True].index:
                         if self.hit_dowin == True:
-                            thisCAP_Vols = vol-np.arange(self.hit_wl+self.hit_v4hit-1)
+                            thisCAP_Vols = vol-np.arange(self.hit_wl+self.nconsec_vols-1)
                         else:
-                            thisCAP_Vols = vol-np.arange(self.hit_v4hit)
+                            thisCAP_Vols = vol-np.arange(self.nconsec_vols)
                         out_file = osp.join(self.out_dir, self.out_prefix + '.Hit_'+cap+'_'+str(hit_ID).zfill(2)+'.nii')
                         log.info(' - final_steps - [%s-%d]. Contributing Vols: %s | File: %s' % (cap, hit_ID,str(thisCAP_Vols), out_file ))
                         log.debug(' - final_steps - self.Data_norm.shape %s' % str(self.Data_norm.shape))
@@ -560,7 +561,7 @@ class Experiment:
         self.dec_start_vol = options.dec_start_vol # First volume to do decoding on.
         self.hit_method    = options.hit_method
         self.hit_zth       = options.hit_zth
-        self.hit_v4hit     = options.hit_v4hit
+        self.nconsec_vols  = options.nconsec_vols
         self.hit_dowin     = options.hit_dowin
         self.hit_domot     = options.hit_domot
         self.hit_mot_th    = options.svr_mot_th
@@ -684,7 +685,7 @@ def processExperimentOptions (self, options=None):
     parser_dec.add_argument("--svr_start",  help="Volume when decoding should start. When we think iGLM is sufficient_stable [%(default)s]", default=100, dest="dec_start_vol", action="store", type=int)
     parser_dec.add_argument("--svr_path",   help="Path to pre-trained SVR models [%(default)s]", dest="svr_path", action="store", type=str, default=None)
     parser_dec.add_argument("--svr_zth",    help="Z-score threshold for deciding hits [%(default)s]", dest="hit_zth", action="store", type=float, default=1.75)
-    parser_dec.add_argument("--svr_vhit",   help="Number of consecutive vols over threshold required for a hit [%(default)s]", dest="hit_v4hit", action="store", type=int, default=2)
+    parser_dec.add_argument("--svr_consec_vols",   help="Number of consecutive vols over threshold required for a hit [%(default)s]", dest="nconsec_vols", action="store", type=int, default=2)
     parser_dec.add_argument("--svr_win_activate", help="Activate windowing of individual volumes prior to hit estimation [%(default)s]", dest="hit_dowin", action="store_true", default=False)
     parser_dec.add_argument("--svr_win_wl", help='Number of volumes for SVR windowing step [%(default)s]', dest='hit_wl', default=4, type=int, action='store')
     parser_dec.add_argument("--svr_mot_activate", help="Consider a hit if excessive motion [%(default)s]", dest="hit_domot", action="store_true", default=False )
@@ -760,8 +761,9 @@ def main():
         
         # 6) Close Psychopy Window
         # ------------------------
+        cap_qa.save_likert_files()
         cap_qa.close_psychopy_infrastructure()
-    
+        
     if opts.exp_type == "esam_test":
         # 4) Start GUI
         # ------------

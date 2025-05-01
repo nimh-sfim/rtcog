@@ -38,6 +38,7 @@ def is_hit_method01(vol, CAP_labels, hit_opts, SVRscores, rtPredictions, Vol_Las
 
 
 def is_hit_rt01(t, caps_labels, svrscores, hit_thr, nconsec_vols):
+    # TODO: Add testing to make sure this functions the same
     """Determines if a specific time point `t` represents a "hit" for a CAP based on if SVR scores
     exceed a threshold.
 
@@ -111,20 +112,15 @@ def is_hit_rt01(t, caps_labels, svrscores, hit_thr, nconsec_vols):
 #     # I will consider this volume a hit, only if a single CAP is above threshold
 #     if this_t_nmatches == 1:
 #         this_t_hit   = this_t_matches[0] # CAP with svrscore > thresh for volume (t)
-#         print(f"this_t_hit: {this_t_hit}")
 #         above_thr    = np.repeat(False,hit_v4hit-1) # Container with False for all previous volumes (whether or not the CAP was also a hit)
 #         log.debug(' === is_hit_rt01 - above_thr %s' % str(above_thr))
 #         for ii,tt in enumerate(np.arange(t-hit_v4hit+1, t)):
 #             aux_svrscores = svrscores[:,tt]
 #             aux_matches   = [caps_labels[i] for i in np.where(aux_svrscores >= hit_thr)[0]]
-#             print(f"aux_matches: {aux_matches}")
-#             print(f"aux_svrscores: {aux_svrscores}")
 #             if this_t_hit in aux_matches:
 #                 above_thr[ii] = True
 #             log.debug(' === is_hit_rt01 [%d] - above_thr %s' % (tt,str(above_thr)))
 #         log.info(' === is_hit_rt01 [FINAL] - above_thr %s' % str(above_thr))
-#         print(f"this_t_hit = {this_t_hit}")
 #         if np.all(above_thr):
 #             hit = this_t_hit
-#             print(f"+++ HIT: {hit}")
 #     return hit

@@ -118,6 +118,8 @@ class QAScreen(DefaultScreen):
 
         self.recorder = Recorder(channels=1)
 
+        self.responses = {}
+
         # Recording Screen
         self.rec_inst = [
             TextStim(win=self.ewin, text='Describe aloud what you were', pos=(0.0, 0.54)),
@@ -270,15 +272,19 @@ class QAScreen(DefaultScreen):
         resp_timestr = time.strftime('%Y%m%d-%H%M%S')
         resp_path = osp.join(self.out_dir, f'{self.out_prefix}.{resp_timestr}.LikertResponses{str(self.hitID).zfill(3)}.txt')
         
-        with open(resp_path, 'w') as f:
-            w = csv.writer(f)
-            w.writerow(['question', 'rating', 'rt'])
-            for key, val in resp_dict.items():
-                rating, rt = val
-                w.writerow([key, rating, round(rt, 2)])
-        
-        log.info(f'Likert responses written to {resp_path}')
+        self.responses[resp_path] = resp_dict
         
         self.hitID += 1
 
         return resp_dict
+    
+    def save_likert_files(self):
+        for resp_path, resp_dict in self.responses.items():
+            with open (resp_path, 'w') as f:
+                w = csv.writer(f)
+                w.writerow(['question', 'rating', 'rt'])
+                for key, val in resp_dict.items():
+                    rating, rt = val
+                    w.writerow([key, rating, round(rt, 2)])
+                log.debug(f'Likert responses written to {resp_path}')
+        log.info(f'All likert responses saved')
