@@ -1,6 +1,7 @@
 import pytest
 import numpy as np
-from config import CAP_labels
+
+from rtcaps.config import CAP_labels
 from rtcaps.rtcap_lib.svr_methods import is_hit_rt01
 
 

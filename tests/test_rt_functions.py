@@ -5,12 +5,10 @@ import numpy as np
 import nibabel as nib
 from numpy.testing import assert_array_equal
 
-sys.path.append('../')
-
-from rtcap_lib.rt_functions import gen_polort_regressors, _is_pos_def, _iGLMVol, rt_regress_vol
-from rtcap_lib.rt_functions import rt_EMA_vol
-from rtcap_lib.rt_functions import init_kalman, _kalman_filter, rt_kalman_vol
-from rtcap_lib.rt_functions import rt_smooth_vol, rt_snorm_vol, rt_svrscore_vol
+from rtcaps.rtcap_lib.rt_functions import gen_polort_regressors, _is_pos_def, _iGLMVol, rt_regress_vol
+from rtcaps.rtcap_lib.rt_functions import rt_EMA_vol
+from rtcaps.rtcap_lib.rt_functions import init_kalman, _kalman_filter, rt_kalman_vol
+from rtcaps.rtcap_lib.rt_functions import rt_smooth_vol, rt_snorm_vol, rt_svrscore_vol
 
 
 def test_gen_polort_regressors():

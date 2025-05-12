@@ -1,9 +1,7 @@
-import sys
 import pytest
 import numpy as np
 
-sys.path.append('..')
-from rtcap_lib.fMRI import mask_fMRI_img, unmask_fMRI_img
+from rtcaps.rtcap_lib.fMRI import mask_fMRI_img, unmask_fMRI_img
 
 def test_mask_fMRI_img(sample_data):
     masked_data = mask_fMRI_img(sample_data.orig_img,sample_data. mask_img)

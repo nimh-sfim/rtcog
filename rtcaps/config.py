@@ -3,7 +3,7 @@ import os.path as osp
 CODE_DIR = osp.dirname(osp.realpath(__file__))
 ROOT_DIR = osp.abspath(osp.join(CODE_DIR, '..'))
 RESOURCES_DIR = osp.join(CODE_DIR, 'resources/')
-DATA_DIR = osp.join(CODE_DIR, "tests/data/")
+DATA_DIR = osp.join(ROOT_DIR, "tests/data/")
 
 SIMULATION_DIR = osp.join(ROOT_DIR, 'Simulation')
 LAPTOP_DIR = osp.join(SIMULATION_DIR, 'Laptop/')

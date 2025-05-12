@@ -5,9 +5,7 @@ import logging
 import numpy as np
 from numpy.testing import assert_array_equal
 
-sys.path.append('../')
-from bin.rtcaps_matcher import Experiment
-
+from rtcaps.bin.rtcaps_matcher import Experiment
 
 @pytest.fixture
 def setup_experiment():

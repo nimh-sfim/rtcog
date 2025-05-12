@@ -5,9 +5,9 @@ import numpy as np
 import pandas as pd
 import nibabel as nib
 
-sys.path.append('..')
-from config import DATA_DIR
+sys.path.insert(0, osp.abspath(osp.join(osp.dirname(__file__), "..")))
 
+from rtcaps.config import DATA_DIR
 
 class SampleData:
     def __init__(self):
