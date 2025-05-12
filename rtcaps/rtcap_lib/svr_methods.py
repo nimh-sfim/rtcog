@@ -83,7 +83,7 @@ def is_hit_rt01(t, caps_labels, svrscores, hit_thr, nconsec_vols):
 
     # Ensure CAP exceeds threshold for nconsec_vols time points (including current)
     prev_svr = svrscores[:, t - nconsec_vols + 1 : t]
-    if np.all(prev_svr[this_t_hit] > hit_thr):
+    if np.all(prev_svr[this_t_hit] >= hit_thr):
         return this_t_hit_label
 
     
