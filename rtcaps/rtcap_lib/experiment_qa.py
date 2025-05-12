@@ -11,12 +11,23 @@ from psychopy.hardware import keyboard
 from psychopy import logging as psychopy_logging
 from psychopy.visual import TextStim, Window, ImageStim
 from psychopy.visual.slider import Slider 
-
+from psychopy import prefs
+prefs.hardware['keyboard'] = 'pygame'
+# prefs.hardware['audio'] = 'pygame'
 
 from config import RESOURCES_DIR
+
+
+# # When testing:
+# from recorder import Recorder
 # this_dir = osp.dirname(osp.realpath(__file__))
 # code_dir = osp.abspath(osp.join(this_dir, '..'))
 # RESOURCES_DIR = osp.join(code_dir, 'resources/')
+
+# Patch for dependency issues
+import numpy as np
+if not hasattr(np, 'product'):
+    np.product = np.prod
 
 log = logging.getLogger("experiment_qa")
 log.setLevel(logging.INFO)
@@ -159,7 +170,8 @@ class QAScreen(DefaultScreen):
             'markerColor': self.red_color,
             'lineColor': 'black',
             'granularity': 1,
-            'labelHeight': 0.05
+            'labelHeight': 0.05,
+             'font': 'Arial'
         }
 
     def record_oral_descr(self):
