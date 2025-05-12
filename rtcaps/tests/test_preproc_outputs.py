@@ -8,12 +8,11 @@ import os.path as osp
 import pytest
 import numpy as np
 import nibabel as nib
-import pandas as pd
 from sklearn.metrics import mean_squared_error
 from scipy.stats import pearsonr
 
 
-sys.path.append('../')
+sys.path.append('..')
 from rtcap_lib.fMRI import mask_fMRI_img, unmask_fMRI_img
 from rtcap_lib.rt_functions import init_EMA, rt_EMA_vol
 from config import OUTPUT_DIR
@@ -22,8 +21,8 @@ from config import OUTPUT_DIR
 def load_nii(fname):
     return nib.load(osp.join(OUTPUT_DIR, fname))
 
-def load_pkl(fname):
-    return pd.read_pickle(osp.join(OUTPUT_DIR, fname))
+def load_arr(fname):
+    return np.load(osp.join(OUTPUT_DIR, fname))
 
 def get_metrics(arr1, arr2):
     arr1, arr2 = arr1.flatten(), arr2.flatten()
@@ -33,21 +32,21 @@ def get_metrics(arr1, arr2):
     return rmse, corr
 
 
-@pytest.fixture
-def mask_img():
-    return load_nii('GMribbon_R4Feed.nii')
+# @pytest.fixture
+# def mask_img():
+    # return load_nii('GMribbon_R4Feed.nii')
 
 
-def test_all_off(mask_img):
+def test_all_off(sample_data):
     pass
 
 
-def test_snorm_only(mask_img):
+def test_snorm_only(sample_data):
     snorm_offline = load_nii('offline_preproc.snorm.nii')
     snorm_online = load_nii("online_preproc.pp_Zscore.snorm-on.nii")
 
-    snorm_off_masked = mask_fMRI_img(snorm_offline, mask_img)
-    snorm_on_masked = mask_fMRI_img(snorm_online, mask_img)
+    snorm_off_masked = mask_fMRI_img(snorm_offline, sample_data.mask_img)
+    snorm_on_masked = mask_fMRI_img(snorm_online, sample_data.mask_img)
 
     rmse, corr = get_metrics(snorm_off_masked, snorm_on_masked)
 
@@ -57,9 +56,9 @@ def test_snorm_only(mask_img):
     assert corr >= 0.93
 
 
-def test_ema_only(mask_img):
+def test_ema_only(sample_data)
     # Not the best test because I’m just using the rt functions instead of something else
-    orig_data = load_pkl("DataFromAFNI.end.pkl")
+    orig_data = load_arr("DataFromAFNI.end.npy")
     n = 0
 
     EMA_th, EMA_filt = init_EMA()
@@ -68,7 +67,7 @@ def test_ema_only(mask_img):
 
     for t in range(10, orig_data.shape[1]):
         n += 1
-        data_out, EMA_filt = rt_EMA_vol(n, t, EMA_th, orig_data[:, :t+1], EMA_filt, do_operation=True)
+        data_out, EMA_filt = rt_EMA_vol(n, EMA_th, orig_data[:, :t+1], EMA_filt, do_operation=True)
             
         offline_ema.append(data_out)
 
@@ -77,7 +76,7 @@ def test_ema_only(mask_img):
 
     offline_ema = np.hstack([zeros, offline_ema])
 
-    online_ema = mask_fMRI_img(load_nii('online_preproc.pp_EMA.nii').get_fdata(), mask_img)
+    online_ema = mask_fMRI_img(load_nii('online_preproc.pp_EMA.nii').get_fdata(), sample_data.mask)
 
     rmse, corr = get_metrics(offline_ema, online_ema)
 
@@ -87,27 +86,27 @@ def test_ema_only(mask_img):
     assert corr >= 0.93
 
 
-def test_smooth_only(mask_img):
+def test_smooth_only(sample_data):
     pass
 
 
-def test_iglm_only(mask_img):
+def test_iglm_only(sample_data):
     pass
 
 
-def test_kalman_only(mask_img):
+def test_kalman_only(sample_data):
     pass
 
 
-def test_all_on(mask_img):
+def test_all_on(sample_data):
     pass
 
 
-def test_1d_motion(mask_img):
+def test_1d_motion(sample_data):
     pass
 
 
-def test_blur(mask_img):
+def test_blur(sample_data):
     pass
 
 if __name__ == "__main__":

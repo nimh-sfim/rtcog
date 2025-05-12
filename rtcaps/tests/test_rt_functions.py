@@ -20,10 +20,10 @@ def test_gen_polort_regressors():
 
 def test_is_pos_def():
     pos_def_mat = np.array([[1, 0], [0, 1]])
-    assert _is_pos_def(pos_def_mat), 'Matrix [[1, 0], [0, 1]] should be positive definitive'
+    assert _is_pos_def(pos_def_mat)
 
     not_pos_def_mat = np.array([[1, 2], [3, 4]])
-    assert not _is_pos_def(not_pos_def_mat), 'Matrix [[1, 2], [3, 4]] should not be positive definitive'
+    assert not _is_pos_def(not_pos_def_mat)
 
 
 def test_iGLMVol():
@@ -50,8 +50,8 @@ def test_rt_regress_vol():
 
     Yn_d, new, Bn = rt_regress_vol(n, Yn, Fn, prev)
     
-    assert Yn_d.shape == (5, 1), f'Expected shape (5, 1) for Yn_d, but got {Yn_d.shape}'
-    assert new['Cn'].shape == (3, 3), f"Expected shape (3, 3) for Cn in 'new', but got {new['Cn'].shape}"
+    assert Yn_d.shape == (5, 1)
+    assert new['Cn'].shape == (3, 3)
 
 
 def test_rt_EMA_vol_do_operation_first():

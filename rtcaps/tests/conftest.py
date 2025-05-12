@@ -16,7 +16,7 @@ class SampleData:
 
         self.orig_data, self.mask_data = self.orig_img.get_fdata(), self.mask_img.get_fdata()
 
-        self.this_t_data = pd.read_pickle(osp.join(DATA_DIR, 'this_t_data.pkl'))
+        self.this_t_data = np.load(osp.join(DATA_DIR, 'this_t_data.npy'))
 
         self.Nv = len(self.this_t_data)
         self.t = self.orig_data.shape[-1]
