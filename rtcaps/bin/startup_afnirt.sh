@@ -1,13 +1,13 @@
 #!/bin/bash
 # 03/28/2025 - Marly Rubin
 #
-# This script starts up AFNI realtime and sets all environment variables. If -r or --reference is supplied, it will set
+# This script starts up AFNI realtime and sets all environment variables. If -r/--reference is supplied, it will set
 # the variables for the reference scan. Otherwise, --nvol/-n can optionally specify the number of volumes (default=1200).
 # If REALTIME_DIR is exported, it defaults to the current working directory.
 # -------------------------------
-
+# --- Defaults ---
 USE_REFERENCE=false
-NVOL=1200  # Default value
+NVOL=1200
 
 # --- Parse arguments ---
 while [[ "$#" -gt 0 ]]; do
@@ -73,4 +73,4 @@ else
 fi
 
 # --- Launch AFNI in realtime mode ---
-afni -rt &
+afni -no_detach -rt
