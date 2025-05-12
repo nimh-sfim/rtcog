@@ -56,7 +56,7 @@ def test_snorm_only(sample_data):
     assert corr >= 0.93
 
 
-def test_ema_only(sample_data)
+def test_ema_only(sample_data):
     # Not the best test because I’m just using the rt functions instead of something else
     orig_data = load_arr("DataFromAFNI.end.npy")
     n = 0
@@ -76,7 +76,7 @@ def test_ema_only(sample_data)
 
     offline_ema = np.hstack([zeros, offline_ema])
 
-    online_ema = mask_fMRI_img(load_nii('online_preproc.pp_EMA.nii').get_fdata(), sample_data.mask)
+    online_ema = mask_fMRI_img(load_nii('online_preproc.pp_EMA.nii').get_fdata(), sample_data.mask_img)
 
     rmse, corr = get_metrics(offline_ema, online_ema)
 
