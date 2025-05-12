@@ -16,7 +16,8 @@ import pandas as pd
 sys.path.insert(0, osp.abspath(osp.join(osp.dirname(__file__), '..')))
 
 from config                       import RESOURCES_DIR, CAP_labels
-from rtcap_lib.receiver_interface import ReceiverInterface
+# from rtcap_lib.receiver_interface import ReceiverInterface
+from rtcap_lib.receiver_interface import CustomReceiverInterface
 from rtcap_lib.core               import welford
 from rtcap_lib.rt_functions       import rt_EMA_vol, rt_regress_vol, rt_kalman_vol, kalman_filter_mv
 from rtcap_lib.rt_functions       import rt_smooth_vol, rt_snorm_vol, rt_svrscore_vol
@@ -25,7 +26,6 @@ from rtcap_lib.fMRI               import load_fMRI_file, unmask_fMRI_img
 from rtcap_lib.svr_methods        import is_hit_rt01
 from rtcap_lib.core               import create_win
 from rtcap_lib.experiment_qa      import get_experiment_info, DefaultScreen, QAScreen
-
 
 log = logging.getLogger('online_preproc')
 
@@ -48,9 +48,10 @@ log.addHandler(file_handler)
 log.addHandler(stream_handler)
 # print(f'++ LOGGER HANDLERS: {log.handlers}')
 
-
 from psychopy import prefs
 prefs.hardware['audioLib'] = ['pyo']
+prefs.hardware['keyboard'] = 'pygame'
+prefs.hardware['audio'] = 'pygame'
 
 class Experiment:
     def __init__(self, options, mp_evt_hit, mp_evt_end, mp_evt_qa_end):
@@ -395,7 +396,6 @@ class Experiment:
             # IF needed (e.g., not in hit mode, and late enough since last time), then compute if
             # a hit is taking place or not.
             if (hit_status == True) or (self.t <= self.lastQA_endTR + self.vols_noqa):
-                print(f"+++ Here")
                 hit = None
             else:
                 hit = self.hit_method_func(self.t,
@@ -590,7 +590,8 @@ def comm_process(opts, mp_evt_hit, mp_evt_end, mp_evt_qa_end):
     
     # 4) Start Communications
     log.info('- comm_process - 3) Opening Communication Channel...')
-    receiver = ReceiverInterface(port=opts.tcp_port, show_data=opts.show_data)
+    receiver = CustomReceiverInterface(port=opts.tcp_port, show_data=opts.show_data)
+    # receiver = ReceiverInterface(port=opts.tcp_port, show_data=opts.show_data)
     if not receiver:
         return 1
 
@@ -622,9 +623,9 @@ def comm_process(opts, mp_evt_hit, mp_evt_end, mp_evt_qa_end):
 
     if experiment.exp_type == "esam" or experiment.exp_type == "esam_test":
         while experiment.mp_evt_hit.is_set():
-            print('- comm_process - waiting for QA to end ')
+            log.info('- comm_process - waiting for QA to end ')
             sleep(1)
-    print('- comm_process - ready to end ')
+    log.info('- comm_process - ready to end ')
     return rv
 
 
