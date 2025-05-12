@@ -32,11 +32,6 @@ def get_metrics(arr1, arr2):
     return rmse, corr
 
 
-# @pytest.fixture
-# def mask_img():
-    # return load_nii('GMribbon_R4Feed.nii')
-
-
 def test_all_off(sample_data):
     pass
 

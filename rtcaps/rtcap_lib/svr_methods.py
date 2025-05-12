@@ -38,7 +38,6 @@ def is_hit_method01(vol, CAP_labels, hit_opts, SVRscores, rtPredictions, Vol_Las
 
 
 def is_hit_rt01(t, caps_labels, svrscores, hit_thr, nconsec_vols):
-    # TODO: Add testing to make sure this functions the same
     """Determines if a specific time point `t` represents a "hit" for a CAP based on if SVR scores
     exceed a threshold.
 
@@ -74,7 +73,7 @@ def is_hit_rt01(t, caps_labels, svrscores, hit_thr, nconsec_vols):
     nmatches = len(this_t_matches)
 
     log.debug(' === is_hit_rt01 - this_t_svrscores: ' + ', '.join(f'{f:.3f}' for f in this_t_svrscores))
-    log.debug(' === is_hit_rt01 - this_t_nmatches %d' % nmatches)
+    log.debug(' === is_hit_rt01 - nmatches %d' % nmatches)
     
     if nmatches != 1:
         return None # Hit is none if more than one CAP is above threshold
