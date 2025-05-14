@@ -12,7 +12,6 @@ from sklearn.metrics import mean_squared_error
 from scipy.stats import pearsonr
 
 
-sys.path.append('..')
 from rtcaps.rtcap_lib.fMRI import mask_fMRI_img, unmask_fMRI_img
 from rtcaps.rtcap_lib.rt_functions import init_EMA, rt_EMA_vol
 from rtcaps.config import OUTPUT_DIR

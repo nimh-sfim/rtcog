@@ -53,6 +53,10 @@ prefs.hardware['audioLib'] = ['pyo']
 prefs.hardware['keyboard'] = 'pygame'
 prefs.hardware['audio'] = 'pygame'
 
+# Ignore psychopy warnings
+from psychopy import logging
+logging.console.setLevel(logging.ERROR)
+
 class Experiment:
     def __init__(self, options, mp_evt_hit, mp_evt_end, mp_evt_qa_end):
 
@@ -173,6 +177,9 @@ class Experiment:
         else:
             self.pool = None
 
+        # For snapshot testing
+        self.snapshot = options.snapshot
+
 
     def _initialize_kalman_pool(self):
         Nv = int(self.mask_Nv)
@@ -190,7 +197,8 @@ class Experiment:
             }
             for _ in range(self.n_cores)
         ]
- 
+
+
     def compute_TR_data(self, motion, extra):
         # NOTE: extra and save_orig's data_FromAFNI are identical
         # Status as we enter the function
@@ -292,7 +300,7 @@ class Experiment:
 
         # Compute running mean and running std with welford
         self.welford_M, self.welford_S, self.welford_std = welford(self.n, this_t_data, self.welford_M, self.welford_S)
-        log.info('Welford Method Ouputs: M=%s | S=%s | std=%s' % (str(self.welford_M), str(self.welford_S), str(self.welford_std)))
+        log.debug('Welford Method Ouputs: M=%s | S=%s | std=%s' % (str(self.welford_M), str(self.welford_S), str(self.welford_std)))
         
         # If we reach this point, it means we have work to do
         if self.save_orig:
@@ -398,12 +406,13 @@ class Experiment:
             if (hit_status == True) or (self.t <= self.lastQA_endTR + self.vols_noqa):
                 hit = None
             else:
-                hit = self.hit_method_func(self.t,
-                                       self.caps_labels,
-                                       self.svrscores,
-                                       self.hit_zth,
-                                       self.nconsec_vols)
-
+                hit = self.hit_method_func(
+                    self.t,
+                    self.caps_labels,
+                    self.svrscores,
+                    self.hit_zth,
+                    self.nconsec_vols
+                )
             
             # Add one more line to the hits data structure with zeros (if a hit happen, a 1 will be added later)
             self.hits = np.append(self.hits, np.zeros((self.Ncaps,1)), axis=1)
@@ -524,6 +533,19 @@ class Experiment:
                 for offset in self.qa_offsets:
                     file.write("%i\n" % offset)        
         
+        # If running snapshot test, save the variable states
+        if self.snapshot:
+            var_dict = {
+                'Data_norm': self.Data_norm,
+                'Data_EMA': self.Data_EMA,
+                'Data_iGLM': self.Data_iGLM,
+                'Data_smooth': self.Data_smooth,
+                # 'Data_kalman': self.Data_kalman,
+                'Data_FromAFNI': self.Data_FromAFNI
+            }
+
+            np.savez(osp.join(self.out_dir, f'{self.out_prefix}_snapshots.npz'), **var_dict) 
+
         # Inform other threads that this is comming to an end
         self.mp_evt_end.set()
         return 1
@@ -694,6 +716,8 @@ def processExperimentOptions (self, options=None):
     parser_dec.add_argument("--svr_hit_mehod", help="Method for deciding hits [%(default)s]", type=str, choices=["method01"], default="method01", action="store", dest="hit_method")
     parser_dec.add_argument("--svr_vols_noqa", help="Min. number of volumes to wait since end of last QA before declaing a new hit. [%(default)s]", type=int, dest='vols_noqa', default=45, action="store"),
     parser_dec.add_argument("--q_path", help="The path to the questions json file containing the question stimuli. If not a full path, it will default to look in RESOURCES_DIR", type=str, dest='q_path', default="questions_v1", action="store")
+    parser_dec = parser.add_argument_group('Testing Options')
+    parser_dec.add_argument("--snapshot",  help="Run snapshot test", default=False, dest="snapshot", action="store_true")
 
     return parser.parse_args(options)
 

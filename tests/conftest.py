@@ -9,6 +9,20 @@ sys.path.insert(0, osp.abspath(osp.join(osp.dirname(__file__), "..")))
 
 from rtcaps.config import DATA_DIR
 
+def pytest_addoption(parser):
+    parser.addoption(
+        "--snapshot", action="store_true", default=False, help="run snapshot test"
+    )
+
+
+def pytest_collection_modifyitems(config, items):
+    if config.getoption("--snapshot"):
+        return
+    skip_snapshot = pytest.mark.skip(reason="need --snapshot option to run")
+    for item in items:
+        if "snapshot" in item.keywords:
+            item.add_marker(skip_snapshot)
+            
 class SampleData:
     def __init__(self):
         self.orig_img = nib.load(osp.join(DATA_DIR, 'test_epi_data100+orig.BRIK.gz'))
