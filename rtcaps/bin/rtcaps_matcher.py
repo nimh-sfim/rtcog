@@ -556,10 +556,6 @@ class Experiment:
             log.error('SVR Model not provided. Program will exit.')
             self.mp_evt_end.set()
             sys.exit(-1)
-        if not osp.exists(options.svr_path):
-            log.error('SVR Model File does not exists. Please correct.')
-            self.mp_evt_end.set()
-            sys.exit(-1)
         self.svr_path = options.svr_path
         try:
             SVRs_pickle_in = open(self.svr_path, "rb")
@@ -651,6 +647,13 @@ def comm_process(opts, mp_evt_hit, mp_evt_end, mp_evt_qa_end):
     return rv
 
 
+def file_exists(path):
+    """Ensure files exist before starting up program"""
+    if not osp.isfile(path):
+        log.error(f"File not found: {path}")
+        sys.exit(-1)
+    return path
+
 def processExperimentOptions (self, options=None):
     pre_parser = argparse.ArgumentParser(add_help=False)
     pre_parser.add_argument("-c", "--config", dest="config", help="JSON file containing experiment options")
@@ -675,7 +678,7 @@ def processExperimentOptions (self, options=None):
     parser_gen.add_argument("-S", "--show_data", action="store_true",help="display received data in terminal if this option is specified")
     parser_gen.add_argument("--tr",         help="Repetition time [sec]  [default: %(default)s]",                      dest="tr",default=1.0, action="store", type=float)
     parser_gen.add_argument("--ncores",     help="Number of cores to use in the parallel processing part of the code  [default: %(default)s]", dest="n_cores", action="store",type=int, default=10)
-    parser_gen.add_argument("--mask",       help="Mask necessary for smoothing operation  [default: %(default)s]",     dest="mask_path", action="store", type=str, default=None, required=True)
+    parser_gen.add_argument("--mask",       help="Mask necessary for smoothing operation  [default: %(default)s]",     dest="mask_path", action="store", type=file_exists, default=None, required=True)
     parser_proc   = parser.add_argument_group("Activate/Deactivate Processing Steps")
     parser_proc.add_argument("--no_ema",    help="De-activate EMA Filtering Step [default: %(default)s]", dest="do_EMA",      default=True, action="store_false")
     parser_proc.add_argument("--no_iglm",   help="De-activate iGLM Denoising Step  [default: %(default)s]",             dest="do_iGLM",     default=True, action="store_false")
@@ -706,7 +709,7 @@ def processExperimentOptions (self, options=None):
     parser_exp.add_argument("--screen", help="Monitor to use [%(default)s]", default=1, action="store", dest="screen",type=int)
     parser_dec = parser.add_argument_group('SVR/Decoding Options')
     parser_dec.add_argument("--svr_start",  help="Volume when decoding should start. When we think iGLM is sufficient_stable [%(default)s]", default=100, dest="dec_start_vol", action="store", type=int)
-    parser_dec.add_argument("--svr_path",   help="Path to pre-trained SVR models [%(default)s]", dest="svr_path", action="store", type=str, default=None)
+    parser_dec.add_argument("--svr_path",   help="Path to pre-trained SVR models [%(default)s]", dest="svr_path", action="store", type=file_exists, default=None)
     parser_dec.add_argument("--svr_zth",    help="Z-score threshold for deciding hits [%(default)s]", dest="hit_zth", action="store", type=float, default=1.75)
     parser_dec.add_argument("--svr_consec_vols",   help="Number of consecutive vols over threshold required for a hit [%(default)s]", dest="nconsec_vols", action="store", type=int, default=2)
     parser_dec.add_argument("--svr_win_activate", help="Activate windowing of individual volumes prior to hit estimation [%(default)s]", dest="hit_dowin", action="store_true", default=False)
