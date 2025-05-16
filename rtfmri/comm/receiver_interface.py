@@ -6,7 +6,9 @@ import shutil
 
 # from config import setup_logger
 import logging
-log = logging.getLogger('receiver')
+log = logging.getLogger('online_preproc')
+
+# log.setLevel(logging.DEBUG)
 
 afni_path = shutil.which('afni')
 
@@ -27,20 +29,20 @@ from realtime_receiver import ReceiverInterface
 from afnipy import lib_realtime as RT
 
 class CustomReceiverInterface(ReceiverInterface):
-    def __init__(self, port=None, show_data=False, verb=1):
+    def __init__(self, port=None, show_data=False, verb=3):
         super().__init__()
         self.RTI = RT.RTInterface()
         
         if port:
             self.RTI.server_port = port
         
+        self.verb = verb
+
         if not self.RTI:
             return
         
         # Show Some part of the data on every TR
         self.RTI.show_data = show_data
-
-        self.verb = verb
 
         # callbacks
         self.compute_TR_data = None

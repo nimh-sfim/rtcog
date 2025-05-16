@@ -13,17 +13,16 @@ from utils.rt_functions       import rt_smooth_vol, rt_snorm_vol, rt_svrscore_vo
 from utils.rt_functions       import gen_polort_regressors
 
 class Pipeline:
-    def __init__(self, options, Nv, Nt, mask_Nv=None, mask_img=None, exp_type=None):
-        self.Nv = Nv
+    def __init__(self, options, Nt, mask_Nv=None, mask_img=None, exp_type=None, log_level=None):
         self.Nt = Nt
         self.mask_Nv = mask_Nv
         self.mask_img = mask_img
         self.exp_type = exp_type
 
-        self.processed_data = np.zeros((self.Nv,1))
+        self.processed_data = np.zeros((self.mask_Nv,1))
 
         self.logger = logging.getLogger('Preproc')
-        self.logger.setLevel(options.log_level)
+        self.logger.setLevel(logging.DEBUG) # TODO: fix this
         
         self.save_ema = options.save_ema
         self.save_smooth = options.save_smooth
@@ -118,12 +117,9 @@ class Pipeline:
             self.pool.close()
             self.pool.join()
     
-    @classmethod
-    def from_yaml(cls, yaml):
-        """Allow user to pass in config file"""
-        ...
 
     def process_first_volume(self, t, n, this_t_data):
+        self.Nv = len(this_t_data)
         """Create empty structures"""
         self.logger.info('Number of Voxels Nv=%d' % self.Nv)
         # if self.exp_type in ['esam', 'esam_test']:
