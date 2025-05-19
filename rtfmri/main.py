@@ -30,7 +30,7 @@ def main():
     mp_evt_hit    = mp.Event() # Start with false
     mp_evt_end    = mp.Event() # Start with false
     mp_evt_qa_end = mp.Event() # Start with false
-    mp_prc_comm   = mp.Process(target=comm_process, args=(log, opts, mp_evt_hit, mp_evt_end, mp_evt_qa_end))
+    mp_prc_comm   = mp.Process(target=comm_process, args=(opts, mp_evt_hit, mp_evt_end, mp_evt_qa_end))
     mp_prc_comm.start()
 
     # 3) Get additional info using the GUI
@@ -60,7 +60,7 @@ def main():
                 time.sleep(0.1)
     
 
-def comm_process(log, opts, mp_evt_hit, mp_evt_end, mp_evt_qa_end):
+def comm_process(opts, mp_evt_hit, mp_evt_end, mp_evt_qa_end):
     from comm.receiver_interface import CustomReceiverInterface
     from core.experiment import Experiment
     
