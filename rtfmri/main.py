@@ -94,7 +94,7 @@ def comm_process(opts, mp_evt_hit, mp_evt_end, mp_evt_qa_end):
 
     # 6) set receiver callback
     receiver.compute_TR_data  = experiment.compute_TR_data
-    receiver.final_steps      = experiment.final_steps
+    receiver.final_steps      = experiment.end_run
 
     # 7) prepare for incoming connections
     log.info('- comm_process - 5) Prepare for Incoming Connections...')

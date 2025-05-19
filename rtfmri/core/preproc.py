@@ -4,6 +4,7 @@ import logging
 import multiprocessing as mp
 
 import numpy as np
+import pandas as pd
 
 sys.path.insert(0, osp.abspath(osp.join(osp.dirname(__file__), '../../../')))
 
@@ -12,6 +13,8 @@ from utils.rt_functions       import rt_EMA_vol, rt_regress_vol, rt_kalman_vol, 
 from utils.rt_functions       import rt_smooth_vol, rt_snorm_vol, rt_svrscore_vol
 from utils.rt_functions       import gen_polort_regressors
 from utils.log import get_logger
+from utils.fMRI import load_fMRI_file, unmask_fMRI_img
+from paths import RESOURCES_DIR, CAP_labels
 
 log = get_logger()
 
@@ -24,12 +27,21 @@ class Pipeline:
 
         self.processed_data = np.zeros((self.mask_Nv,1))
 
+        self.motion_estimates = []
+
         self.save_ema = options.save_ema
         self.save_smooth = options.save_smooth
         self.save_kalman = options.save_kalman
         self.save_iGLM = options.save_iglm
         self.save_orig = options.save_orig
         self.save_all = options.save_all
+
+        self.out_dir = options.out_dir
+        self.out_prefix = options.out_prefix
+        
+        self.snapshot = options.snapshot
+        if self.snapshot:
+            self.save_all = True
 
         if self.save_all:
             self.save_orig = True
@@ -122,11 +134,6 @@ class Pipeline:
         self.Nv = len(this_t_data)
         """Create empty structures"""
         log.info('Number of Voxels Nv=%d' % self.Nv)
-        # if self.exp_type in ['esam', 'esam_test']:
-        #     # These two variables are only needed if this is an experimental
-        #     log.debug(f'[t={t},n={n}] Initializing hits and svrscores')
-        #     self..hits             = np.zeros((self..Ncaps, 1))
-        #     self..svrscores        = np.zeros((self..Ncaps, 1))
 
         self.welford_M   = np.zeros(self.Nv)
         self.welford_S   = np.zeros(self.Nv)
@@ -171,12 +178,6 @@ class Pipeline:
         if self.save_kalman: log.debug(f'[t={t},n={n}] Discard - Data_kalman.shape   {self.Data_kalman.shape}')
         log.debug(f'[t={t},n={n}] Discard - Data_norm.shape    {self.Data_norm.shape}') 
         if self.save_iGLM: log.debug(f'[t={t},n={n}] Discard - iGLM_Coeffs.shape   {self.iGLM_Coeffs.shape}')
-        # if self.exp_type == "esam" or self.exp_type == "esam_test":
-        #     # These two variables are only needed if this is an experimental
-        #     self.hits      = np.append(self.hits,      np.zeros((self.Ncaps,1)),  axis=1)
-        #     self.svrscores = np.append(self.svrscores, np.zeros((self.Ncaps,1)), axis=1)
-        #     log.debug(f'[t={t},n={n}] Discard - hits.shape      %s' % (t, n, str(self.hits.shape)))
-        #     log.debug(f'[t={t},n={n}] Discard - svrscores.shape %s' % (t, n, str(self.svrscores.shape)))
         
         log.debug(f'Discard volume, self.Data_FromAFNI[:10]: {self.Data_FromAFNI[:10]}')
         return 1
@@ -221,7 +222,6 @@ class Pipeline:
 
         self.processed_data = iGLM_data_out
 
-
     def run_kalman(self, t, n):
         klm_data_out, self.S_x, self.S_P, self.fPositDerivSpike, self.fNegatDerivSpike = rt_kalman_vol(
             n,
@@ -238,8 +238,8 @@ class Pipeline:
         )
         
         if self.save_kalman: 
-            self.Data_kalman      = np.append(self.Data_kalman, klm_data_out, axis=1)
-            log.debug('[t=%d,n=%d] Online - Kalman - Data_kalman.shape     %s' % (t, n, str(self.Data_kalman.shape)))
+            self.Data_kalman = np.append(self.Data_kalman, klm_data_out, axis=1)
+            log.debug(f'[t={t},n={n}] Online - Kalman - Data_kalman.shape     {self.Data_kalman.shape}')
         
         self.processed_data = np.squeeze(klm_data_out)
 
@@ -260,7 +260,7 @@ class Pipeline:
         self.Data_norm = np.append(self.Data_norm, norm_out, axis=1)
         log.debug(f'[t={t},n={n}] Online - Snorm - Data_norm.shape   {self.Data_norm.shape}')
         
-        self.processed_data = self.Data_norm
+        self.processed_data = norm_out
 
 
     def process(self, t, n, motion, this_t_data):
@@ -271,6 +271,13 @@ class Pipeline:
             return self.process_discard(t, n, this_t_data)
         
         self.run_welford(n, this_t_data)
+        
+        if self.save_orig:
+            self.Data_FromAFNI = np.append(self.Data_FromAFNI,this_t_data[:, np.newaxis], axis=1)
+        else:
+            self.Data_FromAFNI = np.hstack((self.Data_FromAFNI[:,-1][:,np.newaxis],this_t_data[:, np.newaxis]))  # Only keep this one and previous
+            log.debug('[t=%d,n=%d] Online - Input - Data_FromAFNI.shape %s' % (self.t, self.n, str(self.Data_FromAFNI.shape)))
+
 
         # make this more flexible -- give users ability to define order in yaml (aka build Step class)
         if self.do_EMA:
@@ -283,10 +290,139 @@ class Pipeline:
             self.run_smooth(t, n)
         if self.do_snorm:
             self.run_snorm(t, n)               
+        
+            
+    def final_steps(self):
+        self.save_motion_estimates()
+
+        if self.mask_img is None:
+            log.warning(' final_steps = No additional outputs generated due to lack of mask.')
+            return 1
+        
+        log.debug(' final_steps - About to write outputs to disk.')
+        self.save_nifti_files()
+
+        # If running snapshot test, save the variable states
+        if self.snapshot:
+            var_dict = {
+                'Data_norm': self.Data_norm,
+                'Data_EMA': self.Data_EMA,
+                'Data_iGLM': self.Data_iGLM,
+                'Data_smooth': self.Data_smooth,
+                # 'Data_kalman': self.Data_kalman,
+                'Data_FromAFNI': self.Data_FromAFNI,
+                'processed_data': self.processed_data # TODO: processed data can't be saved since it's just one TR that's overwritten. fix
+            }
+        
+
+            np.savez(osp.join(self.out_dir, f'{self.out_prefix}_snapshots.npz'), **var_dict) 
+        
+    def save_motion_estimates(self):
+        self.motion_estimates = [item for sublist in self.motion_estimates for item in sublist]
+        log.info(f'motion_estimates length is {len(self.motion_estimates)}')
+        self.motion_estimates = np.reshape(self.motion_estimates,newshape=(int(len(self.motion_estimates)/6),6))
+        motion_path = osp.join(self.out_dir,self.out_prefix+'.Motion.1D')
+        np.savetxt(
+            motion_path, 
+            self.motion_estimates,
+            delimiter="\t"
+        )
+        log.info(f'Motion estimates saved to disk: [{motion_path}]')
+
+    def save_nifti_files(self):
+        out_vars   = [self.processed_data]
+        out_labels = ['.pp_Zscore.nii']
+        if self.do_EMA and self.save_ema:
+            out_vars.append(self.Data_EMA)
+            out_labels.append('.pp_EMA.nii')
+        if self.do_iGLM and self.save_iGLM:
+            out_vars.append(self.Data_iGLM)
+            out_labels.append('.pp_iGLM.nii')
+        if self.do_kalman and self.save_kalman:
+            out_vars.append(self.Data_kalman)
+            out_labels.append('.pp_LPfilter.nii')
+        if self.do_smooth and self.save_smooth:
+            out_vars.append(self.Data_smooth)
+            out_labels.append('.pp_Smooth.nii')
+        if self.save_orig:
+            out_vars.append(self.Data_FromAFNI)
+            out_labels.append('.orig.nii')
+        
+        for variable, file_suffix in zip(out_vars, out_labels):
+            unmask_fMRI_img(variable, self.mask_img, osp.join(self.out_dir,self.out_prefix+file_suffix))
+
+        if self.do_iGLM and self.save_iGLM:
+            for i,lab in enumerate(self.nuisance_labels):
+                data = self.iGLM_Coeffs[:,i,:]
+                unmask_fMRI_img(data, self.mask_img, osp.join(self.out_dir,self.out_prefix+'.pp_iGLM_'+lab+'.nii'))
+
 
     def foo(self, t, n):
         iglm = Step('iGLM', self.run_iGLM, self.do_iGLM, [t, n])
 
+
+
+
+
+
+
+
+
+
+
+
+class ESAMPipeline(Pipeline):
+    def __init__(self, options, Nt, mask_Nv=None, mask_img=None, exp_type=None, Ncaps=0):
+        super().__init__(options, Nt, mask_Nv, mask_img, exp_type)
+        self.Ncaps = Ncaps
+    
+    def process_first_volume(self, t, n, this_t_data):
+        log.debug(f'[t={t},n={n}] Initializing hits and svrscores')
+        self.hits             = np.zeros((self.Ncaps, 1))
+        self.svrscores        = np.zeros((self.Ncaps, 1))
+        
+        log.debug(f'[t={t},n={n}] Discard - hits.shape      %s' % (t, n, str(self.hits.shape)))
+        log.debug(f'[t={t},n={n}] Discard - svrscores.shape %s' % (t, n, str(self.svrscores.shape)))
+       
+        self.hits = np.zeros((self.Ncaps, 1))
+        self.svrscores = np.zeros((self.Ncaps, 1))
+        return super().process_first_volume(t, n, this_t_data)
+    
+    def process_discard(self, t, n, this_t_data):
+        self.hits = np.zeros((self.Ncaps, 1))
+        self.svrscores = np.zeros((self.Ncaps, 1))
+        log.debug(f'[t={t},n={n}] Discard - hits.shape      %s' % (t, n, str(self.hits.shape)))
+        log.debug(f'[t={t},n={n}] Discard - svrscores.shape %s' % (t, n, str(self.svrscores.shape)))
+        return super().process_discard(t, n, this_t_data)
+    
+    def final_steps(self):
+        Hits_DF = pd.DataFrame(self.hits.T, columns=CAP_labels)
+        for cap in CAP_labels:
+            thisCAP_hits = Hits_DF[cap].sum()
+            if thisCAP_hits > 0: # There were hits for this particular cap
+                hit_ID = 1
+                for vol in Hits_DF[Hits_DF[cap]==True].index:
+                    if self.hit_dowin == True:
+                        thisCAP_Vols = vol-np.arange(self.hit_wl+self.nconsec_vols-1)
+                    else:
+                        thisCAP_Vols = vol-np.arange(self.nconsec_vols)
+                    out_file = osp.join(self.out_dir, self.out_prefix + '.Hit_'+cap+'_'+str(hit_ID).zfill(2)+'.nii')
+                    log.info(' - final_steps - [%s-%d]. Contributing Vols: %s | File: %s' % (cap, hit_ID,str(thisCAP_Vols), out_file ))
+                    log.debug(' - final_steps - self.Data_norm.shape %s' % str(self.Data_norm.shape))
+                    log.debug(' - final_steps - self.Data_norm[:,thisCAP_Vols].shape %s' % str(self.Data_norm[:,thisCAP_Vols].shape))
+                    thisCAP_InMask  = self.Data_norm[:,thisCAP_Vols].mean(axis=1)
+                    log.debug(' - final_steps - thisCAP_InMask.shape %s' % str(thisCAP_InMask.shape))
+                    unmask_fMRI_img(thisCAP_InMask, self.mask_img, out_file)
+                    hit_ID = hit_ID + 1
+
+        # Write out QA_Onsers and QA_Offsets
+        with open(self.qa_onsets_path,'w') as file:
+            for onset in self.qa_onsets:
+                file.write("%i\n" % onset)
+        with open(self.qa_offsets_path,'w') as file:
+            for offset in self.qa_offsets:
+                file.write("%i\n" % offset)        
+        return super().final_steps()
 
 class Step:
     """Not finished..."""
