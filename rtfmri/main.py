@@ -7,45 +7,20 @@ import time
 from psychopy import event
 sys.path.insert(0, osp.abspath(osp.join(osp.dirname(__file__), 'core')))
 
-from core.experiment import Experiment
 from core.options import Options
+from utils.log import get_logger, set_logger
+from utils.experiment_qa import  get_experiment_info, DefaultScreen, QAScreen
 
-from comm.receiver_interface import CustomReceiverInterface
-from utils.experiment_qa import get_experiment_info, DefaultScreen, QAScreen
-
-from psychopy.logging import console
-console.setLevel(logging.ERROR)
-
-log = logging.getLogger('online_preproc')
-
-# if not log.hasHandlers():
-    # print('++ LOGGER: setting')
-log.setLevel(logging.INFO)
-
-log_fmt = logging.Formatter('[%(levelname)s - %(filename)s]: %(message)s')
-
-# File Handler (overwriting the log each time)
-file_handler = logging.FileHandler('online_preproc.log', mode='w')
-file_handler.setFormatter(log_fmt)
-
-# Stream Handler (for console output)
-stream_handler = logging.StreamHandler()
-stream_handler.setFormatter(log_fmt)
-
-# Add handlers to the logger
-log.addHandler(file_handler)
-log.addHandler(stream_handler)
-# print(f'++ LOGGER HANDLERS: {log.handlers}')
-
+log = get_logger()
 
 def main():
     # 1) Read Input Parameters: port, fullscreen, etc..
-    # -------------------------------------------------
+    # ------------------------------------------
     opts = Options.from_cli()
-    # log.debug(f'User options: {opts.config}')
-    print(opts)
     opts.save_config()
-    
+
+    log = set_logger(debug=opts.debug, silent=opts.silent)
+
     if opts.exp_type in ['esam', 'esam_test']:
         # have function to verify files
         pass
@@ -55,7 +30,7 @@ def main():
     mp_evt_hit    = mp.Event() # Start with false
     mp_evt_end    = mp.Event() # Start with false
     mp_evt_qa_end = mp.Event() # Start with false
-    mp_prc_comm   = mp.Process(target=comm_process, args=(opts, mp_evt_hit, mp_evt_end, mp_evt_qa_end))
+    mp_prc_comm   = mp.Process(target=comm_process, args=(log, opts, mp_evt_hit, mp_evt_end, mp_evt_qa_end))
     mp_prc_comm.start()
 
     # 3) Get additional info using the GUI
@@ -84,7 +59,11 @@ def main():
             while not mp_evt_end.is_set():
                 time.sleep(0.1)
     
-def comm_process(opts, mp_evt_hit, mp_evt_end, mp_evt_qa_end):
+
+def comm_process(log, opts, mp_evt_hit, mp_evt_end, mp_evt_qa_end):
+    from comm.receiver_interface import CustomReceiverInterface
+    from core.experiment import Experiment
+    
     # 2) Create Experiment Object
     log.info('- comm_process - 2) Instantiating Experiment Object...')
     experiment = Experiment(opts, mp_evt_hit, mp_evt_end, mp_evt_qa_end)
@@ -97,7 +76,6 @@ def comm_process(opts, mp_evt_hit, mp_evt_end, mp_evt_qa_end):
     # 4) Start Communications
     log.info('- comm_process - 3) Opening Communication Channel...')
     receiver = CustomReceiverInterface(port=opts.tcp_port, show_data=opts.show_data)
-    # receiver = ReceiverInterface(port=opts.tcp_port, show_data=opts.show_data)
     if not receiver:
         return 1
 

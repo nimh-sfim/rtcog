@@ -11,9 +11,12 @@ from utils.core               import welford
 from utils.rt_functions       import rt_EMA_vol, rt_regress_vol, rt_kalman_vol, kalman_filter_mv
 from utils.rt_functions       import rt_smooth_vol, rt_snorm_vol, rt_svrscore_vol
 from utils.rt_functions       import gen_polort_regressors
+from utils.log import get_logger
+
+log = get_logger()
 
 class Pipeline:
-    def __init__(self, options, Nt, mask_Nv=None, mask_img=None, exp_type=None, log_level=None):
+    def __init__(self, options, Nt, mask_Nv=None, mask_img=None, exp_type=None):
         self.Nt = Nt
         self.mask_Nv = mask_Nv
         self.mask_img = mask_img
@@ -21,9 +24,6 @@ class Pipeline:
 
         self.processed_data = np.zeros((self.mask_Nv,1))
 
-        self.logger = logging.getLogger('Preproc')
-        self.logger.setLevel(logging.DEBUG) # TODO: fix this
-        
         self.save_ema = options.save_ema
         self.save_smooth = options.save_smooth
         self.save_kalman = options.save_kalman
@@ -91,7 +91,7 @@ class Pipeline:
             self.n_cores = options.n_cores
             self.pool = mp.Pool(processes=self.n_cores)
             if self.mask_Nv is not None:
-                self.logger.info(f'... initializing Kalman pool ...')
+                log.info(f'Initializing Kalman pool with {self.n_cores} processes ...')
                 _ = self.pool.map(kalman_filter_mv, self._initialize_kalman_pool())
 
     
@@ -121,10 +121,10 @@ class Pipeline:
     def process_first_volume(self, t, n, this_t_data):
         self.Nv = len(this_t_data)
         """Create empty structures"""
-        self.logger.info('Number of Voxels Nv=%d' % self.Nv)
+        log.info('Number of Voxels Nv=%d' % self.Nv)
         # if self.exp_type in ['esam', 'esam_test']:
         #     # These two variables are only needed if this is an experimental
-        #     self.logger.debug(f'[t={t},n={n}] Initializing hits and svrscores')
+        #     log.debug(f'[t={t},n={n}] Initializing hits and svrscores')
         #     self..hits             = np.zeros((self..Ncaps, 1))
         #     self..svrscores        = np.zeros((self..Ncaps, 1))
 
@@ -133,7 +133,7 @@ class Pipeline:
         self.welford_std = np.zeros(self.Nv)
         if self.do_smooth:
             if self.mask_Nv != self.Nv:
-                self.logger.error(f'Discrepancy across masks [data Nv = {self.Nv}, mask Nv = {self.mask_Nv}]')
+                log.error(f'Discrepancy across masks [data Nv = {self.Nv}, mask Nv = {self.mask_Nv}]')
                 sys.exit(-1)
         self.Data_FromAFNI = np.array(this_t_data[:,np.newaxis])
         if self.save_ema:    self.Data_EMA      = np.zeros((self.Nv, 1))
@@ -146,12 +146,12 @@ class Pipeline:
         self.S_P           = np.zeros(self.Nv) 
         self.fPositDerivSpike = np.zeros(self.Nv)
         self.fNegatDerivSpike = np.zeros(self.Nv)
-        if self.save_orig:   self.logger.debug(f'[t={t},n={n}] Init - Data_FromAFNI.shape {self.Data_FromAFNI.shape}')
-        if self.save_ema:    self.logger.debug(f'[t={t},n={n}] Init - Data_EMA.shape      {self.Data_EMA.shape}') 
-        if self.save_iGLM:   self.logger.debug(f'[t={t},n={n}] Init - Data_iGLM.shape     {self.Data_iGLM.shape}') 
-        if self.save_kalman: self.logger.debug(f'[t={t},n={n}] Init - Data_kalman.shape   {self.Data_kalman.shape}')
-        self.logger.debug(f'[t={t},n={n}] Init - Data_norm.shape     {self.Data_norm.shape}')
-        if self.save_iGLM:   self.logger.debug(f'[t={t},n={n}] Init - iGLM_Coeffs.shape   {self.iGLM_Coeffs.shape}')
+        if self.save_orig:   log.debug(f'[t={t},n={n}] Init - Data_FromAFNI.shape {self.Data_FromAFNI.shape}')
+        if self.save_ema:    log.debug(f'[t={t},n={n}] Init - Data_EMA.shape      {self.Data_EMA.shape}') 
+        if self.save_iGLM:   log.debug(f'[t={t},n={n}] Init - Data_iGLM.shape     {self.Data_iGLM.shape}') 
+        if self.save_kalman: log.debug(f'[t={t},n={n}] Init - Data_kalman.shape   {self.Data_kalman.shape}')
+        log.debug(f'[t={t},n={n}] Init - Data_norm.shape     {self.Data_norm.shape}')
+        if self.save_iGLM:   log.debug(f'[t={t},n={n}] Init - iGLM_Coeffs.shape   {self.iGLM_Coeffs.shape}')
         return 1
     
     def process_discard(self, t, n, this_t_data):
@@ -165,12 +165,12 @@ class Pipeline:
         if self.save_smooth: self.Data_smooth = np.append(self.Data_smooth, np.zeros((self.Nv,1)), axis=1)
         self.Data_norm     = np.append(self.Data_norm,   np.zeros((self.Nv,1)), axis=1)
         if self.save_iGLM: self.iGLM_Coeffs   = np.append(self.iGLM_Coeffs, np.zeros( (self.Nv,self.iGLM_num_regressors,1)), axis=2)
-        self.logger.debug('[t=%d,n=%d] Discard - Data_FromAFNI.shape %s' % (t, n, str(self.Data_FromAFNI.shape)))
-        if self.save_ema:    self.logger.debug(f'[t={t},n={n}] Discard - Data_EMA.shape      {self.Data_EMA.shape}')
-        if self.save_iGLM:   self.logger.debug(f'[t={t},n={n}] Discard - Data_iGLM.shape     {self.Data_iGLM.shape}')
-        if self.save_kalman: self.logger.debug(f'[t={t},n={n}] Discard - Data_kalman.shape   {self.Data_kalman.shape}')
-        self.logger.debug(f'[t={t},n={n}] Discard - Data_norm.shape    {self.Data_norm.shape}') 
-        if self.save_iGLM: self.logger.debug(f'[t={t},n={n}] Discard - iGLM_Coeffs.shape   {self.iGLM_Coeffs.shape}')
+        log.debug('[t=%d,n=%d] Discard - Data_FromAFNI.shape %s' % (t, n, str(self.Data_FromAFNI.shape)))
+        if self.save_ema:    log.debug(f'[t={t},n={n}] Discard - Data_EMA.shape      {self.Data_EMA.shape}')
+        if self.save_iGLM:   log.debug(f'[t={t},n={n}] Discard - Data_iGLM.shape     {self.Data_iGLM.shape}')
+        if self.save_kalman: log.debug(f'[t={t},n={n}] Discard - Data_kalman.shape   {self.Data_kalman.shape}')
+        log.debug(f'[t={t},n={n}] Discard - Data_norm.shape    {self.Data_norm.shape}') 
+        if self.save_iGLM: log.debug(f'[t={t},n={n}] Discard - iGLM_Coeffs.shape   {self.iGLM_Coeffs.shape}')
         # if self.exp_type == "esam" or self.exp_type == "esam_test":
         #     # These two variables are only needed if this is an experimental
         #     self.hits      = np.append(self.hits,      np.zeros((self.Ncaps,1)),  axis=1)
@@ -178,7 +178,7 @@ class Pipeline:
         #     log.debug(f'[t={t},n={n}] Discard - hits.shape      %s' % (t, n, str(self.hits.shape)))
         #     log.debug(f'[t={t},n={n}] Discard - svrscores.shape %s' % (t, n, str(self.svrscores.shape)))
         
-        self.logger.debug(f'Discard volume, self.Data_FromAFNI[:10]: {self.Data_FromAFNI[:10]}')
+        log.debug(f'Discard volume, self.Data_FromAFNI[:10]: {self.Data_FromAFNI[:10]}')
         return 1
 
     def run_welford(self, n, this_t_data):
@@ -189,13 +189,13 @@ class Pipeline:
             self.welford_S
         )
 
-        self.logger.debug(f'Welford Method Ouputs: M={self.welford_M} | S={self.welford_S} | std={self.welford_std}')
+        log.debug(f'Welford Method Ouputs: M={self.welford_M} | S={self.welford_S} | std={self.welford_std}')
     
     def run_ema(self, t, n):
         ema_data_out, self.EMA_filt = rt_EMA_vol(n, self.EMA_th, self.Data_FromAFNI, self.EMA_filt, do_operation=self.do_EMA)
         if self.save_ema: 
             self.Data_EMA = np.append(self.Data_EMA, ema_data_out, axis=1)
-            self.logger.debug(f'[t={t},n={n}] Online - EMA - Data_EMA.shape      {self.Data_EMA.shape}')
+            log.debug(f'[t={t},n={n}] Online - EMA - Data_EMA.shape      {self.Data_EMA.shape}')
         
         self.processed_data = ema_data_out
     
@@ -216,8 +216,8 @@ class Pipeline:
         if self.save_iGLM: 
             self.Data_iGLM = np.append(self.Data_iGLM, iGLM_data_out, axis=1)
             self.iGLM_Coeffs = np.append(self.iGLM_Coeffs, Bn, axis=2) 
-            self.logger.debug(f'[t={t},n={n}] Online - iGLM - Data_iGLM.shape     {self.Data_iGLM.shape}')
-            self.logger.debug(f'[t={t},n={n}] Online - iGLM - iGLM_Coeffs.shape   {self.iGLM_Coeffs.shape}')
+            log.debug(f'[t={t},n={n}] Online - iGLM - Data_iGLM.shape     {self.Data_iGLM.shape}')
+            log.debug(f'[t={t},n={n}] Online - iGLM - iGLM_Coeffs.shape   {self.iGLM_Coeffs.shape}')
 
         self.processed_data = iGLM_data_out
 
@@ -239,7 +239,7 @@ class Pipeline:
         
         if self.save_kalman: 
             self.Data_kalman      = np.append(self.Data_kalman, klm_data_out, axis=1)
-            self.logger.debug('[t=%d,n=%d] Online - Kalman - Data_kalman.shape     %s' % (t, n, str(self.Data_kalman.shape)))
+            log.debug('[t=%d,n=%d] Online - Kalman - Data_kalman.shape     %s' % (t, n, str(self.Data_kalman.shape)))
         
         self.processed_data = np.squeeze(klm_data_out)
 
@@ -247,8 +247,8 @@ class Pipeline:
         smooth_out = rt_smooth_vol(self.processed_data, self.mask_img, fwhm=self.FWHM, do_operation=self.do_smooth)
         if self.save_smooth:
             self.Data_smooth = np.append(self.Data_smooth, smooth_out, axis=1)
-            self.logger.debug('[t=%d,n=%d] Online - Smooth - Data_smooth.shape   %s' % (t, n, str(self.Data_smooth.shape)))
-            self.logger.debug('[t=%d,n=%d] Online - EMA - smooth_out.shape      %s' % (t, n, str(smooth_out.shape)))
+            log.debug('[t=%d,n=%d] Online - Smooth - Data_smooth.shape   %s' % (t, n, str(self.Data_smooth.shape)))
+            log.debug('[t=%d,n=%d] Online - EMA - smooth_out.shape      %s' % (t, n, str(smooth_out.shape)))
             
         self.processed_data = np.squeeze(smooth_out)
 
@@ -258,7 +258,7 @@ class Pipeline:
         norm_out = rt_snorm_vol(self.processed_data, do_operation=self.do_snorm)
     
         self.Data_norm = np.append(self.Data_norm, norm_out, axis=1)
-        self.logger.debug(f'[t={t},n={n}] Online - Snorm - Data_norm.shape   {self.Data_norm.shape}')
+        log.debug(f'[t={t},n={n}] Online - Snorm - Data_norm.shape   {self.Data_norm.shape}')
         
         self.processed_data = self.Data_norm
 
