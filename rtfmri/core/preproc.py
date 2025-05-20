@@ -25,7 +25,7 @@ class Pipeline:
         self.mask_img = mask_img
         self.exp_type = exp_type
 
-        self.processed_data = np.zeros((self.mask_Nv,1))
+        self.processed_tr = np.zeros((self.mask_Nv,1))
 
         self.motion_estimates = []
 
@@ -53,6 +53,7 @@ class Pipeline:
         self.welford_S = None
         self.welford_M = None
         self.welford_std = None
+
         self.Data_FromAFNI = None # np.array [Nv,Nt] for incoming data
         if self.save_ema:    self.Data_EMA = None # np.array [Nv,Nt] for data after EMA  step
         if self.save_iGLM:   self.Data_iGLM = None #np.array [Nv,Nt] for data after iGLM step
@@ -60,6 +61,7 @@ class Pipeline:
         if self.save_smooth: self.Data_smooth = None # np.array [Nv,Nt] for data after spatial smoothing
         if self.save_iGLM:   self.iGLM_Coeffs = None # np.array [Nregressor, Nv, Nt] for beta coefficients for all regressors
         self.Data_norm = None
+        self.Data_processed = None
 
         # Preprocessing steps
         self.do_EMA = options.do_EMA
@@ -149,6 +151,8 @@ class Pipeline:
         if self.save_smooth: self.Data_smooth   = np.zeros((self.Nv, 1))
         self.Data_norm     = np.zeros((self.Nv,1))
         if self.save_iGLM:   self.iGLM_Coeffs   = np.zeros((self.Nv, self.iGLM_num_regressors, 1))
+        self.Data_processed = np.zeros((self.Nv, 1)) # Final output
+        
         self.S_x           = np.zeros(self.Nv)
         self.S_P           = np.zeros(self.Nv) 
         self.fPositDerivSpike = np.zeros(self.Nv)
@@ -178,6 +182,7 @@ class Pipeline:
         if self.save_kalman: log.debug(f'[t={t},n={n}] Discard - Data_kalman.shape   {self.Data_kalman.shape}')
         log.debug(f'[t={t},n={n}] Discard - Data_norm.shape    {self.Data_norm.shape}') 
         if self.save_iGLM: log.debug(f'[t={t},n={n}] Discard - iGLM_Coeffs.shape   {self.iGLM_Coeffs.shape}')
+        self.Data_processed = np.append(self.Data_processed, np.zeros((self.Nv,1)), axis=1)
         
         log.debug(f'Discard volume, self.Data_FromAFNI[:10]: {self.Data_FromAFNI[:10]}')
         return 1
@@ -198,7 +203,7 @@ class Pipeline:
             self.Data_EMA = np.append(self.Data_EMA, ema_data_out, axis=1)
             log.debug(f'[t={t},n={n}] Online - EMA - Data_EMA.shape      {self.Data_EMA.shape}')
         
-        self.processed_data = ema_data_out
+        self.processed_tr = ema_data_out
     
     def run_iGLM(self, t, n, motion):
         if self.iGLM_motion:
@@ -208,7 +213,7 @@ class Pipeline:
             
         iGLM_data_out, self.iGLM_prev, Bn = rt_regress_vol(
             n, 
-            self.processed_data,
+            self.processed_tr,
             this_t_nuisance,
             self.iGLM_prev,
             do_operation=self.do_iGLM
@@ -220,13 +225,13 @@ class Pipeline:
             log.debug(f'[t={t},n={n}] Online - iGLM - Data_iGLM.shape     {self.Data_iGLM.shape}')
             log.debug(f'[t={t},n={n}] Online - iGLM - iGLM_Coeffs.shape   {self.iGLM_Coeffs.shape}')
 
-        self.processed_data = iGLM_data_out
+        self.processed_tr = iGLM_data_out
 
     def run_kalman(self, t, n):
         klm_data_out, self.S_x, self.S_P, self.fPositDerivSpike, self.fNegatDerivSpike = rt_kalman_vol(
             n,
             t,
-            self.processed_data,
+            self.processed_tr,
             self.welford_std,
             self.S_x,
             self.S_P,
@@ -241,26 +246,26 @@ class Pipeline:
             self.Data_kalman = np.append(self.Data_kalman, klm_data_out, axis=1)
             log.debug(f'[t={t},n={n}] Online - Kalman - Data_kalman.shape     {self.Data_kalman.shape}')
         
-        self.processed_data = np.squeeze(klm_data_out)
+        self.processed_tr = np.squeeze(klm_data_out)
 
     def run_smooth(self, t, n):
-        smooth_out = rt_smooth_vol(self.processed_data, self.mask_img, fwhm=self.FWHM, do_operation=self.do_smooth)
+        smooth_out = rt_smooth_vol(self.processed_tr, self.mask_img, fwhm=self.FWHM, do_operation=self.do_smooth)
         if self.save_smooth:
             self.Data_smooth = np.append(self.Data_smooth, smooth_out, axis=1)
             log.debug('[t=%d,n=%d] Online - Smooth - Data_smooth.shape   %s' % (t, n, str(self.Data_smooth.shape)))
             log.debug('[t=%d,n=%d] Online - EMA - smooth_out.shape      %s' % (t, n, str(smooth_out.shape)))
             
-        self.processed_data = np.squeeze(smooth_out)
+        self.processed_tr = np.squeeze(smooth_out)
 
     def run_snorm(self, t, n):
         # Should i make a self.save_norm? I'm pretty sure this doesn't exist becuase it's the last step, so it was just
         # whatever was saved in the end...
-        norm_out = rt_snorm_vol(self.processed_data, do_operation=self.do_snorm)
+        norm_out = rt_snorm_vol(self.processed_tr, do_operation=self.do_snorm)
     
         self.Data_norm = np.append(self.Data_norm, norm_out, axis=1)
         log.debug(f'[t={t},n={n}] Online - Snorm - Data_norm.shape   {self.Data_norm.shape}')
         
-        self.processed_data = norm_out
+        self.processed_tr = norm_out
 
 
     def process(self, t, n, motion, this_t_data):
@@ -291,7 +296,9 @@ class Pipeline:
         if self.do_snorm:
             self.run_snorm(t, n)               
         
+        self.Data_processed = np.append(self.Data_processed, self.processed_tr, axis=1)
             
+
     def final_steps(self):
         self.save_motion_estimates()
 
@@ -311,7 +318,7 @@ class Pipeline:
                 'Data_smooth': self.Data_smooth,
                 # 'Data_kalman': self.Data_kalman,
                 'Data_FromAFNI': self.Data_FromAFNI,
-                'processed_data': self.processed_data # TODO: processed data can't be saved since it's just one TR that's overwritten. fix
+                'Data_processed': self.Data_processed
             }
         
 
@@ -330,7 +337,7 @@ class Pipeline:
         log.info(f'Motion estimates saved to disk: [{motion_path}]')
 
     def save_nifti_files(self):
-        out_vars   = [self.processed_data]
+        out_vars   = [self.Data_processed]
         out_labels = ['.pp_Zscore.nii']
         if self.do_EMA and self.save_ema:
             out_vars.append(self.Data_EMA)
@@ -357,82 +364,4 @@ class Pipeline:
                 unmask_fMRI_img(data, self.mask_img, osp.join(self.out_dir,self.out_prefix+'.pp_iGLM_'+lab+'.nii'))
 
 
-    def foo(self, t, n):
-        iglm = Step('iGLM', self.run_iGLM, self.do_iGLM, [t, n])
 
-
-
-
-
-
-
-
-
-
-
-
-class ESAMPipeline(Pipeline):
-    def __init__(self, options, Nt, mask_Nv=None, mask_img=None, exp_type=None, Ncaps=0):
-        super().__init__(options, Nt, mask_Nv, mask_img, exp_type)
-        self.Ncaps = Ncaps
-    
-    def process_first_volume(self, t, n, this_t_data):
-        log.debug(f'[t={t},n={n}] Initializing hits and svrscores')
-        self.hits             = np.zeros((self.Ncaps, 1))
-        self.svrscores        = np.zeros((self.Ncaps, 1))
-        
-        log.debug(f'[t={t},n={n}] Discard - hits.shape      %s' % (t, n, str(self.hits.shape)))
-        log.debug(f'[t={t},n={n}] Discard - svrscores.shape %s' % (t, n, str(self.svrscores.shape)))
-       
-        self.hits = np.zeros((self.Ncaps, 1))
-        self.svrscores = np.zeros((self.Ncaps, 1))
-        return super().process_first_volume(t, n, this_t_data)
-    
-    def process_discard(self, t, n, this_t_data):
-        self.hits = np.zeros((self.Ncaps, 1))
-        self.svrscores = np.zeros((self.Ncaps, 1))
-        log.debug(f'[t={t},n={n}] Discard - hits.shape      %s' % (t, n, str(self.hits.shape)))
-        log.debug(f'[t={t},n={n}] Discard - svrscores.shape %s' % (t, n, str(self.svrscores.shape)))
-        return super().process_discard(t, n, this_t_data)
-    
-    def final_steps(self):
-        Hits_DF = pd.DataFrame(self.hits.T, columns=CAP_labels)
-        for cap in CAP_labels:
-            thisCAP_hits = Hits_DF[cap].sum()
-            if thisCAP_hits > 0: # There were hits for this particular cap
-                hit_ID = 1
-                for vol in Hits_DF[Hits_DF[cap]==True].index:
-                    if self.hit_dowin == True:
-                        thisCAP_Vols = vol-np.arange(self.hit_wl+self.nconsec_vols-1)
-                    else:
-                        thisCAP_Vols = vol-np.arange(self.nconsec_vols)
-                    out_file = osp.join(self.out_dir, self.out_prefix + '.Hit_'+cap+'_'+str(hit_ID).zfill(2)+'.nii')
-                    log.info(' - final_steps - [%s-%d]. Contributing Vols: %s | File: %s' % (cap, hit_ID,str(thisCAP_Vols), out_file ))
-                    log.debug(' - final_steps - self.Data_norm.shape %s' % str(self.Data_norm.shape))
-                    log.debug(' - final_steps - self.Data_norm[:,thisCAP_Vols].shape %s' % str(self.Data_norm[:,thisCAP_Vols].shape))
-                    thisCAP_InMask  = self.Data_norm[:,thisCAP_Vols].mean(axis=1)
-                    log.debug(' - final_steps - thisCAP_InMask.shape %s' % str(thisCAP_InMask.shape))
-                    unmask_fMRI_img(thisCAP_InMask, self.mask_img, out_file)
-                    hit_ID = hit_ID + 1
-
-        # Write out QA_Onsers and QA_Offsets
-        with open(self.qa_onsets_path,'w') as file:
-            for onset in self.qa_onsets:
-                file.write("%i\n" % onset)
-        with open(self.qa_offsets_path,'w') as file:
-            for offset in self.qa_offsets:
-                file.write("%i\n" % offset)        
-        return super().final_steps()
-
-class Step:
-    """Not finished..."""
-    def __init__(self, name, fn, do_fn, fn_args):
-        self.name = name
-        self.fn = fn
-        self.do_fn = do_fn
-        self.fn_args = fn_args
-    
-    def run(self):
-        if self.do_fn:
-            self.fn(*self.fn_args)
-    
