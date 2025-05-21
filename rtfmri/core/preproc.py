@@ -1,6 +1,5 @@
 import sys
 import os.path as osp
-import logging
 import multiprocessing as mp
 
 import numpy as np
@@ -14,12 +13,28 @@ from utils.rt_functions       import rt_smooth_vol, rt_snorm_vol, rt_svrscore_vo
 from utils.rt_functions       import gen_polort_regressors
 from utils.log import get_logger
 from utils.fMRI import load_fMRI_file, unmask_fMRI_img
-from paths import RESOURCES_DIR, CAP_labels
+from paths import OUTPUT_DIR, CAP_labels
 
 log = get_logger()
 
+DEFAULT_STEP_ORDER = [
+    'EMA', 'iGLM', 'kalman', 'smooth', 'snorm'
+]
+
 class Pipeline:
     def __init__(self, options, Nt, mask_Nv=None, mask_img=None, exp_type=None):
+        self.step_registry = {
+            'EMA': 'run_ema',
+            'iGLM': 'run_iGLM',
+            'kalman': 'run_kalman',
+            'smooth': 'run_smooth',
+            'snorm': 'run_snorm',
+        }
+        self.build_steps()
+
+        self.t = None
+        self.n = None
+
         self.Nt = Nt
         self.mask_Nv = mask_Nv
         self.mask_img = mask_img
@@ -28,7 +43,7 @@ class Pipeline:
         self.processed_tr = np.zeros((self.mask_Nv,1))
 
         self.motion_estimates = []
-
+        
         self.save_ema = options.save_ema
         self.save_smooth = options.save_smooth
         self.save_kalman = options.save_kalman
@@ -131,10 +146,21 @@ class Pipeline:
             self.pool.close()
             self.pool.join()
     
+    def build_steps(self, step_order=None):
+        # TODO: just skip adding the function if not do_function
+        """Build the pipeline"""
+        self.steps = []
+        order = step_order or DEFAULT_STEP_ORDER
+        for name in order:
+            if name not in self.step_registry:
+                log.error(f'Unknown step: {name}')
+                sys.exit(-1)
+            method = self.step_registry.get(name)
+            self.steps.append(Step(name, method))
 
-    def process_first_volume(self, t, n, this_t_data):
-        self.Nv = len(this_t_data)
+    def process_first_volume(self, this_t_data):
         """Create empty structures"""
+        self.Nv = len(this_t_data)
         log.info('Number of Voxels Nv=%d' % self.Nv)
 
         self.welford_M   = np.zeros(self.Nv)
@@ -157,39 +183,40 @@ class Pipeline:
         self.S_P           = np.zeros(self.Nv) 
         self.fPositDerivSpike = np.zeros(self.Nv)
         self.fNegatDerivSpike = np.zeros(self.Nv)
-        if self.save_orig:   log.debug(f'[t={t},n={n}] Init - Data_FromAFNI.shape {self.Data_FromAFNI.shape}')
-        if self.save_ema:    log.debug(f'[t={t},n={n}] Init - Data_EMA.shape      {self.Data_EMA.shape}') 
-        if self.save_iGLM:   log.debug(f'[t={t},n={n}] Init - Data_iGLM.shape     {self.Data_iGLM.shape}') 
-        if self.save_kalman: log.debug(f'[t={t},n={n}] Init - Data_kalman.shape   {self.Data_kalman.shape}')
-        log.debug(f'[t={t},n={n}] Init - Data_norm.shape     {self.Data_norm.shape}')
-        if self.save_iGLM:   log.debug(f'[t={t},n={n}] Init - iGLM_Coeffs.shape   {self.iGLM_Coeffs.shape}')
+        if self.save_orig:   log.debug(f'[t={self.t},n={self.n}] Init - Data_FromAFNI.shape {self.Data_FromAFNI.shape}')
+        if self.save_ema:    log.debug(f'[t={self.t},n={self.n}] Init - Data_EMA.shape      {self.Data_EMA.shape}') 
+        if self.save_iGLM:   log.debug(f'[t={self.t},n={self.n}] Init - Data_iGLM.shape     {self.Data_iGLM.shape}') 
+        if self.save_kalman: log.debug(f'[t={self.t},n={self.n}] Init - Data_kalman.shape   {self.Data_kalman.shape}')
+        log.debug(f'[t={self.t},n={self.n}] Init - Data_norm.shape     {self.Data_norm.shape}')
+        if self.save_iGLM:   log.debug(f'[t={self.t},n={self.n}] Init - iGLM_Coeffs.shape   {self.iGLM_Coeffs.shape}')
         return 1
     
-    def process_discard(self, t, n, this_t_data):
+    def process_discard(self, this_t_data):
+        """Append a bunch of zeros for volumes we will be discarding"""
         if self.save_orig: 
             self.Data_FromAFNI = np.append(self.Data_FromAFNI, this_t_data[:, np.newaxis], axis=1)
         else:
             self.Data_FromAFNI = np.hstack((self.Data_FromAFNI[:,-1][:,np.newaxis], this_t_data[:, np.newaxis]))  # Only keep this one and previous
-        if self.save_ema:  self.Data_EMA      = np.append(self.Data_EMA,    np.zeros((self.Nv,1)), axis=1)
-        if self.save_iGLM: self.Data_iGLM     = np.append(self.Data_iGLM,   np.zeros((self.Nv,1)), axis=1)
+        if self.save_ema:  self.Data_EMA = np.append(self.Data_EMA,    np.zeros((self.Nv,1)), axis=1)
+        if self.save_iGLM: self.Data_iGLM = np.append(self.Data_iGLM,   np.zeros((self.Nv,1)), axis=1)
         if self.save_kalman: self.Data_kalman = np.append(self.Data_kalman, np.zeros((self.Nv,1)), axis=1)
         if self.save_smooth: self.Data_smooth = np.append(self.Data_smooth, np.zeros((self.Nv,1)), axis=1)
-        self.Data_norm     = np.append(self.Data_norm,   np.zeros((self.Nv,1)), axis=1)
-        if self.save_iGLM: self.iGLM_Coeffs   = np.append(self.iGLM_Coeffs, np.zeros( (self.Nv,self.iGLM_num_regressors,1)), axis=2)
-        log.debug('[t=%d,n=%d] Discard - Data_FromAFNI.shape %s' % (t, n, str(self.Data_FromAFNI.shape)))
-        if self.save_ema:    log.debug(f'[t={t},n={n}] Discard - Data_EMA.shape      {self.Data_EMA.shape}')
-        if self.save_iGLM:   log.debug(f'[t={t},n={n}] Discard - Data_iGLM.shape     {self.Data_iGLM.shape}')
-        if self.save_kalman: log.debug(f'[t={t},n={n}] Discard - Data_kalman.shape   {self.Data_kalman.shape}')
-        log.debug(f'[t={t},n={n}] Discard - Data_norm.shape    {self.Data_norm.shape}') 
-        if self.save_iGLM: log.debug(f'[t={t},n={n}] Discard - iGLM_Coeffs.shape   {self.iGLM_Coeffs.shape}')
+        self.Data_norm = np.append(self.Data_norm, np.zeros((self.Nv,1)), axis=1)
+        if self.save_iGLM: self.iGLM_Coeffs = np.append(self.iGLM_Coeffs, np.zeros( (self.Nv,self.iGLM_num_regressors,1)), axis=2)
+        log.debug(f'[t={self.t},n={self.n}] Discard - Data_FromAFNI.shape {self.Data_FromAFNI.shape}')
+        if self.save_ema:    log.debug(f'[t={self.t},n={self.n}] Discard - Data_EMA.shape      {self.Data_EMA.shape}')
+        if self.save_iGLM:   log.debug(f'[t={self.t},n={self.n}] Discard - Data_iGLM.shape     {self.Data_iGLM.shape}')
+        if self.save_kalman: log.debug(f'[t={self.t},n={self.n}] Discard - Data_kalman.shape   {self.Data_kalman.shape}')
+        log.debug(f'[t={self.t},n={self.n}] Discard - Data_norm.shape    {self.Data_norm.shape}') 
+        if self.save_iGLM: log.debug(f'[t={self.t},n={self.n}] Discard - iGLM_Coeffs.shape   {self.iGLM_Coeffs.shape}')
         self.Data_processed = np.append(self.Data_processed, np.zeros((self.Nv,1)), axis=1)
         
         log.debug(f'Discard volume, self.Data_FromAFNI[:10]: {self.Data_FromAFNI[:10]}')
         return 1
 
-    def run_welford(self, n, this_t_data):
+    def run_welford(self, this_t_data):
         self.welford_M, self.welford_S, self.welford_std = welford(
-            n,
+            self.n,
             this_t_data,
             self.welford_M,
             self.welford_S
@@ -197,22 +224,22 @@ class Pipeline:
 
         log.debug(f'Welford Method Ouputs: M={self.welford_M} | S={self.welford_S} | std={self.welford_std}')
     
-    def run_ema(self, t, n):
-        ema_data_out, self.EMA_filt = rt_EMA_vol(n, self.EMA_th, self.Data_FromAFNI, self.EMA_filt, do_operation=self.do_EMA)
+    def run_ema(self):
+        ema_data_out, self.EMA_filt = rt_EMA_vol(self.n, self.EMA_th, self.Data_FromAFNI, self.EMA_filt, do_operation=self.do_EMA)
         if self.save_ema: 
             self.Data_EMA = np.append(self.Data_EMA, ema_data_out, axis=1)
-            log.debug(f'[t={t},n={n}] Online - EMA - Data_EMA.shape      {self.Data_EMA.shape}')
+            log.debug(f'[t={self.t},n={self.n}] Online - EMA - Data_EMA.shape      {self.Data_EMA.shape}')
         
         self.processed_tr = ema_data_out
     
-    def run_iGLM(self, t, n, motion):
+    def run_iGLM(self):
         if self.iGLM_motion:
-            this_t_nuisance = np.concatenate((self.legendre_pols[t,:], motion))[:,np.newaxis]
+            this_t_nuisance = np.concatenate((self.legendre_pols[self.t,:], self.motion))[:,np.newaxis]
         else:
-            this_t_nuisance = (self.legendre_pols[t,:])[:,np.newaxis]
+            this_t_nuisance = (self.legendre_pols[self.t,:])[:,np.newaxis]
             
         iGLM_data_out, self.iGLM_prev, Bn = rt_regress_vol(
-            n, 
+            self.n, 
             self.processed_tr,
             this_t_nuisance,
             self.iGLM_prev,
@@ -222,15 +249,15 @@ class Pipeline:
         if self.save_iGLM: 
             self.Data_iGLM = np.append(self.Data_iGLM, iGLM_data_out, axis=1)
             self.iGLM_Coeffs = np.append(self.iGLM_Coeffs, Bn, axis=2) 
-            log.debug(f'[t={t},n={n}] Online - iGLM - Data_iGLM.shape     {self.Data_iGLM.shape}')
-            log.debug(f'[t={t},n={n}] Online - iGLM - iGLM_Coeffs.shape   {self.iGLM_Coeffs.shape}')
+            log.debug(f'[t={self.t},n={self.n}] Online - iGLM - Data_iGLM.shape     {self.Data_iGLM.shape}')
+            log.debug(f'[t={self.t},n={self.n}] Online - iGLM - iGLM_Coeffs.shape   {self.iGLM_Coeffs.shape}')
 
         self.processed_tr = iGLM_data_out
 
-    def run_kalman(self, t, n):
+    def run_kalman(self):
         klm_data_out, self.S_x, self.S_P, self.fPositDerivSpike, self.fNegatDerivSpike = rt_kalman_vol(
-            n,
-            t,
+            self.n,
+            self.t,
             self.processed_tr,
             self.welford_std,
             self.S_x,
@@ -244,38 +271,42 @@ class Pipeline:
         
         if self.save_kalman: 
             self.Data_kalman = np.append(self.Data_kalman, klm_data_out, axis=1)
-            log.debug(f'[t={t},n={n}] Online - Kalman - Data_kalman.shape     {self.Data_kalman.shape}')
+            log.debug(f'[t={self.t},n={self.n}] Online - Kalman - Data_kalman.shape     {self.Data_kalman.shape}')
         
         self.processed_tr = np.squeeze(klm_data_out)
 
-    def run_smooth(self, t, n):
+    def run_smooth(self):
         smooth_out = rt_smooth_vol(self.processed_tr, self.mask_img, fwhm=self.FWHM, do_operation=self.do_smooth)
         if self.save_smooth:
             self.Data_smooth = np.append(self.Data_smooth, smooth_out, axis=1)
-            log.debug('[t=%d,n=%d] Online - Smooth - Data_smooth.shape   %s' % (t, n, str(self.Data_smooth.shape)))
-            log.debug('[t=%d,n=%d] Online - EMA - smooth_out.shape      %s' % (t, n, str(smooth_out.shape)))
+            log.debug(f'[t={self.t},n={self.n}] Online - Smooth - Data_smooth.shape   {self.Data_smooth.shape}')
+            log.debug(f'[t={self.t},n={self.n}] Online - EMA - smooth_out.shape      {smooth_out.shape}')
             
         self.processed_tr = np.squeeze(smooth_out)
 
-    def run_snorm(self, t, n):
+    def run_snorm(self):
         # Should i make a self.save_norm? I'm pretty sure this doesn't exist becuase it's the last step, so it was just
         # whatever was saved in the end...
         norm_out = rt_snorm_vol(self.processed_tr, do_operation=self.do_snorm)
     
         self.Data_norm = np.append(self.Data_norm, norm_out, axis=1)
-        log.debug(f'[t={t},n={n}] Online - Snorm - Data_norm.shape   {self.Data_norm.shape}')
+        log.debug(f'[t={self.t},n={self.n}] Online - Snorm - Data_norm.shape   {self.Data_norm.shape}')
         
         self.processed_tr = norm_out
 
 
     def process(self, t, n, motion, this_t_data):
-        """Full preprocessing pipeline in original order"""        
-        if t == 0:
-            return self.process_first_volume(t, n, this_t_data)
-        if n == 0:
-            return self.process_discard(t, n, this_t_data)
+        """Full preprocessing pipeline in original order"""  
+        self.t = t
+        self.n = n
+        self.motion = motion
+
+        if self.t == 0:
+            return self.process_first_volume(this_t_data)
+        if self.n == 0:
+            return self.process_discard(this_t_data)
         
-        self.run_welford(n, this_t_data)
+        self.run_welford(this_t_data)
         
         if self.save_orig:
             self.Data_FromAFNI = np.append(self.Data_FromAFNI,this_t_data[:, np.newaxis], axis=1)
@@ -283,18 +314,8 @@ class Pipeline:
             self.Data_FromAFNI = np.hstack((self.Data_FromAFNI[:,-1][:,np.newaxis],this_t_data[:, np.newaxis]))  # Only keep this one and previous
             log.debug('[t=%d,n=%d] Online - Input - Data_FromAFNI.shape %s' % (self.t, self.n, str(self.Data_FromAFNI.shape)))
 
-
-        # make this more flexible -- give users ability to define order in yaml (aka build Step class)
-        if self.do_EMA:
-            self.run_ema(t, n)
-        if self.do_iGLM:
-            self.run_iGLM(t, n, motion)
-        if self.do_kalman:
-            self.run_kalman(t, n)
-        if self.do_smooth:
-            self.run_smooth(t, n)
-        if self.do_snorm:
-            self.run_snorm(t, n)               
+        for step in self.steps:
+            step.run(self)     
         
         self.Data_processed = np.append(self.Data_processed, self.processed_tr, axis=1)
             
@@ -321,8 +342,9 @@ class Pipeline:
                 'Data_processed': self.Data_processed
             }
         
-
-            np.savez(osp.join(self.out_dir, f'{self.out_prefix}_snapshots.npz'), **var_dict) 
+            snap_path = osp.join(OUTPUT_DIR, f'{self.out_prefix}_snapshots.npz')
+            np.savez(snap_path, **var_dict) 
+            log.info(f'Snapshot saved to OUTPUT_DIR at {snap_path}')
         
     def save_motion_estimates(self):
         self.motion_estimates = [item for sublist in self.motion_estimates for item in sublist]
@@ -363,5 +385,17 @@ class Pipeline:
                 data = self.iGLM_Coeffs[:,i,:]
                 unmask_fMRI_img(data, self.mask_img, osp.join(self.out_dir,self.out_prefix+'.pp_iGLM_'+lab+'.nii'))
 
+                                   
+class Step:
+    """Preprocessing step.
+    TODO:
+        - pass method itself so that users can easily create their own
+    """
+    def __init__(self, name, method_name):
+        self.name = name
+        self.method_name = method_name
 
+    def run(self, pipeline):
+        fn = getattr(pipeline, self.method_name)
+        fn()
 
