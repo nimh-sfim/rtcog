@@ -128,6 +128,7 @@ class Pipeline:
 
     
     def _initialize_kalman_pool(self):
+        """Initialize pool with fake data up front to avoid delay later"""
         Nv = int(self.mask_Nv)
         return [
             {
@@ -228,14 +229,17 @@ class Pipeline:
         log.debug(f'Welford Method Ouputs: M={self.welford_M} | S={self.welford_S} | std={self.welford_std}')
     
     def run_ema(self):
+        log.debug(f'Before EMA: self.processed_tr.shape {self.processed_tr.shape}')
         ema_data_out, self.EMA_filt = rt_EMA_vol(self.n, self.EMA_th, self.Data_FromAFNI, self.EMA_filt, do_operation=self.do_EMA)
         if self.save_ema: 
             self.Data_EMA = np.append(self.Data_EMA, ema_data_out, axis=1)
             log.debug(f'[t={self.t},n={self.n}] Online - EMA - Data_EMA.shape      {self.Data_EMA.shape}')
         
         self.processed_tr = ema_data_out
+        log.debug(f'After EMA: self.processed_tr.shape {self.processed_tr.shape}')
     
     def run_iGLM(self):
+        log.debug(f'Before iGLM: self.processed_tr.shape {self.processed_tr.shape}')
         if self.iGLM_motion:
             this_t_nuisance = np.concatenate((self.legendre_pols[self.t,:], self.motion))[:,np.newaxis]
         else:
@@ -256,8 +260,10 @@ class Pipeline:
             log.debug(f'[t={self.t},n={self.n}] Online - iGLM - iGLM_Coeffs.shape   {self.iGLM_Coeffs.shape}')
 
         self.processed_tr = iGLM_data_out
+        log.debug(f'After iGLM: self.processed_tr.shape {self.processed_tr.shape}')
 
     def run_kalman(self):
+        log.debug(f'Before kalman: self.processed_tr.shape {self.processed_tr.shape}')
         klm_data_out, self.S_x, self.S_P, self.fPositDerivSpike, self.fNegatDerivSpike = rt_kalman_vol(
             self.n,
             self.t,
@@ -276,18 +282,22 @@ class Pipeline:
             self.Data_kalman = np.append(self.Data_kalman, klm_data_out, axis=1)
             log.debug(f'[t={self.t},n={self.n}] Online - Kalman - Data_kalman.shape     {self.Data_kalman.shape}')
         
-        self.processed_tr = np.squeeze(klm_data_out)
+        self.processed_tr = klm_data_out
+        log.debug(f'After kalman: self.processed_tr.shape {self.processed_tr.shape}')
 
     def run_smooth(self):
+        log.info(f'Before smooth: self.processed_tr.shape {self.processed_tr.shape}')
         smooth_out = rt_smooth_vol(self.processed_tr, self.mask_img, fwhm=self.FWHM, do_operation=self.do_smooth)
         if self.save_smooth:
             self.Data_smooth = np.append(self.Data_smooth, smooth_out, axis=1)
             log.debug(f'[t={self.t},n={self.n}] Online - Smooth - Data_smooth.shape   {self.Data_smooth.shape}')
             log.debug(f'[t={self.t},n={self.n}] Online - EMA - smooth_out.shape      {smooth_out.shape}')
             
-        self.processed_tr = np.squeeze(smooth_out)
+        self.processed_tr = smooth_out
+        log.debug(f'After smooth: self.processed_tr.shape {self.processed_tr.shape}')
 
     def run_snorm(self):
+        log.debug(f'Before snorm: self.processed_tr.shape {self.processed_tr.shape}')
         # Should i make a self.save_norm? I'm pretty sure this doesn't exist becuase it's the last step, so it was just
         # whatever was saved in the end...
         norm_out = rt_snorm_vol(self.processed_tr, do_operation=self.do_snorm)
@@ -296,6 +306,7 @@ class Pipeline:
         log.debug(f'[t={self.t},n={self.n}] Online - Snorm - Data_norm.shape   {self.Data_norm.shape}')
         
         self.processed_tr = norm_out
+        log.debug(f'After snorm: self.processed_tr.shape {self.processed_tr.shape}')
 
 
     def process(self, t, n, motion, this_t_data):
