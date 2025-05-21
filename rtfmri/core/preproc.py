@@ -122,6 +122,9 @@ class Pipeline:
             if self.mask_Nv is not None:
                 log.info(f'Initializing Kalman pool with {self.n_cores} processes ...')
                 _ = self.pool.map(kalman_filter_mv, self._initialize_kalman_pool())
+        else:
+            self.n_cores = 0
+            self.pool = None
 
     
     def _initialize_kalman_pool(self):
