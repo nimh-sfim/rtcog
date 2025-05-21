@@ -6,8 +6,8 @@ import pandas as pd
 import holoviews as hv
 import hvplot.pandas
 
-from core.preproc import Pipeline
-from utils.log import get_logger, set_logger
+from .pipeline import Pipeline
+from utils.log import set_logger
 from paths import CAP_labels
 
 sys.path.insert(0, osp.abspath(osp.join(osp.dirname(__file__), '..')))

@@ -7,31 +7,18 @@ import pandas as pd
 
 sys.path.insert(0, osp.abspath(osp.join(osp.dirname(__file__), '../../../')))
 
+from .preproc_steps import STEP_REGISTRY, DEFAULT_STEP_ORDER
 from utils.core               import welford
-from utils.rt_functions       import rt_EMA_vol, rt_regress_vol, rt_kalman_vol, kalman_filter_mv
-from utils.rt_functions       import rt_smooth_vol, rt_snorm_vol, rt_svrscore_vol
-from utils.rt_functions       import gen_polort_regressors
+from utils.rt_functions       import kalman_filter_mv, gen_polort_regressors
 from utils.log import get_logger
-from utils.fMRI import load_fMRI_file, unmask_fMRI_img
+from utils.fMRI import unmask_fMRI_img
 from paths import OUTPUT_DIR, CAP_labels
 
 log = get_logger()
 
-DEFAULT_STEP_ORDER = [
-    'EMA', 'iGLM', 'kalman', 'smooth', 'snorm'
-]
 
 class Pipeline:
     def __init__(self, options, Nt, mask_Nv=None, mask_img=None, exp_type=None):
-        self.step_registry = {
-            'EMA': 'run_ema',
-            'iGLM': 'run_iGLM',
-            'kalman': 'run_kalman',
-            'smooth': 'run_smooth',
-            'snorm': 'run_snorm',
-        }
-        self.build_steps()
-
         self.t = None
         self.n = None
 
@@ -84,6 +71,8 @@ class Pipeline:
         self.do_kalman = options.do_kalman
         self.do_smooth = options.do_smooth
         self.do_snorm = options.do_snorm
+
+        self.build_steps()
 
         self.FWHM = options.FWHM # FWHM for Spatial Smoothing in [mm]
         
@@ -156,11 +145,12 @@ class Pipeline:
         self.steps = []
         order = step_order or DEFAULT_STEP_ORDER
         for name in order:
-            if name not in self.step_registry:
+            if name not in STEP_REGISTRY:
                 log.error(f'Unknown step: {name}')
                 sys.exit(-1)
-            method = self.step_registry.get(name)
-            self.steps.append(Step(name, method))
+            step_class, enable_fn = STEP_REGISTRY.get(name)
+            if enable_fn(self):
+                self.steps.append(step_class())
 
     def process_first_volume(self, this_t_data):
         """Create empty structures"""
@@ -227,88 +217,9 @@ class Pipeline:
         )
 
         log.debug(f'Welford Method Ouputs: M={self.welford_M} | S={self.welford_S} | std={self.welford_std}')
-    
-    def run_ema(self):
-        log.debug(f'Before EMA: self.processed_tr.shape {self.processed_tr.shape}')
-        ema_data_out, self.EMA_filt = rt_EMA_vol(self.n, self.EMA_th, self.Data_FromAFNI, self.EMA_filt)
-        if self.save_ema: 
-            self.Data_EMA = np.append(self.Data_EMA, ema_data_out, axis=1)
-            log.debug(f'[t={self.t},n={self.n}] Online - EMA - Data_EMA.shape      {self.Data_EMA.shape}')
-        
-        self.processed_tr = ema_data_out
-        log.debug(f'After EMA: self.processed_tr.shape {self.processed_tr.shape}')
-    
-    def run_iGLM(self):
-        log.debug(f'Before iGLM: self.processed_tr.shape {self.processed_tr.shape}')
-        if self.iGLM_motion:
-            this_t_nuisance = np.concatenate((self.legendre_pols[self.t,:], self.motion))[:,np.newaxis]
-        else:
-            this_t_nuisance = (self.legendre_pols[self.t,:])[:,np.newaxis]
-            
-        iGLM_data_out, self.iGLM_prev, Bn = rt_regress_vol(
-            self.n, 
-            self.processed_tr,
-            this_t_nuisance,
-            self.iGLM_prev,
-        )
-
-        if self.save_iGLM: 
-            self.Data_iGLM = np.append(self.Data_iGLM, iGLM_data_out, axis=1)
-            self.iGLM_Coeffs = np.append(self.iGLM_Coeffs, Bn, axis=2) 
-            log.debug(f'[t={self.t},n={self.n}] Online - iGLM - Data_iGLM.shape     {self.Data_iGLM.shape}')
-            log.debug(f'[t={self.t},n={self.n}] Online - iGLM - iGLM_Coeffs.shape   {self.iGLM_Coeffs.shape}')
-
-        self.processed_tr = iGLM_data_out
-        log.debug(f'After iGLM: self.processed_tr.shape {self.processed_tr.shape}')
-
-    def run_kalman(self):
-        log.debug(f'Before kalman: self.processed_tr.shape {self.processed_tr.shape}')
-        klm_data_out, self.S_x, self.S_P, self.fPositDerivSpike, self.fNegatDerivSpike = rt_kalman_vol(
-            self.n,
-            self.t,
-            self.processed_tr,
-            self.welford_std,
-            self.S_x,
-            self.S_P,
-            self.fPositDerivSpike,
-            self.fNegatDerivSpike,
-            self.n_cores,
-            self.pool,
-        )
-        
-        if self.save_kalman: 
-            self.Data_kalman = np.append(self.Data_kalman, klm_data_out, axis=1)
-            log.debug(f'[t={self.t},n={self.n}] Online - Kalman - Data_kalman.shape     {self.Data_kalman.shape}')
-        
-        self.processed_tr = klm_data_out
-        log.debug(f'After kalman: self.processed_tr.shape {self.processed_tr.shape}')
-
-    def run_smooth(self):
-        log.info(f'Before smooth: self.processed_tr.shape {self.processed_tr.shape}')
-        smooth_out = rt_smooth_vol(self.processed_tr, self.mask_img, fwhm=self.FWHM)
-        if self.save_smooth:
-            self.Data_smooth = np.append(self.Data_smooth, smooth_out, axis=1)
-            log.debug(f'[t={self.t},n={self.n}] Online - Smooth - Data_smooth.shape   {self.Data_smooth.shape}')
-            log.debug(f'[t={self.t},n={self.n}] Online - EMA - smooth_out.shape      {smooth_out.shape}')
-            
-        self.processed_tr = smooth_out
-        log.debug(f'After smooth: self.processed_tr.shape {self.processed_tr.shape}')
-
-    def run_snorm(self):
-        log.debug(f'Before snorm: self.processed_tr.shape {self.processed_tr.shape}')
-        # Should i make a self.save_norm? I'm pretty sure this doesn't exist becuase it's the last step, so it was just
-        # whatever was saved in the end...
-        norm_out = rt_snorm_vol(self.processed_tr)
-    
-        self.Data_norm = np.append(self.Data_norm, norm_out, axis=1)
-        log.debug(f'[t={self.t},n={self.n}] Online - Snorm - Data_norm.shape   {self.Data_norm.shape}')
-        
-        self.processed_tr = norm_out
-        log.debug(f'After snorm: self.processed_tr.shape {self.processed_tr.shape}')
-
 
     def process(self, t, n, motion, this_t_data):
-        """Full preprocessing pipeline in original order"""  
+        """Run full pipeline on a single TR"""  
         self.t = t
         self.n = n
         self.motion = motion
@@ -330,6 +241,9 @@ class Pipeline:
             step.run(self)     
         
         self.Data_processed = np.append(self.Data_processed, self.processed_tr, axis=1)
+        if self.processed_tr.shape != (self.Nv, 1):
+            log.error(f'Unexpected shape for processed_tr! Expected ({self.Nv}, 1) | Actual: {self.processed_tr.shape}')
+            sys.exit(-1)
             
 
     def final_steps(self):
@@ -398,16 +312,3 @@ class Pipeline:
                 unmask_fMRI_img(data, self.mask_img, osp.join(self.out_dir,self.out_prefix+'.pp_iGLM_'+lab+'.nii'))
 
                                    
-class Step:
-    """Preprocessing step.
-    TODO:
-        - pass method itself so that users can easily create their own
-    """
-    def __init__(self, name, method_name):
-        self.name = name
-        self.method_name = method_name
-
-    def run(self, pipeline):
-        fn = getattr(pipeline, self.method_name)
-        fn()
-
