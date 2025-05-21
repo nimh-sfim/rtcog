@@ -99,7 +99,7 @@ def _iGLMVol(n,Yn,Fn,Dn,Cn,s2n):
         Bn = np.zeros((nv,nrBasFct))
     return Bn,Cn,Dn,s2n
 
-def rt_regress_vol(n, Yn, Fn, prev, do_operation=True):
+def rt_regress_vol(n, Yn, Fn, prev):
     """Apply real-time regression to fMRI data.
 
     This function performs real-time regression using a General Linear Model (GLM) to estimate the 
@@ -118,13 +118,10 @@ def rt_regress_vol(n, Yn, Fn, prev, do_operation=True):
     prev: dict
         A dictionary containing the previous state of the GLM, including 'Cn', 'Dn', and 's2n' from 
         the previous time point.
-    do_operation: bool, optional
-        A flag to determine whether the operation should be applied. If False, it returns the 
-        input data without modification. Default is True.
 
     Returns:
     --------
-    np.ndarray
+    np.ndarray, shape (Nvoxels, 1)
         The residual (detrended) fMRI data after removing the effects of the nuisance regressors, 
         reshaped into a 2D array.
     dict
@@ -132,13 +129,6 @@ def rt_regress_vol(n, Yn, Fn, prev, do_operation=True):
     np.ndarray
         The updated regression coefficient estimates for the current volume (Bn), reshaped into a 3D array.
     """
-    if not do_operation:
-        L   = Fn.shape[0] # Number of Regressors
-        Nv  = Yn.shape[0]
-        b_out = np.zeros((Nv,L,1))
-        p_out = {'Cn':None, 'Dn':None,'s2n':None}
-        y_out = Yn
-        return y_out, p_out, b_out
     if n == 1:
         L   = Fn.shape[0] # Number of Regressors
         Nv  = Yn.shape[0]
@@ -171,7 +161,7 @@ def _apply_EMA_filter(a, emaIn, filtInput):
     EMA_out      = emaIn - EMA_filt_out
     return EMA_out,EMA_filt_out
 
-def rt_EMA_vol(n, th, data, filt_in, do_operation=True):
+def rt_EMA_vol(n, th, data, filt_in):
     """ Calculate the rate of change of Exponential Moving Average (EMA) for a given time series data.
 
     Parameters:
@@ -183,28 +173,21 @@ def rt_EMA_vol(n, th, data, filt_in, do_operation=True):
         The threshold value for the EMA filter.
     data: np.ndarray
         The data to be processed.
-    filt_in: np.ndarray
+    filt_in: np.ndarray, shape (Nvoxels, 1)
         The previous output of the EMA filter, used as an input to the next filtering step.
-    do_operation: bool, optional
-        A flag that determines whether to apply the operation. If set to True, the operation is performed.
-        Default is True.
 
     Returns:
     --------
-    data_out: np.ndarray
+    data_out: np.ndarray, shape (Nvoxels, 1)
         The output data after applying the operation.
     filt_out: np.ndarray or None
         The updated filter state after applying the EMA operation, or None if the operation is skipped.
     """
-    if do_operation: # Apply this operation
-        if n == 1:   # First step
-            filt_out = data[:,-1][:,np.newaxis]
-            data_out = (data[:,-1] - data[:,-2])[:,np.newaxis] 
-        else:
-            data_out, filt_out = _apply_EMA_filter(th,data[:,-1][:,np.newaxis],filt_in)
-    else: # Do not apply this operation
-        data_out = data[:,-1][:,np.newaxis]
-        filt_out = None
+    if n == 1:   # First step
+        filt_out = data[:,-1][:,np.newaxis]
+        data_out = (data[:,-1] - data[:,-2])[:,np.newaxis] 
+    else:
+        data_out, filt_out = _apply_EMA_filter(th,data[:,-1][:,np.newaxis],filt_in)
     return data_out, filt_out
 
 # Kalman Filter Functions
@@ -330,103 +313,95 @@ def rt_kalman_vol(
         fNegatDerivSpike,
         num_cores,
         pool,
-        do_operation=True
 ):
     """ Run Kalman on a single TR. Parallelizes via pools. Outputs are fed into the next TR.
     
     Parameters:
     -----------
-    n : int
+    n: int
         The number of data points, i.e. number of processed volumes.
-    t : int
+    t: int
         The total number of received volumes.
-    data :
+    data: np.ndarray, shape (Nvoxels, 1)
         The input data for this TR.
-    data_std :
+    data_std:
         The welford stdev.
-    S_x :
+    S_x:
         The
-    S_P :
+    S_P:
         The
-    fPositDerivSpike :
+    fPositDerivSpike:
         Counter for spikes with positive derivative 
-    fNegatDerivSpike :
+    fNegatDerivSpike:
         Counter for spikes with negative derivative
-    num_cores : Int
+    num_cores: int
         The number of cores used for parallel processing.
     pool : multiprocessing.pool
         Multiprocessing pool for parallel processing.
-    do_operation : Bool
-        Whether or not to perform Kalman. If False, return the data unchanged.
-        Default is True.
     
     Returns
     -----------
     list
         A list containing:
-        
-        o_data : type
+        o_data: np.ndarray, shape (Nvoxels, 1)
             Output data.
-        o_S_x : type
+        o_S_x: type
             Description of o_S_x.
-        o_S_P : type
+        o_S_P: type
             Description of o_S_P.
-        o_fPos : type
+        o_fPos: type
             Description of o_fPos.
-        o_fNeg : type
+        o_fNeg: type
             Description of o_fNeg.
     """
 
     [Nv,_] = data.shape
-    if do_operation:
-        if n > 2:
-            log.debug('[t=%d,n=%d] rt_kalman_vol - Time to do some math' % (t, n))
-            log.debug('[t=%d,n=%d] rt_kalman_vol - Num Cores = %d' % (t, n, num_cores))
-            log.debug('[t=%d,n=%d] rt_kalman_vol - Input Data Dimensions %s' % (t, n, str(data.shape)))
-            v_groups = [int(i) for i in np.linspace(0,data.shape[0],num_cores+1)]
-            v_start  = v_groups[:-1]
-            v_end = v_groups[1:]
-            log.debug('[t=%d,n=%d] rt_kalman_vol - v_start %s' % (t, n, str(v_start)))
-            log.debug('[t=%d,n=%d] rt_kalman_vol - v_end   %s' % (t, n, str(v_end)))
-            o_data, o_fPos, o_fNeg = [],[],[]
-            o_S_x, o_S_P           = [],[]
-            data_std_sq            = np.power(data_std,2) 
-            inputs = ({'d'   : data[v_s:v_e],
-                    'std' : data_std[v_s:v_e],
-                    'S_x' : S_x[v_s:v_e],
-                    'S_P' : S_P[v_s:v_e],
-                    'S_Q' : 0.25 * data_std_sq[v_s:v_e],
-                    'S_R' : data_std_sq[v_s:v_e],
-                    'fPos': fPositDerivSpike[v_s:v_e],
-                    'fNeg': fNegatDerivSpike[v_s:v_e],
-                    'vox' : np.arange(v_s,v_e)}
-                    for v_s,v_e in zip(v_start,v_end))
-            log.debug('[t=%d,n=%d] rt_kalman_vol - About to go parallel with %d cores' % (t, n, num_cores))
-            res = pool.map(kalman_filter_mv,inputs)
-            log.debug('[t=%d,n=%d] rt_kalman_vol - All parallel operations completed.' % (t, n))
+    if n > 2:
+        log.debug('[t=%d,n=%d] rt_kalman_vol - Time to do some math' % (t, n))
+        log.debug('[t=%d,n=%d] rt_kalman_vol - Num Cores = %d' % (t, n, num_cores))
+        log.debug('[t=%d,n=%d] rt_kalman_vol - Input Data Dimensions %s' % (t, n, str(data.shape)))
+        v_groups = [int(i) for i in np.linspace(0,data.shape[0],num_cores+1)]
+        v_start  = v_groups[:-1]
+        v_end = v_groups[1:]
+        log.debug('[t=%d,n=%d] rt_kalman_vol - v_start %s' % (t, n, str(v_start)))
+        log.debug('[t=%d,n=%d] rt_kalman_vol - v_end   %s' % (t, n, str(v_end)))
+        o_data, o_fPos, o_fNeg = [],[],[]
+        o_S_x, o_S_P           = [],[]
+        data_std_sq            = np.power(data_std,2) 
+        inputs = ({'d'   : data[v_s:v_e],
+                'std' : data_std[v_s:v_e],
+                'S_x' : S_x[v_s:v_e],
+                'S_P' : S_P[v_s:v_e],
+                'S_Q' : 0.25 * data_std_sq[v_s:v_e],
+                'S_R' : data_std_sq[v_s:v_e],
+                'fPos': fPositDerivSpike[v_s:v_e],
+                'fNeg': fNegatDerivSpike[v_s:v_e],
+                'vox' : np.arange(v_s,v_e)}
+                for v_s,v_e in zip(v_start,v_end))
+        log.debug('[t=%d,n=%d] rt_kalman_vol - About to go parallel with %d cores' % (t, n, num_cores))
+        res = pool.map(kalman_filter_mv,inputs)
+        log.debug('[t=%d,n=%d] rt_kalman_vol - All parallel operations completed.' % (t, n))
 
 
-            for j in np.arange(num_cores):
-                o_data.append(res[j][0])
-                o_fPos.append(res[j][1])
-                o_fNeg.append(res[j][2])
-                o_S_x.append(res[j][3])
-                o_S_P.append(res[j][4])
+        for j in np.arange(num_cores):
+            o_data.append(res[j][0])
+            o_fPos.append(res[j][1])
+            o_fNeg.append(res[j][2])
+            o_S_x.append(res[j][3])
+            o_S_P.append(res[j][4])
 
-            # What we are returning, and their resulting shapes
-            vars_list = [o_data, o_S_x, o_S_P, o_fPos, o_fNeg]
-            shapes = [(Nv,1), (Nv,), (Nv,), (Nv,), (Nv,)]
+        # What we are returning, and their resulting shapes
+        vars_list = [o_data, o_S_x, o_S_P, o_fPos, o_fNeg]
+        shapes = [(Nv,1), (Nv,), (Nv,), (Nv,), (Nv,)]
 
-            # Set dtype as object to avoid error from incosistent dimensions
-            all_arrs = [np.array(list(itertools.chain(*var)), dtype='object') for var in vars_list]
-            
-            # Return final list of reshaped variables
-            return [np.reshape(arr, (Nv, 1)) for arr, shape in zip(all_arrs, shapes)]
-            
-        else:
-            return [np.zeros((Nv,1)), np.zeros(Nv),np.zeros(Nv),np.zeros(Nv),np.zeros(Nv)]
+        # Set dtype as object to avoid error from incosistent dimensions
+        all_arrs = [np.array(list(itertools.chain(*var)), dtype='object') for var in vars_list]
+        
+        # Return final list of reshaped variables
+        return [np.reshape(arr, (Nv, 1)) for arr, shape in zip(all_arrs, shapes)]
+        
     else:
-        return [data, None, None, None, None]
+        return [np.zeros((Nv,1)), np.zeros(Nv),np.zeros(Nv),np.zeros(Nv),np.zeros(Nv)]
 
 # Smoothing Functions
 # ===================
@@ -504,58 +479,46 @@ def _smooth_array(arr, affine, fwhm=None, ensure_finite=True, copy=True):
                 ndimage.gaussian_filter1d(arr, s, output=arr, axis=n)
     return arr
 
-def rt_smooth_vol(data_arr, mask_img, fwhm=4, do_operation=True):
+def rt_smooth_vol(data_arr, mask_img, fwhm=4):
     """Apply smoothing to fMRI data volumes.
 
     Parameters:
     -----------
-    data_arr: np.ndarray
+    data_arr: np.ndarray, shape (Nvoxels, 1)
         The input fMRI data array to be processed.
     mask_img: nibabel.Nifti1Image
         A binary mask image.
     fwhm: float, optional
         The full width at half maximum (FWHM) value used to define the smoothing kernel. 
         The default is 4 mm.
-    do_operation: bool, optional
-        A flag indicating whether to apply the smoothing operation. If False, the input data 
-        is returned without modification. Default is True.
 
     Returns:
     --------
-    np.ndarray
-        The smoothed fMRI data, or the original data if `do_operation` is False. The result 
-        is returned as a 2D array with a new axis for compatibility with downstream operations.
+    np.ndarray, shape (Nvoxels, 1)
+        The smoothed fMRI data.
     """
     data_arr = data_arr[:, 0]
-    if do_operation:
-        x      = unmask_fMRI_img(data_arr, mask_img)
-        x_sm   = _smooth_array(x, affine=mask_img.affine, fwhm=fwhm)
-        x_sm_v = mask_fMRI_img(x_sm, mask_img)
-    else:
-        x_sm_v = data_arr
+    x      = unmask_fMRI_img(data_arr, mask_img)
+    x_sm   = _smooth_array(x, affine=mask_img.affine, fwhm=fwhm)
+    x_sm_v = mask_fMRI_img(x_sm, mask_img)
+
     return x_sm_v[:, np.newaxis]
 
 # Spatial Z-scoring Function
 # ==========================
-def rt_snorm_vol(data, do_operation=True):
+def rt_snorm_vol(data):
     """Perform spatial Z-scoring on the input data.
 
     Parameters:
     -----------
-    data: np.ndarray
-        The input data to be normalized.
-    do_operation: bool, optional
-        A flag indicating whether to perform the normalization operation. If False, the 
-        input data is returned without modification. Default is True.
+    data: np.ndarray, shape (Nvoxels, 1)
+        The input data to be normalized. shape
 
     Returns:
     --------
-    np.ndarray
-        The normalized data (Z-scored), or the original data if `do_operation` is False.
+    np.ndarray, shape (Nvoxels, 1)
+        The normalized data (Z-scored)
     """
-    if not do_operation:
-        return data
-    
     sc  = StandardScaler(with_mean=True, with_std=True)
     return sc.fit_transform(data)
 

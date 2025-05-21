@@ -230,7 +230,7 @@ class Pipeline:
     
     def run_ema(self):
         log.debug(f'Before EMA: self.processed_tr.shape {self.processed_tr.shape}')
-        ema_data_out, self.EMA_filt = rt_EMA_vol(self.n, self.EMA_th, self.Data_FromAFNI, self.EMA_filt, do_operation=self.do_EMA)
+        ema_data_out, self.EMA_filt = rt_EMA_vol(self.n, self.EMA_th, self.Data_FromAFNI, self.EMA_filt)
         if self.save_ema: 
             self.Data_EMA = np.append(self.Data_EMA, ema_data_out, axis=1)
             log.debug(f'[t={self.t},n={self.n}] Online - EMA - Data_EMA.shape      {self.Data_EMA.shape}')
@@ -250,7 +250,6 @@ class Pipeline:
             self.processed_tr,
             this_t_nuisance,
             self.iGLM_prev,
-            do_operation=self.do_iGLM
         )
 
         if self.save_iGLM: 
@@ -275,7 +274,6 @@ class Pipeline:
             self.fNegatDerivSpike,
             self.n_cores,
             self.pool,
-            do_operation=self.do_kalman
         )
         
         if self.save_kalman: 
@@ -287,7 +285,7 @@ class Pipeline:
 
     def run_smooth(self):
         log.info(f'Before smooth: self.processed_tr.shape {self.processed_tr.shape}')
-        smooth_out = rt_smooth_vol(self.processed_tr, self.mask_img, fwhm=self.FWHM, do_operation=self.do_smooth)
+        smooth_out = rt_smooth_vol(self.processed_tr, self.mask_img, fwhm=self.FWHM)
         if self.save_smooth:
             self.Data_smooth = np.append(self.Data_smooth, smooth_out, axis=1)
             log.debug(f'[t={self.t},n={self.n}] Online - Smooth - Data_smooth.shape   {self.Data_smooth.shape}')
@@ -300,7 +298,7 @@ class Pipeline:
         log.debug(f'Before snorm: self.processed_tr.shape {self.processed_tr.shape}')
         # Should i make a self.save_norm? I'm pretty sure this doesn't exist becuase it's the last step, so it was just
         # whatever was saved in the end...
-        norm_out = rt_snorm_vol(self.processed_tr, do_operation=self.do_snorm)
+        norm_out = rt_snorm_vol(self.processed_tr)
     
         self.Data_norm = np.append(self.Data_norm, norm_out, axis=1)
         log.debug(f'[t={self.t},n={self.n}] Online - Snorm - Data_norm.shape   {self.Data_norm.shape}')
