@@ -1,0 +1,47 @@
+[
+    {
+        "text": "How alert were you?",
+        "labels": ["Fully asleep", "Somewhat sleepy", "Somewhat alert", "Fully alert"],
+        "name": "alertness"
+    },
+    {
+        "text": "Were you moving any parts of your body?",
+        "labels": ["Not sure","No / Disagree","Yes, a little","Yes, quite a bit","Yes, a lot"],
+        "name": "motion"
+    },
+    {
+        "text": "What was the valence of your ongoing experience?",
+        "labels": ["Very negative","Somewhat\nnegative","Neutral","Somewhat\npositive", "Very positive"],
+        "name": "valence"
+    },
+    {
+        "text": "Where was your attention focused?",
+        "labels": ["Fully in\ninternal world", "Mostly in\ninternal world", "Not Sure", "Mostly in\nexternal world", "Fully in\nexternal world"],
+        "name": "focus"
+    },
+    {
+        "text": "Were you in control of your thoughts/experience or did it emerge spontaneously?",
+        "labels": ["Fully in control","Somewhat in control","Not Sure","Somewhat spontaneously","Fully spontaneously"],
+        "name": "intention"
+    },
+    {
+        "text":"To what extent was your ongoing experience effortful?",
+        "labels": ["Not at all","Somewhat effortful","Very effortful","Extremely effortful"],
+        "name": "effort"
+    },
+    {
+        "text": "Did anything salient/surprising occur in your ongoing experience?",
+        "labels": ["Not at all", "Somewhat salient", "Very salient", "Extremely salient"],
+        "name": "salience"
+    },
+    {
+        "text": "How aware were your of your ongoing experience?",
+        "labels": ["Not aware at all", "Somewhat aware", "Extremely aware"],
+        "name": "awareness"
+    },
+    {
+        "text": "How long was the ongoing experience you are describing?",
+        "labels": ["Very brief (~1s)","Somwhat brief (2-5s)","Somewhat lengthy (5-10s)","Very lengthy (>10s)"],
+        "name": "exp_length"
+    }
+]

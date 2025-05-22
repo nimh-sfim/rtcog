@@ -7,13 +7,15 @@ from numpy.linalg import cholesky, inv
 import logging
 from sklearn.preprocessing import StandardScaler
 
-log     = logging.getLogger("rt_functions")
-log.setLevel(logging.INFO)
-log_fmt = logging.Formatter('[%(levelname)s - rt_functions]: %(message)s')
-log_ch  = logging.StreamHandler()
-log_ch.setFormatter(log_fmt)
-log_ch.setLevel(logging.INFO)
-log.addHandler(log_ch)
+# log     = logging.getLogger("rt_functions")
+# log.setLevel(logging.INFO)
+# log_fmt = logging.Formatter('[%(levelname)s - rt_functions]: %(message)s')
+# log_ch  = logging.StreamHandler()
+# log_ch.setFormatter(log_fmt)
+# log_ch.setLevel(logging.INFO)
+# log.addHandler(log_ch)
+log = logging.getLogger('online_preproc')
+
 
 def init_iGLM():
     return 1, {}
@@ -37,7 +39,7 @@ def gen_polort_regressors(polort, nt):
     out = np.zeros((nt, polort))
     for n in range(polort):
         Pn = legendre(n)
-        x  = np.linspace(-1.0, 1.0,nt)
+        x  = np.linspace(-1.0, 1.0, nt)
         out[:,n] = Pn(x).T
     return(out)
 
@@ -51,7 +53,7 @@ def _is_pos_def(x):
         
     Returns:
     --------
-    out: boolean
+    out: bool
     """
     return np.all(np.linalg.eigvals(x) > 1e-10)
 
@@ -76,10 +78,10 @@ def _iGLMVol(n,Yn,Fn,Dn,Cn,s2n):
     Cn: np.array []
         matrix for Cholesky decomposition at time n-1 (Eq. 15)
     s2n: np.array []
-        sigma square estimate for n-1 
+        sigma square estimate for n-1
+
     Returns:
     --------
-    
     Bn: np.array []
         current estimates for linear regression coefficients at time n
     Cn: np.array []
@@ -102,24 +104,55 @@ def _iGLMVol(n,Yn,Fn,Dn,Cn,s2n):
         An    = (1/n) * np.matmul(Dn,iNn.T)  # Eq. 14
         Bn    = np.matmul(An,iNn)            # Eq. 16
     else:
-        #print ('%d non positive definite'% n)
         Bn = np.zeros((nv,nrBasFct))
     return Bn,Cn,Dn,s2n
 
-def rt_regress_vol(n,Yn,Fn,prev, do_operation = True):
+def rt_regress_vol(n, Yn, Fn, prev, do_operation=True):
+    """Apply real-time regression to fMRI data.
+
+    This function performs real-time regression using a General Linear Model (GLM) to estimate the 
+    regression coefficients (Bn) and remove the effects of nuisance regressors from the input fMRI data 
+    (Yn). It updates the GLM matrices (Cn, Dn) and the sigma square estimate (s2n) for each new data point.
+
+    Parameters:
+    -----------
+    n: int
+        Current volume number. Not to be confused with the current
+        acquisition number.
+    Yn: np.ndarray, shape (Nvoxels, 1)
+        The current fMRI data point (masked).
+    Fn: np.ndarray, shape (Nregressors, 1)
+        The current regressor values (e.g., motion, trends, etc.)
+    prev: dict
+        A dictionary containing the previous state of the GLM, including 'Cn', 'Dn', and 's2n' from 
+        the previous time point.
+    do_operation: bool, optional
+        A flag to determine whether the operation should be applied. If False, it returns the 
+        input data without modification. Default is True.
+
+    Returns:
+    --------
+    np.ndarray
+        The residual (detrended) fMRI data after removing the effects of the nuisance regressors, 
+        reshaped into a 2D array.
+    dict
+        A dictionary containing the updated GLM state, including the updated 'Cn', 'Dn', and 's2n'.
+    np.ndarray
+        The updated regression coefficient estimates for the current volume (Bn), reshaped into a 3D array.
+    """
     if not do_operation:
-        L   = Fn.shape[0]                               # Number of Regressors
+        L   = Fn.shape[0] # Number of Regressors
         Nv  = Yn.shape[0]
         b_out = np.zeros((Nv,L,1))
         p_out = {'Cn':None, 'Dn':None,'s2n':None}
         y_out = Yn
         return y_out, p_out, b_out
     if n == 1:
-        L   = Fn.shape[0]                               # Number of Regressors
+        L   = Fn.shape[0] # Number of Regressors
         Nv  = Yn.shape[0]
-        Cn  = np.zeros((L,L), dtype='float64')                  # Matrix for Cholesky decomposition
-        Dn  = np.zeros((Nv, L), dtype='float64')   # Dn
-        s2n = np.zeros((Nv, 1), dtype='float64')   # Sigma Estimates
+        Cn  = np.zeros((L,L), dtype='float64') # Matrix for Cholesky decomposition
+        Dn  = np.zeros((Nv, L), dtype='float64') # Dn
+        s2n = np.zeros((Nv, 1), dtype='float64') # Sigma Estimates
     else:
         Cn  = prev['Cn']
         Dn  = prev['Dn']
@@ -140,20 +173,43 @@ def init_EMA():
     EMA_filt    = None
     return EMA_th, EMA_filt
 
-def _apply_EMA_filter(a,emaIn,filtInput):
+def _apply_EMA_filter(a, emaIn, filtInput):
     A            = (np.array([a,1-a])[:,np.newaxis]).T
     EMA_filt_out = np.dot(A, np.hstack([filtInput,emaIn]).T).T
     EMA_out      = emaIn - EMA_filt_out
     return EMA_out,EMA_filt_out
 
-def rt_EMA_vol(n,t,th,data,filt_in, do_operation=True):
+def rt_EMA_vol(n, th, data, filt_in, do_operation=True):
+    """ Calculate the rate of change of Exponential Moving Average (EMA) for a given time series data.
+
+    Parameters:
+    -----------
+    n: int
+        Current volume number entering the function. Not to be confused with the current
+        acquisition number.
+    th: float
+        The threshold value for the EMA filter.
+    data: np.ndarray
+        The data to be processed.
+    filt_in: np.ndarray
+        The previous output of the EMA filter, used as an input to the next filtering step.
+    do_operation: bool, optional
+        A flag that determines whether to apply the operation. If set to True, the operation is performed.
+        Default is True.
+
+    Returns:
+    --------
+    data_out: np.ndarray
+        The output data after applying the operation.
+    filt_out: np.ndarray or None
+        The updated filter state after applying the EMA operation, or None if the operation is skipped.
+    """
     if do_operation: # Apply this operation
         if n == 1:   # First step
             filt_out = data[:,-1][:,np.newaxis]
             data_out = (data[:,-1] - data[:,-2])[:,np.newaxis] 
-        else:        # Any other step
+        else:
             data_out, filt_out = _apply_EMA_filter(th,data[:,-1][:,np.newaxis],filt_in)
-            #data_out = np.squeeze(data_out)
     else: # Do not apply this operation
         data_out = data[:,-1][:,np.newaxis]
         filt_out = None
@@ -204,7 +260,6 @@ def _kalman_filter(kalmTh, kalmIn, S, fPositDerivSpike, fNegatDerivSpike):
     A = 1
     H = 1
     I = 1
-    #kalmOut = 0
     
     # Kalman Filter
     S['x'] = A * S['x']
@@ -220,12 +275,10 @@ def _kalman_filter(kalmTh, kalmIn, S, fPositDerivSpike, fNegatDerivSpike):
     S['P'] = (I - (K * H)) * S['P']
     # Spikes identification and correction
     if np.abs(diff) < kalmTh:
-        #print('np.abs(diff) < kalmTh')
         kalmOut = H * S['x']
         fNegatDerivSpike = 0;
         fPositDerivSpike = 0;
     else:
-        #print('np.abs(diff) > kalmTh')
         if diff > 0:
             if fPositDerivSpike < 1:
                 kalmOut = H * tmp_x
@@ -247,7 +300,8 @@ def _kalman_filter(kalmTh, kalmIn, S, fPositDerivSpike, fNegatDerivSpike):
 
     return kalmOut,S,fPositDerivSpike,fNegatDerivSpike
 
-def _kalman_filter_mv(input_dict):
+
+def kalman_filter_mv(input_dict):
     Nv = input_dict['vox'].shape[0]
     out_d_mv    = []
     out_fPos_mv = []
@@ -266,65 +320,131 @@ def _kalman_filter_mv(input_dict):
         input_fNeg = input_dict['fNeg'][v]
         kalmTh     = 0.9 * input_ts_STD
         [out_d, out_S, out_fPos, out_fNeg] = _kalman_filter(kalmTh, input_d,input_S, input_fPos, input_fNeg)
+
+
         for (l,i) in zip([out_d_mv,out_fPos_mv,out_fNeg_mv,out_S_x_mv,out_S_P_mv, out_vox_mv],
                          [out_d,   out_fPos,   out_fNeg,   out_S['x'],out_S['P'],input_dict['vox'][v]]):
             l.append(i)
     return [out_d_mv, out_fPos_mv, out_fNeg_mv, out_S_x_mv, out_S_P_mv, out_vox_mv]
 
-def rt_kalman_vol(n,t,data,data_std,S_x,S_P,fPositDerivSpike,fNegatDerivSpike,num_cores,pool,do_operation=True):
-    [Nv,_] = data.shape
-    if n > 2 and do_operation==True:
-        log.debug('[t=%d,n=%d] rt_kalman_vol - Time to do some math' % (t, n))
-        log.debug('[t=%d,n=%d] rt_kalman_vol - Num Cores = %d' % (t, n, num_cores))
-        log.debug('[t=%d,n=%d] rt_kalman_vol - Input Data Dimensions %s' % (t, n, str(data.shape)))
-        v_groups = [int(i) for i in np.linspace(0,data.shape[0],num_cores+1)]
-        v_start  = v_groups[:-1]
-        v_end = v_groups[1:]
-        log.debug('[t=%d,n=%d] rt_kalman_vol - v_start %s' % (t, n, str(v_start)))
-        log.debug('[t=%d,n=%d] rt_kalman_vol - v_end   %s' % (t, n, str(v_end)))
-        o_data, o_fPos, o_fNeg = [],[],[]
-        o_S_x, o_S_P           = [],[]
-        data_std_sq            = np.power(data_std,2) 
-        inputs = ({'d'   : data[v_s:v_e],
-                   'std' : data_std[v_s:v_e],
-                   'S_x' : S_x[v_s:v_e],
-                   'S_P' : S_P[v_s:v_e],
-                   'S_Q' : 0.25 * data_std_sq[v_s:v_e],
-                   'S_R' : data_std_sq[v_s:v_e],
-                   'fPos': fPositDerivSpike[v_s:v_e],
-                   'fNeg': fNegatDerivSpike[v_s:v_e],
-                   'vox' : np.arange(v_s,v_e)}
-                  for v_s,v_e in zip(v_start,v_end))
-        log.debug('[t=%d,n=%d] rt_kalman_vol - About to go parallel with %d cores' % (t, n, num_cores))
-        res = pool.map(_kalman_filter_mv,inputs)
-        log.debug('[t=%d,n=%d] rt_kalman_vol - All parallel operationsc completed.' % (t, n))
+def rt_kalman_vol(
+        n,
+        t,
+        data,
+        data_std,
+        S_x,
+        S_P,
+        fPositDerivSpike,
+        fNegatDerivSpike,
+        num_cores,
+        pool,
+        do_operation=True
+):
+    """ Run Kalman on a single TR. Parallelizes via pools. Outputs are fed into the next TR.
+    
+    Parameters:
+    -----------
+    n : int
+        The number of data points, i.e. number of processed volumes.
+    t : int
+        The total number of received volumes.
+    data :
+        The input data for this TR.
+    data_std :
+        The welford stdev.
+    S_x :
+        The
+    S_P :
+        The
+    fPositDerivSpike :
+        Counter for spikes with positive derivative 
+    fNegatDerivSpike :
+        Counter for spikes with negative derivative
+    num_cores : Int
+        The number of cores used for parallel processing.
+    pool : multiprocessing.pool
+        Multiprocessing pool for parallel processing.
+    do_operation : Bool
+        Whether or not to perform Kalman. If False, return the data unchanged.
+        Default is True.
+    
+    Returns
+    -----------
+    list
+        A list containing:
+        
+        o_data : type
+            Output data.
+        o_S_x : type
+            Description of o_S_x.
+        o_S_P : type
+            Description of o_S_P.
+        o_fPos : type
+            Description of o_fPos.
+        o_fNeg : type
+            Description of o_fNeg.
+    """
 
-        for j in np.arange(num_cores):
-            o_data.append(res[j][0])
-            o_fPos.append(res[j][1])
-            o_fNeg.append(res[j][2])
-            o_S_x.append(res[j][3])
-            o_S_P.append(res[j][4])
-        
-        o_data = np.reshape(list(itertools.chain(*o_data)), newshape=(Nv,1))
-        o_fPos = np.reshape(list(itertools.chain(*o_fPos)), newshape=(Nv,))
-        o_fNeg = np.reshape(list(itertools.chain(*o_fNeg)), newshape=(Nv,))
-        o_S_x  = np.reshape(list(itertools.chain(*o_S_x)), newshape=(Nv,))
-        o_S_P  = np.reshape(list(itertools.chain(*o_S_P)), newshape=(Nv,))
-        
-        
-        out     = [ o_data, o_S_x, o_S_P, o_fPos, o_fNeg ]
+    [Nv,_] = data.shape
+    if do_operation:
+        if n > 2:
+            log.debug('[t=%d,n=%d] rt_kalman_vol - Time to do some math' % (t, n))
+            log.debug('[t=%d,n=%d] rt_kalman_vol - Num Cores = %d' % (t, n, num_cores))
+            log.debug('[t=%d,n=%d] rt_kalman_vol - Input Data Dimensions %s' % (t, n, str(data.shape)))
+            v_groups = [int(i) for i in np.linspace(0,data.shape[0],num_cores+1)]
+            v_start  = v_groups[:-1]
+            v_end = v_groups[1:]
+            log.debug('[t=%d,n=%d] rt_kalman_vol - v_start %s' % (t, n, str(v_start)))
+            log.debug('[t=%d,n=%d] rt_kalman_vol - v_end   %s' % (t, n, str(v_end)))
+            o_data, o_fPos, o_fNeg = [],[],[]
+            o_S_x, o_S_P           = [],[]
+            data_std_sq            = np.power(data_std,2) 
+            inputs = ({'d'   : data[v_s:v_e],
+                    'std' : data_std[v_s:v_e],
+                    'S_x' : S_x[v_s:v_e],
+                    'S_P' : S_P[v_s:v_e],
+                    'S_Q' : 0.25 * data_std_sq[v_s:v_e],
+                    'S_R' : data_std_sq[v_s:v_e],
+                    'fPos': fPositDerivSpike[v_s:v_e],
+                    'fNeg': fNegatDerivSpike[v_s:v_e],
+                    'vox' : np.arange(v_s,v_e)}
+                    for v_s,v_e in zip(v_start,v_end))
+            log.debug('[t=%d,n=%d] rt_kalman_vol - About to go parallel with %d cores' % (t, n, num_cores))
+            res = pool.map(kalman_filter_mv,inputs)
+            log.debug('[t=%d,n=%d] rt_kalman_vol - All parallel operations completed.' % (t, n))
+
+
+            for j in np.arange(num_cores):
+                o_data.append(res[j][0])
+                o_fPos.append(res[j][1])
+                o_fNeg.append(res[j][2])
+                o_S_x.append(res[j][3])
+                o_S_P.append(res[j][4])
+
+            # What we are returning, and their resulting shapes
+            vars_list = [o_data, o_S_x, o_S_P, o_fPos, o_fNeg]
+            shapes = [(Nv,1), (Nv,), (Nv,), (Nv,), (Nv,)]
+
+            # Set dtype as object to avoid error from incosistent dimensions
+            all_arrs = [np.array(list(itertools.chain(*var)), dtype='object') for var in vars_list]
+            
+            # Return final list of reshaped variables
+            return [np.reshape(arr, shape) for arr, shape in zip(all_arrs, shapes)]
+            
+        else:
+            return [np.zeros((Nv,1)), np.zeros(Nv),np.zeros(Nv),np.zeros(Nv),np.zeros(Nv)]
     else:
-        #log.debug('[t=%d,n=%d] rt_kalman_vol - Skip this pass. Return empty containsers.' % (t, n))
-        #out = [np.zeros((Nv,1)), [0]*Nv, [0]*Nv,[0]*Nv,[0]*Nv]
-        out = [np.zeros((Nv,1)), np.zeros(Nv),np.zeros(Nv),np.zeros(Nv),np.zeros(Nv)]
-    return out
+        return [data, None, None, None, None]
 
 # Smoothing Functions
 # ===================
 def _smooth_array(arr, affine, fwhm=None, ensure_finite=True, copy=True):
-    """Smooth images by applying a Gaussian filter.
+    """
+    Smooth images by applying a Gaussian filter.
     Apply a Gaussian filter along the three first dimensions of arr.
+
+    Based on https://github.com/nilearn/nilearn/blob/main/nilearn/image/image.py
+
     Parameters
     ----------
     arr: numpy.ndarray
@@ -363,7 +483,7 @@ def _smooth_array(arr, affine, fwhm=None, ensure_finite=True, copy=True):
     # Here, we have to investigate use cases of fwhm. Particularly, if fwhm=0.
     # See issue #1537
     if isinstance(fwhm, (int, float)) and (fwhm == 0.0):
-        warnings.warn("The parameter 'fwhm' for smoothing is specified "
+        log.warning("The parameter 'fwhm' for smoothing is specified "
                       "as {0}. Setting it to None "
                       "(no smoothing will be performed)"
                       .format(fwhm))
@@ -392,7 +512,28 @@ def _smooth_array(arr, affine, fwhm=None, ensure_finite=True, copy=True):
                 ndimage.gaussian_filter1d(arr, s, output=arr, axis=n)
     return arr
 
-def rt_smooth_vol(data_arr,mask_img,fwhm=4,do_operation=True):
+def rt_smooth_vol(data_arr, mask_img, fwhm=4, do_operation=True):
+    """Apply smoothing to fMRI data volumes.
+
+    Parameters:
+    -----------
+    data_arr: np.ndarray
+        The input fMRI data array to be processed.
+    mask_img: nibabel.Nifti1Image
+        A binary mask image.
+    fwhm: float, optional
+        The full width at half maximum (FWHM) value used to define the smoothing kernel. 
+        The default is 4 mm.
+    do_operation: bool, optional
+        A flag indicating whether to apply the smoothing operation. If False, the input data 
+        is returned without modification. Default is True.
+
+    Returns:
+    --------
+    np.ndarray
+        The smoothed fMRI data, or the original data if `do_operation` is False. The result 
+        is returned as a 2D array with a new axis for compatibility with downstream operations.
+    """
     if do_operation:
         x      = unmask_fMRI_img(data_arr, mask_img)
         x_sm   = _smooth_array(x, affine=mask_img.affine, fwhm=fwhm)
@@ -404,16 +545,53 @@ def rt_smooth_vol(data_arr,mask_img,fwhm=4,do_operation=True):
 # Spatial Z-scoring Function
 # ==========================
 def rt_snorm_vol(data, do_operation=True):
+    """Perform spatial Z-scoring on the input data.
+
+    Parameters:
+    -----------
+    data: np.ndarray
+        The input data to be normalized.
+    do_operation: bool, optional
+        A flag indicating whether to perform the normalization operation. If False, the 
+        input data is returned without modification. Default is True.
+
+    Returns:
+    --------
+    np.ndarray
+        The normalized data (Z-scored), or the original data if `do_operation` is False.
+    """
     data = data[:,np.newaxis]
+    
+    if not do_operation:
+        return data
+    
     sc  = StandardScaler(with_mean=True, with_std=True)
-    out = sc.fit_transform(data)
-    return out
+    return sc.fit_transform(data)
 
 # Decoding Functions
 # ==================
 def rt_svrscore_vol(data, SVRs, caps_labels):
+    """Compute SVR scores using pretrained
+
+    Parameters:
+    -----------
+    data: np.ndarray
+        The input data to be used for making predictions.
+    SVRs: dict
+        A dictionary of trained Support Vector Regressor (SVR) models, where the keys are 
+        label names and the values are the corresponding SVR models.
+    caps_labels: list of str
+        A list of labels corresponding to the SVRs in `SVRs`. The function will use these 
+        labels to predict the values from the respective SVRs.
+
+    Returns:
+    --------
+    np.ndarray
+        The predicted values from each SVR for each label.
+    """
     out = []
+
     for cap_lab in caps_labels:
         out.append(SVRs[cap_lab].predict(data[:,np.newaxis].T)[0])
-    out = np.array(out)[:,np.newaxis]
-    return out
+
+    return np.array(out)[:,np.newaxis]

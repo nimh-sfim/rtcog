@@ -37,12 +37,12 @@ def mask_fMRI_img(data_img,mask_img, verbose=False):
     data_v: np.array [Nacquisitions, Nvoxels in mask]
     """
     if isinstance(data_img,(nib.Nifti1Image,nib.Nifti2Image, nib.brikhead.AFNIImage)):
-        data = data_img.get_data()
+        data = data_img.get_fdata()
     else:
         data = data_img
     
     [m_x,m_y,m_z] = mask_img.shape
-    mask_v = np.reshape(mask_img.get_data(),np.prod(mask_img.header.get_data_shape()), order='F')
+    mask_v = np.reshape(mask_img.get_fdata(),np.prod(mask_img.header.get_data_shape()), order='F')
     
     d_dims = len(data.shape)
     if d_dims == 3:
@@ -77,18 +77,18 @@ def unmask_fMRI_img(data, mask_img, out_path=None):
     d_dims = len(data.shape)
     if d_dims == 1:
         out    = np.zeros(np.prod(mask_img.header.get_data_shape()))
-        mask_v = np.reshape(mask_img.get_data(),np.prod(mask_img.header.get_data_shape()), order='F')
+        mask_v = np.reshape(mask_img.get_fdata(),np.prod(mask_img.header.get_data_shape()), order='F')
         out[mask_v==1] = data
         out    = out.reshape(mask_img.header.get_data_shape(), order='F')
     if d_dims == 2:
         Nt = data.shape[1]
         m_x,m_y,m_z = mask_img.header.get_data_shape()
         out    = np.zeros((m_x*m_y*m_z,Nt))
-        mask_v = np.reshape(mask_img.get_data(),np.prod(mask_img.header.get_data_shape()), order='F')
+        mask_v = np.reshape(mask_img.get_fdata(),np.prod(mask_img.header.get_data_shape()), order='F')
         out[mask_v==1,:] = data
         out    = out.reshape((m_x,m_y,m_z,Nt), order='F')
 
-    if out_path != None:
+    if out_path is not None:
         out_img = type(mask_img)(out.astype(np.float32), affine=mask_img.affine)
         out_img.header['sform_code'] = mask_img.header['sform_code']
         #out_img = type(mask_img)(out, affine=None, header=mask_img.header)

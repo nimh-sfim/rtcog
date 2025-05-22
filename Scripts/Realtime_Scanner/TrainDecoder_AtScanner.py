@@ -52,7 +52,7 @@ def load_CAPs(CAPs_Path):
 def load_MASK(MASK_Path):
     MASK_Img  = nib.load(MASK_Path)
     [MASK_Nx, MASK_Ny, MASK_Nz] = MASK_Img.shape
-    MASK_Nv = MASK_Img.get_data().sum()
+    MASK_Nv = MASK_Img.get_fdata().sum()
     print (' + Mask Dimensions = %d Voxels in mask | [%d,%d,%d]' % (MASK_Nv, MASK_Nx,MASK_Ny,MASK_Nz))
     print (' + Mask Path: %s' % MASK_Path)
 
@@ -135,9 +135,9 @@ if __name__ == '__main__':
     # 6) Vectorize All
     print('++ =================================================================')
     print('++ VECTORIING, NORMALIZING ALL DATA:')
-    MASK_Vector  = np.reshape(MASK_Img.get_data(),(MASK_Nx*MASK_Ny*MASK_Nz),          order='F')
-    CAPs_Vector  = np.reshape(CAPs_Img.get_data(),(CAPs_Nx*CAPs_Ny*CAPs_Nz, n_CAPs),  order='F')
-    TRAIN_Vector = np.reshape(TRAIN_Img.get_data(),(TRAIN_Nx*TRAIN_Ny*TRAIN_Nz, TRAIN_Nt), order='F')
+    MASK_Vector  = np.reshape(MASK_Img.get_fdata(),(MASK_Nx*MASK_Ny*MASK_Nz),          order='F')
+    CAPs_Vector  = np.reshape(CAPs_Img.get_fdata(),(CAPs_Nx*CAPs_Ny*CAPs_Nz, n_CAPs),  order='F')
+    TRAIN_Vector = np.reshape(TRAIN_Img.get_fdata(),(TRAIN_Nx*TRAIN_Ny*TRAIN_Nz, TRAIN_Nt), order='F')
 
     # 7) Minimize rounding errors
     CAPs_Vector  = CAPs_Vector.astype('float64')

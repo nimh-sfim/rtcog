@@ -1,9 +1,10 @@
+import sys
 import os.path as osp
 from .fMRI import load_fMRI_file, mask_fMRI_img
 import numpy as np
 import pandas as pd
 from sklearn import linear_model
-from sklearn.preprocessing import StandardScaler, MaxAbsScaler
+from sklearn.preprocessing import MaxAbsScaler
 from scipy.stats import zscore
 from sklearn.svm import SVR
 from tqdm import tqdm
@@ -16,6 +17,8 @@ import multiprocessing as mp
 import panel as pn
 from bokeh.palettes import Category10_7
 tqdm().pandas()
+
+from config import CAP_indexes, CAP_labels
 
 import logging
 log     = logging.getLogger("training")
@@ -70,8 +73,8 @@ class SVRtrainer(object):
             sys.exit(-1)
         
         self.caps_path   = opts.caps_path
-        self.caps_indexes = [25,4,18,28,24,11,21]
-        self.caps_labels  = ['VPol','DMN','SMot','Audi','ExCn','rFPa','lFPa']
+        self.caps_indexes = CAP_indexes
+        self.caps_labels  = CAP_labels
     
     def load_datasets(self):
         self.caps_img = load_fMRI_file(self.caps_path, verbose=True)
@@ -79,7 +82,7 @@ class SVRtrainer(object):
         self.data_img = load_fMRI_file(self.data_path, verbose=True)
 
         self.caps_masked = mask_fMRI_img(self.caps_img,self.mask_img)
-        self.caps_masked = self.caps_masked[:, self.caps_indexes]  # Select only CAPs of intrest 
+        self.caps_masked = self.caps_masked[:, self.caps_indexes]  # Select only CAPs of interest 
         self.data_masked = mask_fMRI_img(self.data_img, self.mask_img)
         [self.data_nv, self.data_nt] = self.data_masked.shape
         log.debug('Masked CAPs Dimensions: %s' % str(self.caps_masked.shape))
@@ -181,29 +184,13 @@ class SVRtrainer(object):
         res = pool.map(train_one_svr, inputs)
         log.info(' +++ All parallel operations completed.')
         self.SVRs = {cap_lab:res[c] for c,cap_lab in enumerate(self.caps_labels)}
+        
+        # Shut down pool 
+        pool.close()
+        pool.join()
+
         return 1
 
-    # def train_one_svr(self,inputs):
-    #     cap_lab = inputs['cap_label']
-    #     print(' +++ Entering %s' % cap_lab)
-    #     data    = self.data_masked[:,self.vols4training].T
-    #     labels  = self.lm_res_z[cap_lab][self.vols4training]
-    #     C       = self.C
-    #     epsilon = self.epsilon
-    #     svr = SVR(kernel='linear', C=C, epsilon=epsilon)
-    #     svr.fit(data,labels)
-    #     print(' --- Exiting %s' % cap_lab)
-    #     return svr
-    #
-    # def train_svrs_mp(self):
-    #     num_cores = len(self.caps_labels)
-    #     inputs = ({'cap_label':cap_label} for cap_label in self.caps_labels)
-    #     pool = mp.Pool(processes=num_cores)  # Create as many processes as SVRs need to be trained
-    #     log.info(' +++ About to go parallel with %d cores' % (num_cores))
-    #     res = pool.map(self.train_one_svr, inputs)
-    #     log.info(' +++ All parallel operations completed.')
-    #     self.SVRs = {cap_lab:res[c] for c,cap_lab in enumerate(self.caps_labels)}
-    #     return 1
 
     def save_results(self):
         # Save Trained Models
@@ -239,7 +226,8 @@ class SVRtrainer(object):
         plt.xlabel('Time [TRs]')
         plt.ylabel('Z-Score')
         plt.legend(self.caps_labels)
-        plt.savefig(self.outpng, dpi=200, layout='tight')
+        plt.tight_layout()
+        plt.savefig(self.outpng, dpi=200)
         log.info(' - save_results - Saved Label Computation Results to [%s]' % self.outpng)
 
         # Save Dynamic Figures
@@ -270,3 +258,4 @@ class SVRtrainer(object):
         #renderer.save(LM_Layout, self.outhtml)
         log.info(' - save_results - Saved Label Computation Results (Dynamic View) to [%s.html]' % self.outhtml)
         return 1
+    

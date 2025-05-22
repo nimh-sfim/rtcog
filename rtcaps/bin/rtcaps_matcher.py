@@ -1,45 +1,63 @@
 import sys
+import time
 import argparse
 import logging
+import json
 import pickle
+import os.path as osp
 import multiprocessing as mp 
 from time import sleep
 from psychopy import event
 import holoviews as hv
 import hvplot.pandas
 import numpy as np
-import os.path as osp
-import sys, os
-import json
 import pandas as pd
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from afni_lib.receiver       import ReceiverInterface
-from rtcap_lib.core          import unpack_extra, welford
-from rtcap_lib.rt_functions  import rt_EMA_vol, rt_regress_vol, rt_kalman_vol
-from rtcap_lib.rt_functions  import rt_smooth_vol, rt_snorm_vol, rt_svrscore_vol
-from rtcap_lib.rt_functions  import gen_polort_regressors
-from rtcap_lib.fMRI          import load_fMRI_file, unmask_fMRI_img
-from rtcap_lib.svr_methods   import is_hit_rt01
-from rtcap_lib.core          import create_win
-from rtcap_lib.experiment_qa import get_experiment_info, experiment_QA, experiment_Preproc
+sys.path.insert(0, osp.abspath(osp.join(osp.dirname(__file__), '..')))
+
+from config                       import RESOURCES_DIR, CAP_labels
+# from rtcap_lib.receiver_interface import ReceiverInterface
+from rtcap_lib.receiver_interface import CustomReceiverInterface
+from rtcap_lib.core               import welford
+from rtcap_lib.rt_functions       import rt_EMA_vol, rt_regress_vol, rt_kalman_vol, kalman_filter_mv
+from rtcap_lib.rt_functions       import rt_smooth_vol, rt_snorm_vol, rt_svrscore_vol
+from rtcap_lib.rt_functions       import gen_polort_regressors
+from rtcap_lib.fMRI               import load_fMRI_file, unmask_fMRI_img
+from rtcap_lib.svr_methods        import is_hit_rt01
+from rtcap_lib.core               import create_win
+from rtcap_lib.experiment_qa      import get_experiment_info, DefaultScreen, QAScreen
+
+log = logging.getLogger('online_preproc')
+
+# if not log.hasHandlers():
+    # print('++ LOGGER: setting')
+log.setLevel(logging.INFO)
+
+log_fmt = logging.Formatter('[%(levelname)s - %(filename)s]: %(message)s')
+
+# File Handler (overwriting the log each time)
+file_handler = logging.FileHandler('online_preproc.log', mode='w')
+file_handler.setFormatter(log_fmt)
+
+# Stream Handler (for console output)
+stream_handler = logging.StreamHandler()
+stream_handler.setFormatter(log_fmt)
+
+# Add handlers to the logger
+log.addHandler(file_handler)
+log.addHandler(stream_handler)
+# print(f'++ LOGGER HANDLERS: {log.handlers}')
 
 from psychopy import prefs
 prefs.hardware['audioLib'] = ['pyo']
+prefs.hardware['keyboard'] = 'pygame'
+prefs.hardware['audio'] = 'pygame'
 
-# Setup Logging Infrastructure
-log     = logging.getLogger("online_preproc")
-log_fmt = logging.Formatter('[%(levelname)s - Main]: %(message)s')
-log_ch  = logging.StreamHandler()
-log_ch.setFormatter(log_fmt)
-log.setLevel(logging.INFO)
-log.addHandler(log_ch)
+# Ignore psychopy warnings
+from psychopy import logging
+logging.console.setLevel(logging.ERROR)
 
-screen_size = [512, 288]
-CAP_indexes = [25,4,18,28,24,11,21]
-CAP_labels  = ['VPol','DMN','SMot','Audi','ExCn','rFPa','lFPa']
-
-class Experiment(object):
+class Experiment:
     def __init__(self, options, mp_evt_hit, mp_evt_end, mp_evt_qa_end):
 
         self.mp_evt_hit = mp_evt_hit           # Signals a CAP hit
@@ -137,10 +155,11 @@ class Experiment(object):
             sys.exit(-1)
         
         if self.mask_path is None:
+            log.warning('  Experiment_init_ - No mask was provided!')
             self.mask_img = None
         else:
             self.mask_img  = load_fMRI_file(self.mask_path)
-            self.mask_Nv = np.sum(self.mask_img.get_data())
+            self.mask_Nv = np.sum(self.mask_img.get_fdata())
             log.debug('  Experiment_init_ - Number of Voxels in user-provided mask: %d' % self.mask_Nv)
 
         # Create Legendre Polynomial regressors
@@ -152,34 +171,72 @@ class Experiment(object):
         # If kalman needed, create a pool
         if self.do_kalman:
             self.pool = mp.Pool(processes=self.n_cores)
+            if self.mask_Nv is not None:
+                log.info(f'   Experiment_init_ - Initializing Kalman pool with {self.n_cores} worker processes using dummy data.')
+                _ = self.pool.map(kalman_filter_mv, self._initialize_kalman_pool())
         else:
             self.pool = None
 
+        # For snapshot testing
+        self.snapshot = options.snapshot
+
+
+    def _initialize_kalman_pool(self):
+        Nv = int(self.mask_Nv)
+        return [
+            {
+                'd': np.random.rand(Nv, 1),
+                'std': np.random.rand(Nv),
+                'S_x': np.zeros(Nv),
+                'S_P': np.zeros(Nv),
+                'S_Q': np.random.rand(Nv),
+                'S_R': np.random.rand(Nv),
+                'fPos': np.zeros(Nv),
+                'fNeg': np.zeros(Nv),
+                'vox': np.arange(Nv)
+            }
+            for _ in range(self.n_cores)
+        ]
+
+
     def compute_TR_data(self, motion, extra):
+        # NOTE: extra and save_orig's data_FromAFNI are identical
         # Status as we enter the function
         hit_status    = self.mp_evt_hit.is_set()
         qa_end_status = self.mp_evt_qa_end.is_set()
 
+        # Update t up front
+        self.t += 1
+
         # Keep a record of motion estimates
+        motion = [i[self.t] for i in motion]
         self.motion_estimates.append(motion)
-        # Update t (it always does)
-        self.t = self.t + 1
+        if len(motion) != 6:
+            log.error('Motion not read in correctly.')
+            log.error(f'Expected length: 6 | Actual length: {len(motion)}')
+            sys.exit(-1)
+        
+        this_t_data = np.array([e[self.t] for e in extra])
+        if self.t > 0:
+            if len(this_t_data) != self.Nv:
+                log.error(f'Extra data not read in correctly.')
+                log.error(f'Expected length: {self.Nv} | Actual length: {len(this_t_data)}')
+                sys.exit(-1)
+
+        del extra # Save resources
 
         # Update n (only if not longer a discard volume)
         if self.t > self.nvols_discard - 1:
-            self.n = self.n + 1
+            self.n += 1
 
         log.info(' - Time point [t=%d, n=%d] | lastQA_endTR = %d | hit = %s | qa_end = %s | prg_end = %s' % (self.t, self.n, self.lastQA_endTR,
                                     self.mp_evt_hit.is_set(),
                                     self.mp_evt_qa_end.is_set(),
                                     self.mp_evt_end.is_set()))
         
-        # Read Data from socket
-        this_t_data = np.array(extra)
-        
         # If first volume, then create empty structures and call it a day (TR)
         if self.t == 0:
-            self.Nv            = len(this_t_data)
+            self.Nv = len(this_t_data)
             log.info('Number of Voxels Nv=%d' % self.Nv)
             if self.exp_type == "esam" or self.exp_type == "esam_test":
                 # These two variables are only needed if this is an experimental
@@ -201,10 +258,10 @@ class Experiment(object):
             if self.save_smooth: self.Data_smooth   = np.zeros((self.Nv,1))
             self.Data_norm     = np.zeros((self.Nv,1))
             if self.save_iGLM:   self.iGLM_Coeffs   = np.zeros((self.Nv,self.iGLM_num_regressors,1))
-            self.S_x           = np.zeros(self.Nv) #[0]*self.Nv 
-            self.S_P           = np.zeros(self.Nv) #[0]*self.Nv 
-            self.fPositDerivSpike = np.zeros(self.Nv) #[0]*self.Nv 
-            self.fNegatDerivSpike = np.zeros(self.Nv) #[0]*self.Nv
+            self.S_x           = np.zeros(self.Nv)
+            self.S_P           = np.zeros(self.Nv) 
+            self.fPositDerivSpike = np.zeros(self.Nv)
+            self.fNegatDerivSpike = np.zeros(self.Nv)
             if self.save_orig:   log.debug('[t=%d,n=%d] Init - Data_FromAFNI.shape %s' % (self.t, self.n, str(self.Data_FromAFNI.shape)))
             if self.save_ema:    log.debug('[t=%d,n=%d] Init - Data_EMA.shape      %s' % (self.t, self.n, str(self.Data_EMA.shape)))
             if self.save_iGLM:   log.debug('[t=%d,n=%d] Init - Data_iGLM.shape     %s' % (self.t, self.n, str(self.Data_iGLM.shape)))
@@ -224,7 +281,7 @@ class Experiment(object):
             if self.save_kalman: self.Data_kalman = np.append(self.Data_kalman, np.zeros((self.Nv,1)), axis=1)
             if self.save_smooth: self.Data_smooth = np.append(self.Data_smooth, np.zeros((self.Nv,1)), axis=1)
             self.Data_norm     = np.append(self.Data_norm,   np.zeros((self.Nv,1)), axis=1)
-            if self.save_iGLM: self.iGLM_Coeffs   = np.append(self.iGLM_Coeffs, np.zeros((self.Nv,self.iGLM_num_regressors,1)), axis=2)
+            if self.save_iGLM: self.iGLM_Coeffs   = np.append(self.iGLM_Coeffs, np.zeros( (self.Nv,self.iGLM_num_regressors,1)), axis=2)
             log.debug('[t=%d,n=%d] Discard - Data_FromAFNI.shape %s' % (self.t, self.n, str(self.Data_FromAFNI.shape)))
             if self.save_ema:    log.debug('[t=%d,n=%d] Discard - Data_EMA.shape      %s' % (self.t, self.n, str(self.Data_EMA.shape)))
             if self.save_iGLM:   log.debug('[t=%d,n=%d] Discard - Data_iGLM.shape     %s' % (self.t, self.n, str(self.Data_iGLM.shape)))
@@ -237,10 +294,13 @@ class Experiment(object):
                 self.svrscores = np.append(self.svrscores, np.zeros((self.Ncaps,1)), axis=1)
                 log.debug('[t=%d,n=%d] Discard - hits.shape      %s' % (self.t, self.n, str(self.hits.shape)))
                 log.debug('[t=%d,n=%d] Discard - svrscores.shape %s' % (self.t, self.n, str(self.svrscores.shape)))
+            
+            log.debug(f'Discard volume, self.Data_FromAFNI[:10]: {self.Data_FromAFNI[:10]}')
             return 1
 
         # Compute running mean and running std with welford
-        self.welford_M, self.welford_S, self.weldord_std = welford(self.n, this_t_data, self.welford_M, self.welford_S)
+        self.welford_M, self.welford_S, self.welford_std = welford(self.n, this_t_data, self.welford_M, self.welford_S)
+        log.debug('Welford Method Ouputs: M=%s | S=%s | std=%s' % (str(self.welford_M), str(self.welford_S), str(self.welford_std)))
         
         # If we reach this point, it means we have work to do
         if self.save_orig:
@@ -248,61 +308,65 @@ class Experiment(object):
         else:
             self.Data_FromAFNI = np.hstack((self.Data_FromAFNI[:,-1][:,np.newaxis],this_t_data[:, np.newaxis]))  # Only keep this one and previous
             log.debug('[t=%d,n=%d] Online - Input - Data_FromAFNI.shape %s' % (self.t, self.n, str(self.Data_FromAFNI.shape)))
-
+        
+        
         # Do EMA (if needed)
-        # ==================
-        ema_data_out, self.EMA_filt = rt_EMA_vol(self.n, self.t, self.EMA_th, self.Data_FromAFNI, self.EMA_filt, do_operation = self.do_EMA)
-        #log.debug('[t=%d,n=%d] Online - EMA - ema_data_out.shape      %s' % (self.t, self.n, str(ema_data_out.shape)))
+        # =================
+        ema_data_out, self.EMA_filt = rt_EMA_vol(self.n, self.EMA_th, self.Data_FromAFNI, self.EMA_filt, do_operation=self.do_EMA)
         if self.save_ema: 
             self.Data_EMA = np.append(self.Data_EMA, ema_data_out, axis=1)
             log.debug('[t=%d,n=%d] Online - EMA - Data_EMA.shape      %s' % (self.t, self.n, str(self.Data_EMA.shape)))
-        
         # Do iGLM (if needed)
         # ===================
         if self.iGLM_motion:
             this_t_nuisance = np.concatenate((self.legendre_pols[self.t,:],motion))[:,np.newaxis]
         else:
             this_t_nuisance = (self.legendre_pols[self.t,:])[:,np.newaxis]
-        iGLM_data_out, self.iGLM_prev, Bn = rt_regress_vol(self.n, 
-                                                           ema_data_out,
-                                                           this_t_nuisance,
-                                                           self.iGLM_prev,
-                                                           do_operation = self.do_iGLM)
+            
+        iGLM_data_out, self.iGLM_prev, Bn = rt_regress_vol(
+            self.n, 
+            ema_data_out,
+            this_t_nuisance,
+            self.iGLM_prev,
+            do_operation=self.do_iGLM
+        )
+        
         if self.save_iGLM: 
             self.Data_iGLM    = np.append(self.Data_iGLM, iGLM_data_out, axis=1)
             self.iGLM_Coeffs  = np.append(self.iGLM_Coeffs, Bn, axis = 2) 
             log.debug('[t=%d,n=%d] Online - iGLM - Data_iGLM.shape     %s' % (self.t, self.n, str(self.Data_iGLM.shape)))
             log.debug('[t=%d,n=%d] Online - iGLM - iGLM_Coeffs.shape   %s' % (self.t, self.n, str(self.iGLM_Coeffs.shape)))
-
         # Do Kalman Low-Pass Filter (if needed)
         # =====================================
-        klm_data_out, self.S_x, self.S_P, self.fPositDerivSpike, self.fNegatDerivSpike = rt_kalman_vol(self.n,
-                                                                        self.t,
-                                                                        iGLM_data_out,
-                                                                        self.weldord_std,
-                                                                        self.S_x,
-                                                                        self.S_P,
-                                                                        self.fPositDerivSpike,
-                                                                        self.fNegatDerivSpike,
-                                                                        self.n_cores,
-                                                                        self.pool,
-                                                                        do_operation = self.do_kalman)
-                
+        klm_data_out, self.S_x, self.S_P, self.fPositDerivSpike, self.fNegatDerivSpike = rt_kalman_vol(
+            self.n,
+            self.t,
+            iGLM_data_out,
+            self.welford_std,
+            self.S_x,
+            self.S_P,
+            self.fPositDerivSpike,
+            self.fNegatDerivSpike,
+            self.n_cores,
+            self.pool,
+            do_operation=self.do_kalman
+        )
+        
         if self.save_kalman: 
-            self.Data_kalman      = np.append(self.Data_kalman, klm_data_out, axis = 1)
+            self.Data_kalman      = np.append(self.Data_kalman, klm_data_out, axis=1)
             log.debug('[t=%d,n=%d] Online - Kalman - Data_kalman.shape     %s' % (self.t, self.n, str(self.Data_kalman.shape)))
-
         # Do Spatial Smoothing (if needed)
         # ================================
-        smooth_out = rt_smooth_vol(np.squeeze(klm_data_out), self.mask_img, fwhm = self.FWHM, do_operation = self.do_smooth)
+        smooth_out = rt_smooth_vol(np.squeeze(klm_data_out), self.mask_img, fwhm=self.FWHM, do_operation=self.do_smooth)
         if self.save_smooth:
             self.Data_smooth = np.append(self.Data_smooth, smooth_out, axis=1)
             log.debug('[t=%d,n=%d] Online - Smooth - Data_smooth.shape   %s' % (self.t, self.n, str(self.Data_smooth.shape)))
             log.debug('[t=%d,n=%d] Online - EMA - smooth_out.shape      %s' % (self.t, self.n, str(smooth_out.shape)))
-
         # Do Spatial Normalization (if needed)
         # ====================================
         norm_out = rt_snorm_vol(np.squeeze(smooth_out), do_operation=self.do_snorm)
+        # Just putting an extra value on the end of each list in Data_norm. Not sure what this does
+        # norm_out is not used elsewhere in preproc, nor is it indexed into in Data_norm
         self.Data_norm = np.append(self.Data_norm, norm_out, axis=1)
 
         if self.exp_type == "esam" or self.exp_type == "esam_test":
@@ -323,7 +387,6 @@ class Experiment(object):
             if self.t < self.dec_start_vol:   # We don't want to start decoding before iGLM is stable.
                 self.svrscores = np.append(self.svrscores, np.zeros((self.Ncaps,1)), axis=1)
             else:
-                #this_t_svrscores = rt_svrscore_vol(self.Data_wind[:, self.t], self.SVRs, self.caps_labels)
                 this_t_svrscores = rt_svrscore_vol(np.squeeze(out_data_windowed), self.SVRs, self.caps_labels)
                 self.svrscores   = np.append(self.svrscores, this_t_svrscores, axis=1)
             log.debug('[t=%d,n=%d] Online - SVRs - svrscores.shape   %s' % (self.t, self.n, str(self.svrscores.shape)))
@@ -332,7 +395,7 @@ class Experiment(object):
             # ========================
             # IF QA ended during the past TR (as I saved the status as soon as compute_TR started), then
             # update the last_QA_endTR and clear events
-            if qa_end_status == True:
+            if qa_end_status is True:
                 self.lastQA_endTR = self.t
                 self.qa_offsets.append(self.t)
                 self.mp_evt_qa_end.clear()
@@ -343,32 +406,28 @@ class Experiment(object):
             if (hit_status == True) or (self.t <= self.lastQA_endTR + self.vols_noqa):
                 hit = None
             else:
-                hit = self.hit_method_func(self.t,
-                                       self.caps_labels,
-                                       self.svrscores,
-                                       self.hit_zth,
-                                       self.hit_v4hit)
+                hit = self.hit_method_func(
+                    self.t,
+                    self.caps_labels,
+                    self.svrscores,
+                    self.hit_zth,
+                    self.nconsec_vols
+                )
             
             # Add one more line to the hits data structure with zeros (if a hit happen, a 1 will be added later)
             self.hits = np.append(self.hits, np.zeros((self.Ncaps,1)), axis=1)
 
             # If there was a hit, then add that one, inform the use, and set the hit event to true
-            if hit != None:
+            if hit is not None:
                 #if (hit != None) and ( hit_status == False ) and (self.t >= self.lastQA_endTR + self.vols_noqa):
                 log.info('[t=%d,n=%d] =============================================  CAP hit [%s]' % (self.t,self.n, hit))
                 self.qa_onsets.append(self.t)
                 self.hits[self.caps_labels.index(hit),self.t] = 1
                 self.mp_evt_hit.set()
 
-
-        # Need to return something, otherwise the program thinks the experiment ended
         return 1
 
     def final_steps(self):
-        #if self.ewin is not None:
-        #        log.info('Psychopy UI closing.')
-        #        self.ewin.close()
-
         # Write out motion
         self.motion_estimates = [item for sublist in self.motion_estimates for item in sublist]
         log.info('self.motion_estimates length is %d' % len(self.motion_estimates))
@@ -397,13 +456,16 @@ class Experiment(object):
         if self.do_smooth and self.save_smooth:
             out_vars.append(self.Data_smooth)
             out_labels.append('.pp_Smooth.nii')
+        if self.save_orig:
+            out_vars.append(self.Data_FromAFNI)
+            out_labels.append('.orig.nii')
         for variable, file_suffix in zip(out_vars, out_labels):
-            out = unmask_fMRI_img(variable, self.mask_img, osp.join(self.out_dir,self.out_prefix+file_suffix))
+            unmask_fMRI_img(variable, self.mask_img, osp.join(self.out_dir,self.out_prefix+file_suffix))
 
         if self.do_iGLM and self.save_iGLM:
             for i,lab in enumerate(self.nuisance_labels):
                 data = self.iGLM_Coeffs[:,i,:]
-                out = unmask_fMRI_img(data, self.mask_img, osp.join(self.out_dir,self.out_prefix+'.pp_iGLM_'+lab+'.nii'))    
+                unmask_fMRI_img(data, self.mask_img, osp.join(self.out_dir,self.out_prefix+'.pp_iGLM_'+lab+'.nii'))    
 
         if self.exp_type == "esam" or self.exp_type == "esam_test":
             svrscores_path = osp.join(self.out_dir,self.out_prefix+'.svrscores')
@@ -451,9 +513,9 @@ class Experiment(object):
                     hit_ID = 1
                     for vol in Hits_DF[Hits_DF[cap]==True].index:
                         if self.hit_dowin == True:
-                            thisCAP_Vols = vol-np.arange(self.hit_wl+self.hit_v4hit-1)
+                            thisCAP_Vols = vol-np.arange(self.hit_wl+self.nconsec_vols-1)
                         else:
-                            thisCAP_Vols = vol-np.arange(self.hit_v4hit)
+                            thisCAP_Vols = vol-np.arange(self.nconsec_vols)
                         out_file = osp.join(self.out_dir, self.out_prefix + '.Hit_'+cap+'_'+str(hit_ID).zfill(2)+'.nii')
                         log.info(' - final_steps - [%s-%d]. Contributing Vols: %s | File: %s' % (cap, hit_ID,str(thisCAP_Vols), out_file ))
                         log.debug(' - final_steps - self.Data_norm.shape %s' % str(self.Data_norm.shape))
@@ -471,6 +533,19 @@ class Experiment(object):
                 for offset in self.qa_offsets:
                     file.write("%i\n" % offset)        
         
+        # If running snapshot test, save the variable states
+        if self.snapshot:
+            var_dict = {
+                'Data_norm': self.Data_norm,
+                'Data_EMA': self.Data_EMA,
+                'Data_iGLM': self.Data_iGLM,
+                'Data_smooth': self.Data_smooth,
+                # 'Data_kalman': self.Data_kalman,
+                'Data_FromAFNI': self.Data_FromAFNI
+            }
+
+            np.savez(osp.join(self.out_dir, f'{self.out_prefix}_snapshots.npz'), **var_dict) 
+
         # Inform other threads that this is comming to an end
         self.mp_evt_end.set()
         return 1
@@ -479,10 +554,6 @@ class Experiment(object):
         # load SVR model
         if options.svr_path is None:
             log.error('SVR Model not provided. Program will exit.')
-            self.mp_evt_end.set()
-            sys.exit(-1)
-        if not osp.exists(options.svr_path):
-            log.error('SVR Model File does not exists. Please correct.')
             self.mp_evt_end.set()
             sys.exit(-1)
         self.svr_path = options.svr_path
@@ -499,6 +570,7 @@ class Experiment(object):
             log.error(traceback.format_exc(e))
             self.mp_evt_end.set()
             sys.exit(-1)
+
         self.Ncaps = len(self.SVRs.keys())
         self.caps_labels = list(self.SVRs.keys())
         log.info('- setup_esam_run - List of CAPs to be tested: %s' % str(self.caps_labels))
@@ -507,7 +579,7 @@ class Experiment(object):
         self.dec_start_vol = options.dec_start_vol # First volume to do decoding on.
         self.hit_method    = options.hit_method
         self.hit_zth       = options.hit_zth
-        self.hit_v4hit     = options.hit_v4hit
+        self.nconsec_vols  = options.nconsec_vols
         self.hit_dowin     = options.hit_dowin
         self.hit_domot     = options.hit_domot
         self.hit_mot_th    = options.svr_mot_th
@@ -536,9 +608,19 @@ def comm_process(opts, mp_evt_hit, mp_evt_end, mp_evt_qa_end):
     
     # 4) Start Communications
     log.info('- comm_process - 3) Opening Communication Channel...')
-    receiver = ReceiverInterface(port=opts.tcp_port, show_data=opts.show_data)
+    receiver = CustomReceiverInterface(port=opts.tcp_port, show_data=opts.show_data)
+    # receiver = ReceiverInterface(port=opts.tcp_port, show_data=opts.show_data)
     if not receiver:
         return 1
+
+    if not receiver.RTI:
+        log.error('comm_process - RTI is not initialized.')
+    else:
+        log.debug('comm_process - RTI initialized successfully.')
+
+    if not receiver:
+        return 1
+
 
     # 5) set signal handlers and look for data
     log.info('- comm_process - 4) Setting Signal Handlers...')
@@ -552,46 +634,43 @@ def comm_process(opts, mp_evt_hit, mp_evt_end, mp_evt_qa_end):
     log.info('- comm_process - 5) Prepare for Incoming Connections...')
     if receiver.RTI.open_incoming_socket():
         return 1
-
+    
     #8) Vinai's alternative
     log.info('6) Here we go...')
     rv = receiver.process_one_run()
 
     if experiment.exp_type == "esam" or experiment.exp_type == "esam_test":
         while experiment.mp_evt_hit.is_set():
-            print('- comm_process - waiting for QA to end ')
+            log.info('- comm_process - waiting for QA to end ')
             sleep(1)
-    print('- comm_process - ready to end ')
+    log.info('- comm_process - ready to end ')
     return rv
 
-# ===================================================
-# =========   Functions (for GUI Process)   =========
-# ===================================================
-def create_psychopy_win(opts):
-    #create a window
-    if opts.fullscreen:
-        ewin = Window(fullscr = opts.fullscreen, allowGUI=False, units='norm')
-    else:
-        ewin = Window(screen_size, allowGUI=False, units='norm')
-    return ewin
 
-def show_initial_screen(ewin):
-    #create some stimuli
-    text_inst_line01 = TextStim(win=ewin, text='Please fixate on x-hair,',pos=(0.0,0.4))
-    text_inst_line02 = TextStim(win=ewin, text='remain awake,',           pos=(0.0,0.28))
-    text_inst_line03 = TextStim(win=ewin, text='and let your mind wander.',pos=(0.0,0.16))
-    text_inst_chair  = TextStim(win=ewin, text='X', pos=(0,0))
-
-    #plot on the screen
-    text_inst_line01.draw()
-    text_inst_line02.draw()
-    text_inst_line03.draw()
-    text_inst_chair.draw()
-    ewin.flip()
-    return 1
+def file_exists(path):
+    """Ensure files exist before starting up program"""
+    if not osp.isfile(path):
+        log.error(f"File not found: {path}")
+        sys.exit(-1)
+    return path
 
 def processExperimentOptions (self, options=None):
-    parser = argparse.ArgumentParser(description="rtCAPs experimental software. Based on NIH-neurofeedback software")
+    pre_parser = argparse.ArgumentParser(add_help=False)
+    pre_parser.add_argument("-c", "--config", dest="config", help="JSON file containing experiment options")
+    pre_args, _ = pre_parser.parse_known_args(options)
+
+    if pre_args.config:
+        # Load options from json file and return as Namespace
+        with open(pre_args.config, 'r') as f:
+            config_data = json.load(f)
+        return argparse.Namespace(**config_data)
+
+    # If no json file is provided, parse args as usual
+    parser = argparse.ArgumentParser(
+    description="rtCAPs experimental software. Based on NIH-neurofeedback software. "
+                "You can optionally provide a JSON config file via --config to set all options."
+    )
+
     parser_gen = parser.add_argument_group("General Options")
     parser_gen.add_argument("-d", "--debug", action="store_true", dest="debug",  help="Enable debugging output [%(default)s]", default=False)
     parser_gen.add_argument("-s", "--silent",   action="store_true", dest="silent", help="Minimal text messages [%(default)s]", default=False)
@@ -599,7 +678,7 @@ def processExperimentOptions (self, options=None):
     parser_gen.add_argument("-S", "--show_data", action="store_true",help="display received data in terminal if this option is specified")
     parser_gen.add_argument("--tr",         help="Repetition time [sec]  [default: %(default)s]",                      dest="tr",default=1.0, action="store", type=float)
     parser_gen.add_argument("--ncores",     help="Number of cores to use in the parallel processing part of the code  [default: %(default)s]", dest="n_cores", action="store",type=int, default=10)
-    parser_gen.add_argument("--mask",       help="Mask necessary for smoothing operation  [default: %(default)s]",     dest="mask_path", action="store", type=str, default=None, required=True)
+    parser_gen.add_argument("--mask",       help="Mask necessary for smoothing operation  [default: %(default)s]",     dest="mask_path", action="store", type=file_exists, default=None, required=True)
     parser_proc   = parser.add_argument_group("Activate/Deactivate Processing Steps")
     parser_proc.add_argument("--no_ema",    help="De-activate EMA Filtering Step [default: %(default)s]", dest="do_EMA",      default=True, action="store_false")
     parser_proc.add_argument("--no_iglm",   help="De-activate iGLM Denoising Step  [default: %(default)s]",             dest="do_iGLM",     default=True, action="store_false")
@@ -630,15 +709,18 @@ def processExperimentOptions (self, options=None):
     parser_exp.add_argument("--screen", help="Monitor to use [%(default)s]", default=1, action="store", dest="screen",type=int)
     parser_dec = parser.add_argument_group('SVR/Decoding Options')
     parser_dec.add_argument("--svr_start",  help="Volume when decoding should start. When we think iGLM is sufficient_stable [%(default)s]", default=100, dest="dec_start_vol", action="store", type=int)
-    parser_dec.add_argument("--svr_path",   help="Path to pre-trained SVR models [%(default)s]", dest="svr_path", action="store", type=str, default=None)
+    parser_dec.add_argument("--svr_path",   help="Path to pre-trained SVR models [%(default)s]", dest="svr_path", action="store", type=file_exists, default=None)
     parser_dec.add_argument("--svr_zth",    help="Z-score threshold for deciding hits [%(default)s]", dest="hit_zth", action="store", type=float, default=1.75)
-    parser_dec.add_argument("--svr_vhit",   help="Number of consecutive vols over threshold required for a hit [%(default)s]", dest="hit_v4hit", action="store", type=int, default=2)
+    parser_dec.add_argument("--svr_consec_vols",   help="Number of consecutive vols over threshold required for a hit [%(default)s]", dest="nconsec_vols", action="store", type=int, default=2)
     parser_dec.add_argument("--svr_win_activate", help="Activate windowing of individual volumes prior to hit estimation [%(default)s]", dest="hit_dowin", action="store_true", default=False)
     parser_dec.add_argument("--svr_win_wl", help='Number of volumes for SVR windowing step [%(default)s]', dest='hit_wl', default=4, type=int, action='store')
     parser_dec.add_argument("--svr_mot_activate", help="Consider a hit if excessive motion [%(default)s]", dest="hit_domot", action="store_true", default=False )
     parser_dec.add_argument("--svr_mot_th", help="Framewise Displacement Treshold for motion [%(default)s]",  action="store", type=float, dest="svr_mot_th", default=1.2)
     parser_dec.add_argument("--svr_hit_mehod", help="Method for deciding hits [%(default)s]", type=str, choices=["method01"], default="method01", action="store", dest="hit_method")
-    parser_dec.add_argument("--svr_vols_noqa", help="Min. number of volumes to wait since end of last QA before declaing a new hit. [%(default)s]", type=int, dest='vols_noqa', default=45, action="store")
+    parser_dec.add_argument("--svr_vols_noqa", help="Min. number of volumes to wait since end of last QA before declaing a new hit. [%(default)s]", type=int, dest='vols_noqa', default=45, action="store"),
+    parser_dec.add_argument("--q_path", help="The path to the questions json file containing the question stimuli. If not a full path, it will default to look in RESOURCES_DIR", type=str, dest='q_path', default="questions_v1", action="store")
+    parser_dec = parser.add_argument_group('Testing Options')
+    parser_dec.add_argument("--snapshot",  help="Run snapshot test", default=False, dest="snapshot", action="store_true")
 
     return parser.parse_args(options)
 
@@ -648,24 +730,41 @@ def main():
     log.info('1) Reading input parameters...')
     opts = processExperimentOptions(sys.argv)
     log.debug('User Options: %s' % str(opts))
-    log.info('type(opts) %s' % type(opts))
+
+    # Load Likert questions before starting up GUI
+    if opts.exp_type in ["esam", "esam_test"]:
+        if not opts.q_path:
+            log.error('Path to Likert questions was not provided. Program will exit.')
+            sys.exit(-1)
+        if not osp.isfile(opts.q_path): # If not file, assume in RESOURCES_DIR
+            fname = opts.q_path + ".json" if not opts.q_path.endswith(".json") else opts.q_path 
+            opts.q_path = osp.join(RESOURCES_DIR, fname)
+        try:
+            with open(opts.q_path, 'r') as f:
+                opts.likert_questions = json.load(f)
+        except json.JSONDecodeError:
+            log.error(f'The question file at {opts.q_path} is not a valid JSON.')
+            sys.exit(-1)
+        except Exception as e:
+            log.error(f'Error loading questions at {opts.q_path}: {e}')
+            sys.exit(-1)
 
     opts_tofile_path = osp.join(opts.out_dir, opts.out_prefix+'_Options.json')
     with open(opts_tofile_path, "w") as write_file:
         json.dump(vars(opts), write_file)
     log.info('  - Options written to disk [%s]'% opts_tofile_path)
     
-    # 3) Create Multi-processing infra-structure
+    # 3) Create Multi-processing infrastructure
     # ------------------------------------------
-    mp_evt_hit    = mp.Event()    # Start with false
-    mp_evt_end    = mp.Event()    # Start with false
+    mp_evt_hit    = mp.Event() # Start with false
+    mp_evt_end    = mp.Event() # Start with false
     mp_evt_qa_end = mp.Event() # Start with false
     mp_prc_comm   = mp.Process(target=comm_process, args=(opts, mp_evt_hit, mp_evt_end, mp_evt_qa_end))
     mp_prc_comm.start()
 
     # 2) Get additional info using the GUI
     # ------------------------------------
-    if opts.no_gui == False:
+    if not opts.no_gui:
         exp_info = get_experiment_info(opts)
 
     # 3) Depending on the type of run.....
@@ -673,7 +772,7 @@ def main():
     if opts.exp_type == "esam":
         # 4) Start GUI
         # ------------
-        cap_qa = experiment_QA(exp_info,opts)
+        cap_qa = QAScreen(exp_info, opts)
     
         # 5) Wait for things to happen
         # ----------------------------
@@ -690,12 +789,13 @@ def main():
         
         # 6) Close Psychopy Window
         # ------------------------
+        cap_qa.save_likert_files()
         cap_qa.close_psychopy_infrastructure()
-    
+        
     if opts.exp_type == "esam_test":
         # 4) Start GUI
         # ------------
-        cap_qa = experiment_QA(exp_info,opts)
+        cap_qa = QAScreen(exp_info,opts)
     
         # 5) Wait for things to happen
         # ----------------------------
@@ -709,21 +809,29 @@ def main():
         # ------------------------
         cap_qa.close_psychopy_infrastructure()
     
-    if opts.exp_type == "preproc" and (opts.no_gui == False):
-        # 4) Start GUI
-        rest_exp = experiment_Preproc(exp_info,opts)
+    if opts.exp_type == "preproc":
+        if not opts.no_gui:
+            # 4) Start GUI
+            rest_exp = DefaultScreen(exp_info, opts)
 
-        # 5) Keep the experiment going, until it ends
-        while not mp_evt_end.is_set():
-            rest_exp.draw_resting_screen()
-            if event.getKeys(['escape']):
-                log.info('- User pressed escape key')
-                mp_evt_end.set()
+            # 5) Keep the experiment going, until it ends
+            while not mp_evt_end.is_set():
+                rest_exp.draw_resting_screen()
+                if event.getKeys(['escape']):
+                    log.info('- User pressed escape key')
+                    mp_evt_end.set()
+
+            # 6) Close Psychopy Window
+            # ------------------------
+            rest_exp.close_psychopy_infrastructure()
+        else:
+            # 4) In no_gui mode, wait passively for experiment to end
+            while not mp_evt_end.is_set():
+                time.sleep(0.1)
         
-        # 6) Close Psychopy Window
-        # ------------------------
-        rest_exp.close_psychopy_infrastructure()
+        
     log.info(' - main - Reached end of Main in primary thread')
     return 1
+
 if __name__ == '__main__':
-   sys.exit(main())
+    sys.exit(main())

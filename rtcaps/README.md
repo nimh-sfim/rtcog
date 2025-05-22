@@ -2,11 +2,7 @@
 
 This is the main folder for the software. Here you can find the following sub-folders:
 
-* ```afni_lib```: a copy of realtime.py and receiver.py that contain all the functions for stabilishing the communication between AFNI realtime plugin and this software.
-
-> __NOTE__: It may be nice to change the software to use whatever of these get distributed with AFNI in the afniInterfaceRT folder. That way if AFNI updates these functions, the program will be up-to-date. Yet, it would be good to have some automatic test to ensure any changes in the AFNI part, does not break this software.
-
-* ```bin```: this folder contains the main executables, including ```rtcaps_matcher.py``` (which does realtime preprocessing and experience sampling), and ```online_trainSVRs.py``` (which train SVRs). It includes additional small programs to test each pre-processing step, sound, keyboard, etc.
+* ```bin```: this folder contains the main executables, including ```rtcaps_matcher.py``` (which does realtime preprocessing and experience sampling), and ```online_trainSVRs.py``` (which trains SVRs). It includes additional small programs to test each pre-processing step, sound, keyboard, etc.
 
 * ```notebooks```: includes python notebooks used during the development of this code.
 
@@ -31,15 +27,7 @@ During an experiment, there are three different computers involved. Data flows i
 
 When developing this software, we will need to simulate the workings of these three systems, but using a single machine (our development machine). The rest of this section describes how to accomplish this process.
 
-<u>1. Open a terminal and create three distinct folders:</u>
-
-* __Scanner__: This folder contains testing data (available here). Once you create this folder, download the testing data and place it here.
-
-* __Realtime__: This will be an empty folder, where AFNI realtime will save all incoming data.
-
-* __Laptop__: This will be an empty folder, where rtCAPs software will save different output such as reports, trained classifiers, subject responses, etc.
-
-<u>2. Open three different Terminals in your laptop, and give them the following names:</u>
+<u>1. Open three different Terminals on your laptop in the `Simulation/` directory, then `cd` to the following directories:</u>
 
 * __Scanner__: you will use this window to simulate the scanner sending data to AFNI realtime
 * __Realtime__: here you will start AFNI in realtime mode. It will take incoming data from the "fake" scanner, and after a few things sending on its way to the rtCAPs software.
@@ -47,38 +35,25 @@ When developing this software, we will need to simulate the workings of these th
 
  ![](../Documentation/Images/simulation_terminals.png)
 
-<u>3. Go to the __Scanner__ terminal:</u>
+<u>2. Download the sample data</u>
 
 * Enter the empty __Scanner__ folder.
 * Download sample datasets to the __Scanner__ folder.
 
 To a minimum you should have an anatomical dataset, a short EPI dataset to use as reference for alignment, and then two additional long EPI datasets: one will be used for training the classifier and the second one to simulate a real experience sampling run.
 
-<u>4. Go to the __Realtime__ teminal:</u>
+<u>3. Go to the __Realtime__ teminal:</u>
     
 * Enter the empty __Realtime__ folder.
 * Copy the 01_BringROIsToSubjectSpace.sh script here.
 * Copy the Frontiers2013_CAPs.nii file here.
-* Export the following variables
-
+* Start up afni realtime: 
 ```bash
-export AFNI_REALTIME_Registration=3D:_realtime
-export AFNI_REALTIME_Base_Image=2
-export AFNI_REALTIME_Graph=Realtime
-export AFNI_REALTIME_MP_HOST_PORT=localhost:53214
-export AFNI_REALTIME_SEND_VER=YES
-export AFNI_REALTIME_SHOW_TIMES=YES
-export AFNI_REALTIME_Mask_Vals=ROI_means
-export AFNI_REALTIME_Function=FIM
+sh ../../rtcaps/bin/startup_afnirt.sh --reference
 ```
-
-* Start AFNI in realtime mode
-
-```$ afni -rt```
-
 > __NOTE__: Make sure you have the latest version of AFNI installed, as you will be using a data transfer option only available since 2020.
 
-<u>5. Simulate acquisition of anatomical dataset</u>
+<u>4. Simulate acquisition of anatomical dataset</u>
 
 On the __Scanner__ console, type:
 
@@ -88,20 +63,20 @@ rtfeedme Anat+orig
 
 By the end of this step, you should have a new dataset (rt.__001+orig) that contains the anatomical data (but now in the realtime system) in the __Realtime__ folder.
 
-<u>6. Simulate acquisition of the EPI reference dataset</u>
+<u>5. Simulate acquisition of the EPI reference dataset</u>
 
 On the __Scanner__ console, type:
 
 ```bash
-rtfeedmd EPI_Reference+orig
+rtfeedme EPI_Reference+orig
 ```
 
 By the end of this step, you should have a second dataset on __Realime__ (rt.__002+orig) on the __Realtime__ folder that contains the EPI reference data (but now in the realtime system)
 
-<u>7. Pre-process Anatomical and bring masks to EPI Reference space</u>
+<u>6. Pre-process Anatomical and bring masks to EPI Reference space</u>
 
 * Go to the __Realtime__ terminal
-* Run ```01_BringROIsToSubjectSpace.sh ``` as follows:
+* Run `01_BringROIsToSubjectSpace.sh` as follows:
 
 ```bash
 sh ./01_BringROIsToSubjectSpace.sh \
@@ -123,22 +98,15 @@ $cp ${REALTIME_FOLDER}/GMribbon_R4Feed.nii ${LAPTOP_FOLDER}
 $cp ${REALTIME_FOLDER}/Frontiers2013_R4Feed.nii ${LAPTOP_FOLDER}
 ```
 
-<u>8. Configure the realtime plugin for the rest of the experiment.</u>
+<u>7. Configure the realtime plugin for the rest of the experiment.</u>
 
-In the main AFNI window, click on Define Datamode --> Plugins --> RT Options
+- Kill your current AFNI rt process
+- In the __Realtime__ terminal, run:
+```bash
+sh ../../rtcaps/bin/startup_afnirt.sh
+```
 
-On the new window, ensure the following configurations:
-
-* Registration = 3D: realtime
-* Resampling = Quintic
-* Reg Base = External Dataset
-* External Dset = EPIREF+orig
-* Base Image = 0
-* NR = 1200 (Or as many volumes as you are expecting in the next run)
-* Mask = GMribbon_R4Feed.nii
-* Val to Send = All Data (light)
-
-<u>9. Start rtCAPs in pre-processing mode in the __Laptop__ terminal.</u>
+<u>8. Start rtCAPs in pre-processing mode in the __Laptop__ terminal.</u>
 
 ```bash 
 python ../../rtcaps/bin/rtcaps_matcher.py \
@@ -150,9 +118,9 @@ python ../../rtcaps/bin/rtcaps_matcher.py \
         --out_prefix training
 ```
 
-<u>10. Simulate acquisition of the traning run</u>
+<u>9. Simulate acquisition of the training run</u>
 
-    In the __Scanner__ console, type:
+In the __Scanner__ console, type:
 
 ```bash
 rtfeedme TrainingRun+orig
@@ -169,9 +137,13 @@ The data will be send to AFNI, who in turn will do motion correction (towards th
 * ```$prefix.pp_LPfilter.nii```: data following the low pass filtering step.
 * ```$prefix.pp_Smotth.nii```: data following the spatial smoothing step.
 
-<u>11. Train the SVR</u>
+> __NOTE__: Instead of manually configuring options in the future, you can simply supply the json file:
+>
+>`python ../../rtcaps/bin/rtcaps_matcher.py --config path/to/$prefix_Options.json`
 
-For that, in the __Laptop__ terminal, you should run:
+<u>10. Train the SVR</u>
+
+Go to the __Laptop__ terminal and run:
 
 ```bash
  python ../../rtcaps/bin/online_trainSVRs.py \
@@ -179,7 +151,8 @@ For that, in the __Laptop__ terminal, you should run:
         -m ./GMribbon_R4Feed.nii \
         -c ./Frontier2013_CAPs_R4Feed.nii \
         -o ./ \
-        -p training_svr
+        -p training_svr \
+        --no_lasso
 ```
 
 This will generate the following additional files in the __Laptop__ folder:
@@ -195,12 +168,20 @@ Here is an example of the static training report
 
 ![Sample of Traning SVR Static Report](../Documentation/Images/training_svr.png)
 
-<u>12. Start rtCAPs to deal with a real Experience Sampling Run</u>
+<u>11. Start rtCAPs to deal with a real Experience Sampling Run</u>
 
 For that, on the __Laptop__ terminal run the following:
 
-TO BE CONTINUED...
-
+```bash
+python ../../rtcaps/bin/rtcaps_matcher.py
+       --nvols 1200 \
+       --mask GMribbon_R4Feed.nii \
+       --out_dir ./ \
+       --out_prefix esam \
+       -e esam \
+       --svr_path training_svr.pkl \
+       --svr_win_activate
+```
 ***
 ***
 
