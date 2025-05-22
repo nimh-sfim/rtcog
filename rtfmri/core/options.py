@@ -2,6 +2,7 @@ import os.path as osp
 import argparse
 import yaml
 
+# TODO: allow yaml to define step order, but have CLI override do_operations
 class Options:
      def __init__(self, config):
          """Class for holding experiment options. Allows users to build from yaml file or cli args."""
@@ -16,8 +17,8 @@ class Options:
 
      @staticmethod
      def load_yaml(path):
-          with open(path, 'r') as f:
-             config = yaml.safe_load(f)
+          with open(path, 'r') as file:
+             config = yaml.safe_load(file)
           return config
 
      def parse_cli_args(self, argv=None):
@@ -111,9 +112,9 @@ class Options:
           return f"Options: {self.__dict__}"
 
      def save_config(self):
-          print(self.out_dir)
           out_path = osp.join(self.out_dir, f'{self.out_prefix}_Options.yaml')
           with open(out_path, 'w') as file:
-               yaml.safe_dump(self.__dict__, sort_keys=False)
+               yaml.safe_dump(self.__dict__, file, sort_keys=False)
+          print(f"++ Options saved to {out_path}")
 
         
