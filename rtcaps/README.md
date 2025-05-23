@@ -143,13 +143,21 @@ The data will be send to AFNI, who in turn will do motion correction (towards th
 
 <u>10. Train the SVR</u>
 
+Select the CAPs of interest and create txt file with labels:
+
+```bash
+3dTcat -prefix Templates_R4Feed.nii Frontier2013_CAPs_R4Feed.nii"[25, 4, 18, 28, 24, 11, 21]"
+echo "VPol,DMN,SMot,Audi,ExCn,rFPa,lFPa" >> template_labels.txt
+```
+
 Go to the __Laptop__ terminal and run:
 
 ```bash
  python ../../rtcaps/bin/online_trainSVRs.py \
         -d ./training.pp_Zscore.nii \
         -m ./GMribbon_R4Feed.nii \
-        -c ./Frontier2013_CAPs_R4Feed.nii \
+        -t ./Frontier2013_CAPs_R4Feed.nii \
+        -l ./template_labels.txt \
         -o ./ \
         -p training_svr \
         --no_lasso
