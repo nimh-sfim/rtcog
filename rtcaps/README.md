@@ -156,7 +156,7 @@ Go to the __Laptop__ terminal and run:
  python ../../rtcaps/bin/online_trainSVRs.py \
         -d ./training.pp_Zscore.nii \
         -m ./GMribbon_R4Feed.nii \
-        -t ./Frontier2013_CAPs_R4Feed.nii \
+        -t ./Templates_R4Feed.nii \
         -l ./template_labels.txt \
         -o ./ \
         -p training_svr \
