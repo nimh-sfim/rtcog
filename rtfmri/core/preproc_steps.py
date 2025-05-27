@@ -1,12 +1,23 @@
 import numpy as np
 
-from utils.rt_functions       import rt_EMA_vol, rt_regress_vol, rt_kalman_vol
-from utils.rt_functions       import rt_smooth_vol, rt_snorm_vol
+from utils.rt_functions       import rt_EMA_vol, rt_regress_vol, rt_kalman_vol, rt_smooth_vol, rt_snorm_vol
 from utils.log import get_logger
 
 log = get_logger()
 
 class PreprocStep:
+    """
+    Base class for preprocessing steps in the real-time fMRI pipeline.
+
+    Each subclass must implement a `run(pipeline)` method, which:
+      - Reads `pipeline.processed_tr` (a numpy array of shape (N_voxels, 1))
+      - Performs its step-specific transformation
+      - Updates `pipeline.processed_tr` with a new numpy array of the same shape
+
+    Limitations:
+      - Input/output data shape must be (N_voxels, 1).
+      - Will raise runtime errors if this condition is not met.
+    """
     @property
     def name(self):
         return self.__class__.__name__
@@ -16,18 +27,15 @@ class PreprocStep:
     
 class EMAStep(PreprocStep):
     def run(self, pipeline):
-        log.debug(f'Before EMA: pipeline.processed_tr.shape {pipeline.processed_tr.shape}')
         ema_data_out, pipeline.EMA_filt = rt_EMA_vol(pipeline.n, pipeline.EMA_th, pipeline.Data_FromAFNI, pipeline.EMA_filt)
         if pipeline.save_ema: 
             pipeline.Data_EMA = np.append(pipeline.Data_EMA, ema_data_out, axis=1)
             log.debug(f'[t={pipeline.t},n={pipeline.n}] Online - EMA - Data_EMA.shape      {pipeline.Data_EMA.shape}')
         
         pipeline.processed_tr = ema_data_out
-        log.debug(f'After EMA: pipeline.processed_tr.shape {pipeline.processed_tr.shape}')
     
 class iGLMStep(PreprocStep):
     def run(self, pipeline): 
-        log.debug(f'Before iGLM: pipeline.processed_tr.shape {pipeline.processed_tr.shape}')
         if pipeline.iGLM_motion:
             this_t_nuisance = np.concatenate((pipeline.legendre_pols[pipeline.t,:], pipeline.motion))[:,np.newaxis]
         else:
@@ -47,11 +55,9 @@ class iGLMStep(PreprocStep):
             log.debug(f'[t={pipeline.t},n={pipeline.n}] Online - iGLM - iGLM_Coeffs.shape   {pipeline.iGLM_Coeffs.shape}')
 
         pipeline.processed_tr = iGLM_data_out
-        log.debug(f'After iGLM: pipeline.processed_tr.shape {pipeline.processed_tr.shape}')
 
 class KalmanStep(PreprocStep):
     def run(self, pipeline):
-        log.debug(f'Before kalman: pipeline.processed_tr.shape {pipeline.processed_tr.shape}')
         klm_data_out, pipeline.S_x, pipeline.S_P, pipeline.fPositDerivSpike, pipeline.fNegatDerivSpike = rt_kalman_vol(
             pipeline.n,
             pipeline.t,
@@ -70,11 +76,9 @@ class KalmanStep(PreprocStep):
             log.debug(f'[t={pipeline.t},n={pipeline.n}] Online - Kalman - Data_kalman.shape     {pipeline.Data_kalman.shape}')
         
         pipeline.processed_tr = klm_data_out
-        log.debug(f'After kalman: pipeline.processed_tr.shape {pipeline.processed_tr.shape}')
 
 class SmoothStep(PreprocStep):
     def run(self, pipeline):
-        log.info(f'Before smooth: pipeline.processed_tr.shape {pipeline.processed_tr.shape}')
         smooth_out = rt_smooth_vol(pipeline.processed_tr, pipeline.mask_img, fwhm=pipeline.FWHM)
         if pipeline.save_smooth:
             pipeline.Data_smooth = np.append(pipeline.Data_smooth, smooth_out, axis=1)
@@ -82,11 +86,9 @@ class SmoothStep(PreprocStep):
             log.debug(f'[t={pipeline.t},n={pipeline.n}] Online - EMA - smooth_out.shape      {smooth_out.shape}')
             
         pipeline.processed_tr = smooth_out
-        log.debug(f'After smooth: pipeline.processed_tr.shape {pipeline.processed_tr.shape}')
 
 class SnormStep(PreprocStep):
     def run(self, pipeline):
-        log.debug(f'Before snorm: pipeline.processed_tr.shape {pipeline.processed_tr.shape}')
         # Should i make a pipeline.save_norm? I'm pretty sure this doesn't exist becuase it's the last step, so it was just
         # whatever was saved in the end...
         norm_out = rt_snorm_vol(pipeline.processed_tr)
@@ -95,7 +97,6 @@ class SnormStep(PreprocStep):
         log.debug(f'[t={pipeline.t},n={pipeline.n}] Online - Snorm - Data_norm.shape   {pipeline.Data_norm.shape}')
         
         pipeline.processed_tr = norm_out
-        log.debug(f'After snorm: pipeline.processed_tr.shape {pipeline.processed_tr.shape}')
 
 DEFAULT_STEP_ORDER = [
     'EMA', 'iGLM', 'kalman', 'smooth', 'snorm'

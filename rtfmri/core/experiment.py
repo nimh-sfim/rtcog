@@ -81,6 +81,7 @@ class Experiment:
             Always returns 1 to indicate success.
         """
         self.t += 1
+        self.log.info(f' - Time point [t={self.t}, n={self.n}]')
 
         # Keep a record of motion estimates
         motion = [i[self.t] for i in motion]

@@ -74,7 +74,7 @@ class Pipeline:
         self.mask_img = mask_img
         self.exp_type = exp_type
 
-        self.processed_tr = np.zeros((self.mask_Nv,1))
+        self._processed_tr = np.zeros((self.mask_Nv,1))
 
         self.motion_estimates = []
         
@@ -162,7 +162,20 @@ class Pipeline:
             self.n_cores = 0
             self.pool = None
 
+    @property
+    def processed_tr(self):
+        return self._processed_tr
     
+    @processed_tr.setter
+    def processed_tr(self, value):
+        if not isinstance(value, np.ndarray):
+            log.error(f"pipeline.processed_tr must be a numpy array, but is of type {type(value)}")
+            sys.exit(-1)
+        if value.shape != (self.Nv, 1):
+            log.error(f'pipeline.processed_tr has incorrect shape. Expected: {self.Nv, 1}. Actual: {value.shape}')
+            sys.exit(-1)
+        self._processed_tr = value
+        
     def _initialize_kalman_pool(self):
         """Initialize pool with fake data up front to avoid delay later"""
         Nv = int(self.mask_Nv)
