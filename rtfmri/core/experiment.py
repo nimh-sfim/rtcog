@@ -1,14 +1,10 @@
-import logging
 import sys
 import os.path as osp
 import numpy as np
 import pandas as pd
-import holoviews as hv
-import hvplot.pandas
 
 from .pipeline import Pipeline
 from utils.log import set_logger
-from paths import CAP_labels
 
 sys.path.insert(0, osp.abspath(osp.join(osp.dirname(__file__), '..')))
 sys.path.append('..')
@@ -17,6 +13,23 @@ from utils.fMRI import load_fMRI_file, unmask_fMRI_img
 
 
 class Experiment:
+    """
+    Class representing a real-time fMRI experiment.
+
+    This class handles the setup of the experiment, initialization of the preprocessing
+    pipeline, and the management of incoming data from the scanner.
+
+    Parameters
+    ----------
+    options : Options
+        Configuration object containing experiment parameters (e.g., TR, number of volumes, paths).
+    mp_evt_hit : multiprocessing.Event
+        Event used to signal a CAP hit.
+    mp_evt_end : multiprocessing.Event
+        Event used to signal the end of the experiment.
+    mp_evt_qa_end : multiprocessing.Event
+        Event used to signal the end of a QA block.
+    """
     def __init__(self, options, mp_evt_hit, mp_evt_end, mp_evt_qa_end):
         self.log = set_logger(options.debug, options.silent)
 
@@ -52,7 +65,21 @@ class Experiment:
         self.pipe = Pipeline(options, self.Nt, self.mask_Nv, self.mask_img, self.exp_type)        
 
     def compute_TR_data(self, motion, extra):
-        """Receive data from the scanner, then pass to Pipeline for processing"""
+        """
+        Process data for the current TR by passing it to the pipeline.
+
+        Parameters
+        ----------
+        motion : list of list[float]
+            List of 6-element motion parameter lists (one per TR).
+        extra : list of list[float]
+            List of voxel values for the current TR, where each sublist contains time series data for a voxel.
+
+        Returns
+        -------
+        int
+            Always returns 1 to indicate success.
+        """
         self.t += 1
 
         # Keep a record of motion estimates
@@ -85,5 +112,6 @@ class Experiment:
         return 1
     
     def end_run(self):
+        """Finalize the experiment by saving all outputs and signaling completion."""
         self.pipe.final_steps()
         self.mp_evt_end.set()

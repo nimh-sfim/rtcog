@@ -13,21 +13,21 @@ def init_iGLM():
     return 1, {}
 
 def gen_polort_regressors(polort, nt):
-    """Generate Legendre Polynomials of a given order for nuisance regression purposes
-    
-    Parameters:
-    -----------
-    polort: int
-        maximum polynomial order to generate
-    nt: int
-        number of data points
-        
-    Returns:
-    --------
-    out: np.array [Nt,Nregressors]
-        legendre polynomials
     """
-    
+    Generate Legendre polynomials of a given order for nuisance regression purposes.
+
+    Parameters
+    ----------
+    polort : int
+        Maximum polynomial order to generate.
+    nt : int
+        Number of data points.
+
+    Returns
+    -------
+    out : np.ndarray, shape (nt, polort)
+        Legendre polynomial regressors.
+    """ 
     out = np.zeros((nt, polort))
     for n in range(polort):
         Pn = legendre(n)
@@ -36,51 +36,53 @@ def gen_polort_regressors(polort, nt):
     return(out)
 
 def _is_pos_def(x):
-    """ Checks if a matrix is positive definitive. This is needed for the cholesky decomposition
+    """
+    Checks if a matrix is positive definitive. This is needed for the cholesky decomposition.
     
-    Parameters:
+    Parameters
     -----------
-    x: np.array
+    x : np.array
         Square matrix
         
-    Returns:
-    --------
-    out: bool
+    Returns
+    -------
+    out : bool
     """
     return np.all(np.linalg.eigvals(x) > 1e-10)
 
 def _iGLMVol(n,Yn,Fn,Dn,Cn,s2n):
-    """ Incremental GLM for detrending and removal of nuisance regressors in realtime.
+    """
+    Incremental GLM for detrending and removal of nuisance regressors in realtime.
     Implementation of algorithm described in:
     Bagarinao, E., Matsuo, K., Nakai, T., Sato, S., 2003. Estimation of
     general linear model coefficients for real-time application. NeuroImage
     19, 422-429.
     
-    Parameters:
-    -----------
-    n: int
+    Parameters
+    ----------
+    n : int
         Current volume number entering the GLM. Not to be confused with the current
         acquisition number
-    Yn: np.array [Nvoxels,1]
+    Yn : np.array [Nvoxels,1]
         Current masked data point
-    Fn: np.array [Nregressors,1]
+    Fn : np.array [Nregressors,1]
         Current regressor values (e.g., motion, trends, etc.)
-    Dn: np.array []
+    Dn : np.array []
         sum of (Yn * Ft') at time n-1  (Eq. 17) 
-    Cn: np.array []
+    Cn : np.array []
         matrix for Cholesky decomposition at time n-1 (Eq. 15)
-    s2n: np.array []
+    s2n : np.array []
         sigma square estimate for n-1
 
-    Returns:
-    --------
-    Bn: np.array []
+    Returns
+    -------
+    Bn : np.array []
         current estimates for linear regression coefficients at time n
-    Cn: np.array []
+    Cn : np.array []
         updated estimates of matrix for Cholesky decomposition at time n
-    Dn: np.array []
+    Dn : np.array []
         updated estimate of Dn matrix at time n
-    s2n: np.array []
+    s2n : np.array []
         updated estimate of sigma square at time n
     """    
     
@@ -100,27 +102,28 @@ def _iGLMVol(n,Yn,Fn,Dn,Cn,s2n):
     return Bn,Cn,Dn,s2n
 
 def rt_regress_vol(n, Yn, Fn, prev):
-    """Apply real-time regression to fMRI data.
+    """
+    Apply real-time regression to fMRI data.
 
     This function performs real-time regression using a General Linear Model (GLM) to estimate the 
     regression coefficients (Bn) and remove the effects of nuisance regressors from the input fMRI data 
     (Yn). It updates the GLM matrices (Cn, Dn) and the sigma square estimate (s2n) for each new data point.
 
-    Parameters:
-    -----------
-    n: int
+    Parameters
+    ----------
+    n : int
         Current volume number. Not to be confused with the current
         acquisition number.
-    Yn: np.ndarray, shape (Nvoxels, 1)
+    Yn : np.ndarray, shape (Nvoxels, 1)
         The current fMRI data point (masked).
-    Fn: np.ndarray, shape (Nregressors, 1)
+    Fn : np.ndarray, shape (Nregressors, 1)
         The current regressor values (e.g., motion, trends, etc.)
-    prev: dict
+    prev : dict
         A dictionary containing the previous state of the GLM, including 'Cn', 'Dn', and 's2n' from 
         the previous time point.
 
-    Returns:
-    --------
+    Returns
+    -------
     np.ndarray, shape (Nvoxels, 1)
         The residual (detrended) fMRI data after removing the effects of the nuisance regressors, 
         reshaped into a 2D array.
@@ -162,25 +165,26 @@ def _apply_EMA_filter(a, emaIn, filtInput):
     return EMA_out,EMA_filt_out
 
 def rt_EMA_vol(n, th, data, filt_in):
-    """ Calculate the rate of change of Exponential Moving Average (EMA) for a given time series data.
+    """
+    Calculate the rate of change of Exponential Moving Average (EMA) for a given time series data.
 
-    Parameters:
-    -----------
-    n: int
+    Parameters
+    ----------
+    n : int
         Current volume number entering the function. Not to be confused with the current
         acquisition number.
-    th: float
+    th : float
         The threshold value for the EMA filter.
-    data: np.ndarray
+    data : np.ndarray
         The data to be processed.
-    filt_in: np.ndarray, shape (Nvoxels, 1)
+    filt_in : np.ndarray, shape (Nvoxels, 1)
         The previous output of the EMA filter, used as an input to the next filtering step.
 
-    Returns:
-    --------
-    data_out: np.ndarray, shape (Nvoxels, 1)
+    Returns
+    -------
+    data_out : np.ndarray, shape (Nvoxels, 1)
         The output data after applying the operation.
-    filt_out: np.ndarray or None
+    filt_out : np.ndarray or None
         The updated filter state after applying the EMA operation, or None if the operation is skipped.
     """
     if n == 1:   # First step
@@ -201,33 +205,34 @@ def init_kalman(Nv,Nt):
     return S_x, S_P, fPositDerivSpike, fNegatDerivSpike, kalmThreshold
 
 def _kalman_filter(kalmTh, kalmIn, S, fPositDerivSpike, fNegatDerivSpike):
-    """ Perform Kalman Low-pass filtering and despiking
+    """
+    Perform Kalman Low-pass filtering and despiking
     Based on: Koush Y., Zvyagintsev M., Dyck M., Mathiak K.A., Mathiak K. (2012)
     Signal quality and Bayesian signal processing in neurofeedback based on 
     real-time fMRI. Neuroimage 59:478-89
     
-    Parameters:
-    -----------
-    kalmTh: 
+    Parameters
+    ----------
+    kalmTh : 
         Spike-detection Threshold
-    kalmIn:
+    kalmIn :
         Input data
-    S:
+    S :
         Parameter structure
-    fPositDerivSpike:
+    fPositDerivSpike :
         Counter for spikes with positive derivative
-    fNegatDerivSpike:
+    fNegatDerivSpike :
         Counter for spikes with negative derivative
     
-    Returns:
-    --------
-    kalmOut:
+    Returns
+    -------
+    kalmOut :
         Filtered Output
-    S:
+    S :
         Parameter Structure
-    fPositDerivSpike:
+    fPositDerivSpike :
         Counter for spikes with positive derivative
-    fNegatDerivSpike:
+    fNegatDerivSpike :
         Counter for spikes with negative derivative
     """
     
@@ -314,10 +319,11 @@ def rt_kalman_vol(
         num_cores,
         pool,
 ):
-    """ Run Kalman on a single TR. Parallelizes via pools. Outputs are fed into the next TR.
+    """
+    Run Kalman on a single TR. Parallelizes via pools. Outputs are fed into the next TR.
     
-    Parameters:
-    -----------
+    Parameters
+    ----------
     n: int
         The number of data points, i.e. number of processed volumes.
     t: int
@@ -340,7 +346,7 @@ def rt_kalman_vol(
         Multiprocessing pool for parallel processing.
     
     Returns
-    -----------
+    -------
     list
         A list containing:
         o_data: np.ndarray, shape (Nvoxels, 1)
@@ -414,14 +420,14 @@ def _smooth_array(arr, affine, fwhm=None, ensure_finite=True, copy=True):
 
     Parameters
     ----------
-    arr: numpy.ndarray
+    arr : numpy.ndarray
         4D array, with image number as last dimension. 3D arrays are also
         accepted.
-    affine: numpy.ndarray
+    affine : numpy.ndarray
         (4, 4) matrix, giving affine transformation for image. (3, 3) matrices
         are also accepted (only these coefficients are used).
         If fwhm='fast', the affine is not used and can be None
-    fwhm: scalar, numpy.ndarray/tuple/list, 'fast' or None
+    fwhm : scalar, numpy.ndarray/tuple/list, 'fast' or None
         Smoothing strength, as a full-width at half maximum, in millimeters.
         If a nonzero scalar is given, width is identical in all 3 directions.
         A numpy.ndarray/list/tuple must have 3 elements,
@@ -433,15 +439,15 @@ def _smooth_array(arr, affine, fwhm=None, ensure_finite=True, copy=True):
         to preserve the local average value.
         If fwhm is None, no filtering is performed (useful when just removal
         of non-finite values is needed).
-    ensure_finite: bool
+    ensure_finite : bool
         if True, replace every non-finite values (like NaNs) by zero before
         filtering.
-    copy: bool
+    copy : bool
         if True, input array is not modified. True by default: the filtering
         is not performed in-place.
     Returns
     -------
-    filtered_arr: numpy.ndarray
+    filtered_arr : numpy.ndarray
         arr, filtered.
     Notes
     -----
@@ -480,20 +486,21 @@ def _smooth_array(arr, affine, fwhm=None, ensure_finite=True, copy=True):
     return arr
 
 def rt_smooth_vol(data_arr, mask_img, fwhm=4):
-    """Apply smoothing to fMRI data volumes.
+    """
+    Apply smoothing to fMRI data volumes.
 
-    Parameters:
-    -----------
-    data_arr: np.ndarray, shape (Nvoxels, 1)
+    Parameters
+    ----------
+    data_arr : np.ndarray, shape (Nvoxels, 1)
         The input fMRI data array to be processed.
-    mask_img: nibabel.Nifti1Image
+    mask_img : nibabel.Nifti1Image
         A binary mask image.
-    fwhm: float, optional
+    fwhm : float, optional
         The full width at half maximum (FWHM) value used to define the smoothing kernel. 
         The default is 4 mm.
 
-    Returns:
-    --------
+    Returns
+    -------
     np.ndarray, shape (Nvoxels, 1)
         The smoothed fMRI data.
     """
@@ -509,13 +516,13 @@ def rt_smooth_vol(data_arr, mask_img, fwhm=4):
 def rt_snorm_vol(data):
     """Perform spatial Z-scoring on the input data.
 
-    Parameters:
-    -----------
-    data: np.ndarray, shape (Nvoxels, 1)
-        The input data to be normalized. shape
+    Parameters
+    ----------
+    data : np.ndarray, shape (Nvoxels, 1)
+        The input data to be normalized.
 
-    Returns:
-    --------
+    Returns
+    -------
     np.ndarray, shape (Nvoxels, 1)
         The normalized data (Z-scored)
     """
@@ -525,21 +532,23 @@ def rt_snorm_vol(data):
 # Decoding Functions
 # ==================
 def rt_svrscore_vol(data, SVRs, caps_labels):
-    """Compute SVR scores using pretrained
+    """
+    Compute SVR scores using pretrained models.
 
-    Parameters:
-    -----------
-    data: np.ndarray
+    Parameters
+    ----------
+    data : np.ndarray
         The input data to be used for making predictions.
-    SVRs: dict
+    SVRs : dict
         A dictionary of trained Support Vector Regressor (SVR) models, where the keys are 
         label names and the values are the corresponding SVR models.
-    caps_labels: list of str
+    caps_labels : list of str
         A list of labels corresponding to the SVRs in `SVRs`. The function will use these 
         labels to predict the values from the respective SVRs.
 
-    Returns:
-    --------
+    Returns
+    -------
+
     np.ndarray
         The predicted values from each SVR for each label.
     """

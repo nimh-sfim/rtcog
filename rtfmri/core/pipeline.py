@@ -16,8 +16,55 @@ from paths import OUTPUT_DIR, CAP_labels
 
 log = get_logger()
 
-
 class Pipeline:
+    """
+    Real-time fMRI preprocessing pipeline.
+
+    This class handles the initialization and execution of a customizable
+    real-time fMRI preprocessing pipeline. Operates on a TR-by-TR basis.
+
+    Parameters
+    ----------
+    options : Options
+        Configuration object containing flags for which steps to run and what to save.
+    Nt : int
+        Number of TRs expected in the session.
+    mask_Nv : int, optional
+        Number of voxels in the brain mask.
+    mask_img : nibabel.Nifti1Image, optional
+        Binary brain mask used for reshaping and spatial operations.
+    exp_type : str, optional
+        Type of experiment being conducted (used for downstream logic).
+
+    Attributes
+    ----------
+    steps : list
+        List of preprocessing steps initialized from STEP_REGISTRY.
+    Data_FromAFNI : np.ndarray
+        Original incoming data from AFNI (Nv, Nt).
+    Data_EMA : np.ndarray
+        Data after EMA filtering.
+    Data_iGLM : np.ndarray
+        Data after iGLM nuisance regression.
+    Data_kalman : np.ndarray
+        Data after Kalman filtering.
+    Data_smooth : np.ndarray
+        Data after spatial smoothing.
+    Data_norm : np.ndarray
+        Data after spatial Z-scoring.
+    Data_processed : np.ndarray
+        Final processed data.
+    iGLM_Coeffs : np.ndarray
+        Beta coefficients from iGLM regression.
+    motion_estimates : list
+        Motion parameters across volumes.
+    pool : multiprocessing.Pool
+        Pool for parallel Kalman filtering (if enabled).
+    nuisance_labels : list
+        Labels for nuisance regressors (e.g., motion and polynomial terms).
+    legendre_pols : np.ndarray
+        Legendre polynomial regressors for detrending.
+    """
     def __init__(self, options, Nt, mask_Nv=None, mask_img=None, exp_type=None):
         self.t = None
         self.n = None
@@ -76,7 +123,7 @@ class Pipeline:
 
         self.FWHM = options.FWHM # FWHM for Spatial Smoothing in [mm]
         
-        self.nvols_discard = options.discard      # Number of volumes to discard from any analysis (won't enter pre-processing)
+        self.nvols_discard = options.discard # Number of volumes to discard from any analysis (won't enter pre-processing)
 
         self.iGLM_prev     = {}
         self.iGLM_motion   = options.iGLM_motion
@@ -89,13 +136,13 @@ class Pipeline:
             self.iGLM_num_regressors = self.iGLM_polort
             self.nuisance_labels = ['Polort'+str(i) for i in np.arange(self.iGLM_polort)]
 
-        self.S_x              = None
-        self.S_P              = None
+        self.S_x = None
+        self.S_P = None
         self.fPositDerivSpike = None
         self.fNegatDerivSpike = None
-        self.kalmThreshold    = None
+        self.kalmThreshold = None
 
-        self.EMA_th   = 0.98
+        self.EMA_th = 0.98
         self.EMA_filt = None
 
         # Create Legendre Polynomial regressors

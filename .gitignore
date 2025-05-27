@@ -23,6 +23,9 @@ __pycache__/
 a.pkl.npy
 kl_devel.ipynb
 
+# Sphinx stuff
+docs/build/
+
 # Scripts and Notebooks
 Scripts/60min_Preproc/
 Scripts/Realtime_Scanner/Not_Used/

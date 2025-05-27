@@ -4,9 +4,22 @@ import yaml
 
 # TODO: allow yaml to define step order, but have CLI override do_operations
 class Options:
+     """
+     Configuration object for the real-time fMRI pipeline.
+
+     This class loads configuration options from a dictionary (typically parsed 
+     from a YAML file) and exposes them as attributes.
+
+     Parameters
+     ----------
+     config : dict
+        Dictionary of configuration options.
+
+     Attributes
+     ----------
+     (dynamically assigned based on contents of `config`)
+     """
      def __init__(self, config):
-         """Class for holding experiment options. Allows users to build from yaml file or cli args."""
-     #     self.config = config
          self.__dict__.update(config)
 
      @staticmethod    
