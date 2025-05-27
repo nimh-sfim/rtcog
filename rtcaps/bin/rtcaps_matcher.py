@@ -318,11 +318,16 @@ class Experiment:
             log.debug('[t=%d,n=%d] Online - EMA - Data_EMA.shape      %s' % (self.t, self.n, str(self.Data_EMA.shape)))
         # Do iGLM (if needed)
         # ===================
-        if self.iGLM_motion:
-            this_t_nuisance = np.concatenate((self.legendre_pols[self.t,:],motion))[:,np.newaxis]
-        else:
-            this_t_nuisance = (self.legendre_pols[self.t,:])[:,np.newaxis]
-            
+        try: 
+            if self.iGLM_motion:
+                this_t_nuisance = np.concatenate((self.legendre_pols[self.t,:],motion))[:,np.newaxis]
+            else:
+                this_t_nuisance = (self.legendre_pols[self.t,:])[:,np.newaxis]
+        except IndexError:
+            log.error(f'Number of expected volumes is {self.Nt}, but still receiving data from scanner.')     
+            log.info(f'Exiting experiment...')     
+            return
+
         iGLM_data_out, self.iGLM_prev, Bn = rt_regress_vol(
             self.n, 
             ema_data_out,
