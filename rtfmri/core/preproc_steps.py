@@ -18,14 +18,30 @@ class PreprocStep:
       - Input/output data shape must be (N_voxels, 1).
       - Will raise runtime errors if this condition is not met.
     """
+    def __init__(self, save):
+        self.save = save
+        
     @property
     def name(self):
         return self.__class__.__name__
-    
+
+    def initialize_array(self, pipeline):
+        raise NotImplementedError
+
     def run(self, pipeline):
         raise NotImplementedError
     
 class EMAStep(PreprocStep):
+    # def __init__(self, save, ema_th=0.98):
+    #     super().__init__(save)
+    #     self.ema_th = ema_th
+    #     self.ema_filt = None
+
+    def initialize_array(self, pipeline):
+        if self.save:
+            pipeline.Data_EMA = np.zeros((pipeline.Nv, 1))
+            log.debug(f'[t={pipeline.t},n={pipeline.n}] Init - Data_EMA.shape      {pipeline.Data_EMA.shape}') 
+    
     def run(self, pipeline):
         ema_data_out, pipeline.EMA_filt = rt_EMA_vol(pipeline.n, pipeline.EMA_th, pipeline.Data_FromAFNI, pipeline.EMA_filt)
         if pipeline.save_ema: 
@@ -35,6 +51,15 @@ class EMAStep(PreprocStep):
         pipeline.processed_tr = ema_data_out
     
 class iGLMStep(PreprocStep):
+    # def __init__(self, save):
+    #     super().__init__(save)
+
+    def initialize_array(self, pipeline):
+        if self.save:
+            pipeline.Data_iGLM = np.zeros((pipeline.Nv, 1))
+            pipeline.iGLM_Coeffs = np.zeros((pipeline.Nv, pipeline.iGLM_num_regressors, 1))
+            log.debug(f'[t={pipeline.t},n={pipeline.n}] Init - Data_iGLM.shape      {pipeline.Data_iGLM.shape}') 
+
     def run(self, pipeline): 
         if pipeline.iGLM_motion:
             this_t_nuisance = np.concatenate((pipeline.legendre_pols[pipeline.t,:], pipeline.motion))[:,np.newaxis]
@@ -57,6 +82,19 @@ class iGLMStep(PreprocStep):
         pipeline.processed_tr = iGLM_data_out
 
 class KalmanStep(PreprocStep):
+    # def __init__(self, save):
+    #     super().__init__(save)
+    #     self.S_x = None
+    #     self.S_P = None
+    #     self.fPositDerivSpike = None
+    #     self.fNegatDerivSpike = None
+    #     self.kalmThreshold = None
+
+    def initialize_array(self, pipeline):
+        if self.save:
+            pipeline.Data_kalman = np.zeros((pipeline.Nv, 1))
+            log.debug(f'[t={pipeline.t},n={pipeline.n}] Init - Data_kalman.shape   {pipeline.Data_kalman.shape}')
+
     def run(self, pipeline):
         klm_data_out, pipeline.S_x, pipeline.S_P, pipeline.fPositDerivSpike, pipeline.fNegatDerivSpike = rt_kalman_vol(
             pipeline.n,
@@ -78,6 +116,10 @@ class KalmanStep(PreprocStep):
         pipeline.processed_tr = klm_data_out
 
 class SmoothStep(PreprocStep):
+    def initialize_array(self, pipeline):
+        if self.save:
+            pipeline.Data_smooth = np.zeros((pipeline.Nv, 1))
+
     def run(self, pipeline):
         smooth_out = rt_smooth_vol(pipeline.processed_tr, pipeline.mask_img, fwhm=pipeline.FWHM)
         if pipeline.save_smooth:
@@ -88,6 +130,12 @@ class SmoothStep(PreprocStep):
         pipeline.processed_tr = smooth_out
 
 class SnormStep(PreprocStep):
+    def initialize_array(self, pipeline):
+        # pipeline doesn't have save_snorm yet
+        if self.save:
+            pipeline.Data_norm = np.zeros((pipeline.Nv, 1))
+            log.debug(f'[t={pipeline.t},n={pipeline.n}] Init - Data_norm.shape     {pipeline.Data_norm.shape}')
+
     def run(self, pipeline):
         # Should i make a pipeline.save_norm? I'm pretty sure this doesn't exist becuase it's the last step, so it was just
         # whatever was saved in the end...
@@ -103,9 +151,9 @@ DEFAULT_STEP_ORDER = [
 ]
 
 STEP_REGISTRY = {
-    'iGLM':    (iGLMStep, lambda p: p.do_iGLM),
-    'kalman':  (KalmanStep, lambda p: p.do_kalman),
-    'smooth':  (SmoothStep, lambda p: p.do_smooth),
-    'snorm':   (SnormStep, lambda p: p.do_snorm),
-    'EMA':     (EMAStep, lambda p: p.do_EMA),
+    'iGLM':    (iGLMStep, lambda p: p.do_iGLM, lambda p: p.save_iGLM),
+    'kalman':  (KalmanStep, lambda p: p.do_kalman, lambda p: p.save_kalman),
+    'smooth':  (SmoothStep, lambda p: p.do_smooth, lambda p: p.save_smooth),
+    'snorm':   (SnormStep, lambda p: p.do_snorm, lambda p: p.save_snorm),
+    'EMA':     (EMAStep, lambda p: p.do_EMA, lambda p: p.save_ema),
 }

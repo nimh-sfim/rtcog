@@ -98,18 +98,20 @@ class Pipeline:
             self.save_iGLM = True
             self.save_kalman = True
             self.save_smooth = True
+        
+        self.save_snorm = True #TODO
 
         self.welford_S = None
         self.welford_M = None
         self.welford_std = None
 
         self.Data_FromAFNI = None # np.array [Nv,Nt] for incoming data
-        if self.save_ema:    self.Data_EMA = None # np.array [Nv,Nt] for data after EMA  step
-        if self.save_iGLM:   self.Data_iGLM = None #np.array [Nv,Nt] for data after iGLM step
-        if self.save_kalman: self.Data_kalman = None # np.array [Nv,Nt] for data after low-pass step
-        if self.save_smooth: self.Data_smooth = None # np.array [Nv,Nt] for data after spatial smoothing
-        if self.save_iGLM:   self.iGLM_Coeffs = None # np.array [Nregressor, Nv, Nt] for beta coefficients for all regressors
-        self.Data_norm = None
+        # if self.save_ema:    self.Data_EMA = None # np.array [Nv,Nt] for data after EMA  step
+        # if self.save_iGLM:   self.Data_iGLM = None #np.array [Nv,Nt] for data after iGLM step
+        # if self.save_kalman: self.Data_kalman = None # np.array [Nv,Nt] for data after low-pass step
+        # if self.save_smooth: self.Data_smooth = None # np.array [Nv,Nt] for data after spatial smoothing
+        # if self.save_iGLM:   self.iGLM_Coeffs = None # np.array [Nregressor, Nv, Nt] for beta coefficients for all regressors
+        # self.Data_norm = None
         self.Data_processed = None
 
         # Preprocessing steps
@@ -208,13 +210,16 @@ class Pipeline:
             if name not in STEP_REGISTRY:
                 log.error(f'Unknown step: {name}')
                 sys.exit(-1)
-            step_class, enable_fn = STEP_REGISTRY.get(name)
+            step_class, enable_fn, save_fn = STEP_REGISTRY.get(name)
             if enable_fn(self):
-                self.steps.append(step_class())
+                step = step_class(save_fn(self))
+                self.steps.append(step)
 
     def process_first_volume(self, this_t_data):
         """Create empty structures"""
         self.Nv = len(this_t_data)
+        for step in self.steps:
+            step.initialize_array(self)
         log.info('Number of Voxels Nv=%d' % self.Nv)
 
         self.welford_M   = np.zeros(self.Nv)
@@ -225,12 +230,12 @@ class Pipeline:
                 log.error(f'Discrepancy across masks [data Nv = {self.Nv}, mask Nv = {self.mask_Nv}]')
                 sys.exit(-1)
         self.Data_FromAFNI = np.array(this_t_data[:,np.newaxis])
-        if self.save_ema:    self.Data_EMA      = np.zeros((self.Nv, 1))
-        if self.save_iGLM:   self.Data_iGLM     = np.zeros((self.Nv, 1))
-        if self.save_kalman: self.Data_kalman   = np.zeros((self.Nv, 1))
-        if self.save_smooth: self.Data_smooth   = np.zeros((self.Nv, 1))
-        self.Data_norm     = np.zeros((self.Nv,1))
-        if self.save_iGLM:   self.iGLM_Coeffs   = np.zeros((self.Nv, self.iGLM_num_regressors, 1))
+        # if self.save_ema:    self.Data_EMA      = np.zeros((self.Nv, 1))
+        # if self.save_iGLM:   self.Data_iGLM     = np.zeros((self.Nv, 1))
+        # if self.save_kalman: self.Data_kalman   = np.zeros((self.Nv, 1))
+        # if self.save_smooth: self.Data_smooth   = np.zeros((self.Nv, 1))
+        # self.Data_norm     = np.zeros((self.Nv,1))
+        # if self.save_iGLM:   self.iGLM_Coeffs   = np.zeros((self.Nv, self.iGLM_num_regressors, 1))
         self.Data_processed = np.zeros((self.Nv, 1)) # Final output
         
         self.S_x           = np.zeros(self.Nv)
@@ -238,11 +243,10 @@ class Pipeline:
         self.fPositDerivSpike = np.zeros(self.Nv)
         self.fNegatDerivSpike = np.zeros(self.Nv)
         if self.save_orig:   log.debug(f'[t={self.t},n={self.n}] Init - Data_FromAFNI.shape {self.Data_FromAFNI.shape}')
-        if self.save_ema:    log.debug(f'[t={self.t},n={self.n}] Init - Data_EMA.shape      {self.Data_EMA.shape}') 
-        if self.save_iGLM:   log.debug(f'[t={self.t},n={self.n}] Init - Data_iGLM.shape     {self.Data_iGLM.shape}') 
-        if self.save_kalman: log.debug(f'[t={self.t},n={self.n}] Init - Data_kalman.shape   {self.Data_kalman.shape}')
-        log.debug(f'[t={self.t},n={self.n}] Init - Data_norm.shape     {self.Data_norm.shape}')
-        if self.save_iGLM:   log.debug(f'[t={self.t},n={self.n}] Init - iGLM_Coeffs.shape   {self.iGLM_Coeffs.shape}')
+        # if self.save_iGLM:   log.debug(f'[t={self.t},n={self.n}] Init - Data_iGLM.shape     {self.Data_iGLM.shape}') 
+        # if self.save_kalman: log.debug(f'[t={self.t},n={self.n}] Init - Data_kalman.shape   {self.Data_kalman.shape}')
+        # log.debug(f'[t={self.t},n={self.n}] Init - Data_norm.shape     {self.Data_norm.shape}')
+        # if self.save_iGLM:   log.debug(f'[t={self.t},n={self.n}] Init - iGLM_Coeffs.shape   {self.iGLM_Coeffs.shape}')
         return 1
     
     def process_discard(self, this_t_data):
