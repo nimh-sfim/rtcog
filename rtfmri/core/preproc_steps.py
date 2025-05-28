@@ -1,7 +1,9 @@
+import os.path as osp
 import numpy as np
 
-from utils.rt_functions import rt_EMA_vol, rt_regress_vol, rt_kalman_vol, rt_smooth_vol, rt_snorm_vol
 from utils.log import get_logger
+from utils.rt_functions import rt_EMA_vol, rt_regress_vol, rt_kalman_vol, rt_smooth_vol, rt_snorm_vol
+from utils.fMRI import unmask_fMRI_img
 
 log = get_logger()
 
@@ -54,6 +56,14 @@ class PreprocStep:
     
     def run(self, pipeline):
         raise NotImplementedError
+    
+    def save_nifti(self, pipeline):
+        pass
+
+    @staticmethod
+    def prep_file(data, file_suffix, pipeline):
+        out_path = osp.join(pipeline.out_dir, pipeline.out_prefix+file_suffix)
+        unmask_fMRI_img(data, pipeline.mask_img, out_path)
 
 class EMAStep(PreprocStep):
     # def __init__(self, save, ema_th=0.98):
@@ -79,6 +89,10 @@ class EMAStep(PreprocStep):
         
         pipeline.processed_tr = ema_data_out
     
+    def save_nifti(self, pipeline):
+        if self.save:
+            self.prep_file(pipeline.Data_EMA, '.pp_EMA.nii', pipeline)
+    
 class iGLMStep(PreprocStep):
     # def __init__(self, save):
     #     super().__init__(save)
@@ -93,7 +107,7 @@ class iGLMStep(PreprocStep):
         if self.save:
             pipeline.Data_iGLM = np.append(pipeline.Data_iGLM, np.zeros((pipeline.Nv,1)), axis=1)
             pipeline.iGLM_Coeffs = np.append(pipeline.iGLM_Coeffs, np.zeros((pipeline.Nv, pipeline.iGLM_num_regressors,1)), axis=2)
-            log.debug(f'[t={self.t},n={self.n}] Discard - iGLM_Coeffs.shape   {self.iGLM_Coeffs.shape}')
+            log.debug(f'[t={pipeline.t},n={pipeline.n}] Discard - iGLM_Coeffs.shape   {pipeline.iGLM_Coeffs.shape}')
             log.debug(f'[t={pipeline.t},n={pipeline.n}] Discard - Data_iGLM.shape     {pipeline.Data_iGLM.shape}')
             
     def run(self, pipeline): 
@@ -116,6 +130,13 @@ class iGLMStep(PreprocStep):
             log.debug(f'[t={pipeline.t},n={pipeline.n}] Online - iGLM - iGLM_Coeffs.shape   {pipeline.iGLM_Coeffs.shape}')
 
         pipeline.processed_tr = iGLM_data_out
+
+    def save_nifti(self, pipeline):
+        if self.save:
+            self.prep_file(pipeline.Data_iGLM, '.pp_iGLM.nii', pipeline)
+            for i, lab in enumerate(pipeline.nuisance_labels):
+                data = pipeline.iGLM_Coeffs[:,i,:]
+                unmask_fMRI_img(data, pipeline.mask_img, osp.join(pipeline.out_dir,pipeline.out_prefix+'.pp_iGLM_'+lab+'.nii'))
 
 class KalmanStep(PreprocStep):
     # def __init__(self, save):
@@ -155,7 +176,10 @@ class KalmanStep(PreprocStep):
             log.debug(f'[t={pipeline.t},n={pipeline.n}] Online - Kalman - Data_kalman.shape     {pipeline.Data_kalman.shape}')
         
         pipeline.processed_tr = klm_data_out
-    
+
+    def save_nifti(self, pipeline):
+        if self.save:
+            self.prep_file(pipeline.Data_kalman, '.pp_LPfilter.nii', pipeline)
 
 class SmoothStep(PreprocStep):
     def initialize_array(self, pipeline):
@@ -175,6 +199,10 @@ class SmoothStep(PreprocStep):
             log.debug(f'[t={pipeline.t},n={pipeline.n}] Online - Smooth - smooth_out.shape      {smooth_out.shape}')
             
         pipeline.processed_tr = smooth_out
+    
+    def save_nifti(self, pipeline):
+        if self.save:
+            self.prep_file(pipeline.Data_smooth, '.pp_Smooth.nii', pipeline)
 
 class SnormStep(PreprocStep):
     def initialize_array(self, pipeline):
@@ -184,7 +212,7 @@ class SnormStep(PreprocStep):
 
     def run_discard_volumes(self, pipeline):
         if self.save:
-            pipeline.Data_norm = np.append(self.Data_norm, np.zeros((self.Nv,1)), axis=1)
+            pipeline.Data_norm = np.append(pipeline.Data_norm, np.zeros((pipeline.Nv,1)), axis=1)
             log.debug(f'[t={pipeline.t},n={pipeline.n}] Discard - Data_norm.shape     {pipeline.Data_norm.shape}')
 
     def run(self, pipeline):
@@ -196,3 +224,8 @@ class SnormStep(PreprocStep):
             log.debug(f'[t={pipeline.t},n={pipeline.n}] Online - Snorm - Data_norm.shape   {pipeline.Data_norm.shape}')
         
         pipeline.processed_tr = norm_out
+    
+    def save_nifti(self, pipeline):
+        if self.save:
+            self.prep_file(pipeline.Data_norm, '.pp_Snorm.nii', pipeline)
+    

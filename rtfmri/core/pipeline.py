@@ -324,28 +324,13 @@ class Pipeline:
     def save_nifti_files(self):
         out_vars   = [self.Data_processed]
         out_labels = ['.pp_Zscore.nii']
-        if self.do_EMA and self.save_ema:
-            out_vars.append(self.Data_EMA)
-            out_labels.append('.pp_EMA.nii')
-        if self.do_iGLM and self.save_iGLM:
-            out_vars.append(self.Data_iGLM)
-            out_labels.append('.pp_iGLM.nii')
-        if self.do_kalman and self.save_kalman:
-            out_vars.append(self.Data_kalman)
-            out_labels.append('.pp_LPfilter.nii')
-        if self.do_smooth and self.save_smooth:
-            out_vars.append(self.Data_smooth)
-            out_labels.append('.pp_Smooth.nii')
+
         if self.save_orig:
             out_vars.append(self.Data_FromAFNI)
             out_labels.append('.orig.nii')
         
         for variable, file_suffix in zip(out_vars, out_labels):
             unmask_fMRI_img(variable, self.mask_img, osp.join(self.out_dir,self.out_prefix+file_suffix))
-
-        if self.do_iGLM and self.save_iGLM:
-            for i,lab in enumerate(self.nuisance_labels):
-                data = self.iGLM_Coeffs[:,i,:]
-                unmask_fMRI_img(data, self.mask_img, osp.join(self.out_dir,self.out_prefix+'.pp_iGLM_'+lab+'.nii'))
-
-                                   
+        
+        for step in self.steps:
+            step.save_nifti(self)
