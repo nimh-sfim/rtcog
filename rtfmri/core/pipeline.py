@@ -106,21 +106,8 @@ class Pipeline:
         self.welford_std = None
 
         self.Data_FromAFNI = None # np.array [Nv,Nt] for incoming data
-        # if self.save_ema:    self.Data_EMA = None # np.array [Nv,Nt] for data after EMA  step
-        # if self.save_iGLM:   self.Data_iGLM = None #np.array [Nv,Nt] for data after iGLM step
-        # if self.save_kalman: self.Data_kalman = None # np.array [Nv,Nt] for data after low-pass step
-        # if self.save_smooth: self.Data_smooth = None # np.array [Nv,Nt] for data after spatial smoothing
-        # if self.save_iGLM:   self.iGLM_Coeffs = None # np.array [Nregressor, Nv, Nt] for beta coefficients for all regressors
-        # self.Data_norm = None
         self.Data_processed = None
 
-        # Preprocessing steps
-        # self.do_EMA = options.do_EMA
-        # self.do_iGLM = options.do_iGLM
-        # self.do_kalman = options.do_kalman
-        # self.do_smooth = options.do_smooth
-        # self.do_snorm = options.do_snorm
-        
         self.step_registry = PreprocStep.registry
         self.step_opts = options.steps
 
@@ -215,12 +202,11 @@ class Pipeline:
             StepClass = self.step_registry.get(name)
             if step["enabled"]:
                 self.steps.append(StepClass(step["save"]))
+        log.info(f"Steps used: {', '.join([step.__class__.__name__.replace('Step', '') for step in self.steps])}")
 
     def process_first_volume(self, this_t_data):
         """Create empty structures"""
         self.Nv = len(this_t_data)
-        for step in self.steps:
-            step.initialize_array(self)
         log.info('Number of Voxels Nv=%d' % self.Nv)
 
         self.welford_M   = np.zeros(self.Nv)
@@ -231,12 +217,6 @@ class Pipeline:
                 log.error(f'Discrepancy across masks [data Nv = {self.Nv}, mask Nv = {self.mask_Nv}]')
                 sys.exit(-1)
         self.Data_FromAFNI = np.array(this_t_data[:,np.newaxis])
-        # if self.save_ema:    self.Data_EMA      = np.zeros((self.Nv, 1))
-        # if self.save_iGLM:   self.Data_iGLM     = np.zeros((self.Nv, 1))
-        # if self.save_kalman: self.Data_kalman   = np.zeros((self.Nv, 1))
-        # if self.save_smooth: self.Data_smooth   = np.zeros((self.Nv, 1))
-        # self.Data_norm     = np.zeros((self.Nv,1))
-        # if self.save_iGLM:   self.iGLM_Coeffs   = np.zeros((self.Nv, self.iGLM_num_regressors, 1))
         self.Data_processed = np.zeros((self.Nv, 1)) # Final output
         
         self.S_x           = np.zeros(self.Nv)
@@ -244,10 +224,10 @@ class Pipeline:
         self.fPositDerivSpike = np.zeros(self.Nv)
         self.fNegatDerivSpike = np.zeros(self.Nv)
         if self.save_orig:   log.debug(f'[t={self.t},n={self.n}] Init - Data_FromAFNI.shape {self.Data_FromAFNI.shape}')
-        # if self.save_iGLM:   log.debug(f'[t={self.t},n={self.n}] Init - Data_iGLM.shape     {self.Data_iGLM.shape}') 
-        # if self.save_kalman: log.debug(f'[t={self.t},n={self.n}] Init - Data_kalman.shape   {self.Data_kalman.shape}')
-        # log.debug(f'[t={self.t},n={self.n}] Init - Data_norm.shape     {self.Data_norm.shape}')
-        # if self.save_iGLM:   log.debug(f'[t={self.t},n={self.n}] Init - iGLM_Coeffs.shape   {self.iGLM_Coeffs.shape}')
+
+        for step in self.steps:
+            step.initialize_array(self)
+
         return 1
     
     def process_discard(self, this_t_data):
@@ -256,19 +236,11 @@ class Pipeline:
             self.Data_FromAFNI = np.append(self.Data_FromAFNI, this_t_data[:, np.newaxis], axis=1)
         else:
             self.Data_FromAFNI = np.hstack((self.Data_FromAFNI[:,-1][:,np.newaxis], this_t_data[:, np.newaxis]))  # Only keep this one and previous
-        if self.save_ema:  self.Data_EMA = np.append(self.Data_EMA,    np.zeros((self.Nv,1)), axis=1)
-        if self.save_iGLM: self.Data_iGLM = np.append(self.Data_iGLM,   np.zeros((self.Nv,1)), axis=1)
-        if self.save_kalman: self.Data_kalman = np.append(self.Data_kalman, np.zeros((self.Nv,1)), axis=1)
-        if self.save_smooth: self.Data_smooth = np.append(self.Data_smooth, np.zeros((self.Nv,1)), axis=1)
-        self.Data_norm = np.append(self.Data_norm, np.zeros((self.Nv,1)), axis=1)
-        if self.save_iGLM: self.iGLM_Coeffs = np.append(self.iGLM_Coeffs, np.zeros( (self.Nv,self.iGLM_num_regressors,1)), axis=2)
         log.debug(f'[t={self.t},n={self.n}] Discard - Data_FromAFNI.shape {self.Data_FromAFNI.shape}')
-        if self.save_ema:    log.debug(f'[t={self.t},n={self.n}] Discard - Data_EMA.shape      {self.Data_EMA.shape}')
-        if self.save_iGLM:   log.debug(f'[t={self.t},n={self.n}] Discard - Data_iGLM.shape     {self.Data_iGLM.shape}')
-        if self.save_kalman: log.debug(f'[t={self.t},n={self.n}] Discard - Data_kalman.shape   {self.Data_kalman.shape}')
-        log.debug(f'[t={self.t},n={self.n}] Discard - Data_norm.shape    {self.Data_norm.shape}') 
-        if self.save_iGLM: log.debug(f'[t={self.t},n={self.n}] Discard - iGLM_Coeffs.shape   {self.iGLM_Coeffs.shape}')
         self.Data_processed = np.append(self.Data_processed, np.zeros((self.Nv,1)), axis=1)
+
+        for step in self.steps:
+            step.run_discard_volumes(self)
         
         log.debug(f'Discard volume, self.Data_FromAFNI[:10]: {self.Data_FromAFNI[:10]}')
         return 1
