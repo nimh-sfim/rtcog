@@ -1,0 +1,55 @@
+# General options
+debug: false
+silent: false
+tcp_port: 53214
+show_data: false
+tr: 1.0
+n_cores: 10
+mask_path: GMribbon_R4Feed.nii
+save_orig: False
+
+# Preprocessing steps in order
+steps:
+  - name: EMA
+    enabled: true
+    save: false
+
+  - name: iGLM
+    enabled: true
+    save: false
+
+  - name: kalman
+    enabled: true
+    save: false
+
+  - name: smooth
+    enabled: true
+    save: false
+
+  - name: snorm
+    enabled: true
+    save: false
+
+
+# Saving options
+# out_dir: ./
+# out_prefix: preproc
+
+# iGLM Options
+iGLM_polort: 2
+iGLM_motion: true
+nvols: 300
+discard: 10
+
+# Smoothing options
+FWHM: 4.0
+
+# Experiment/GUI Options
+exp_type: preproc
+no_gui: false
+no_proc_chair: false
+fullscreen: false
+screen: 1
+
+# Testing options
+snapshot: false
