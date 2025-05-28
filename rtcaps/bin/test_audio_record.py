@@ -3,8 +3,9 @@ import os
 import os.path as osp
 import time
 
+sys.path.append('..')
 from rtcap_lib.recorder import Recorder
-from rtcaps.config import DATA_DIR
+from config import DATA_DIR
 
 sys.path.insert(0, osp.abspath(osp.join(osp.dirname(__file__), '..')))
 
