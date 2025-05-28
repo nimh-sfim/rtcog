@@ -1,6 +1,6 @@
 import numpy as np
 
-from utils.rt_functions       import rt_EMA_vol, rt_regress_vol, rt_kalman_vol, rt_smooth_vol, rt_snorm_vol
+from utils.rt_functions import rt_EMA_vol, rt_regress_vol, rt_kalman_vol, rt_smooth_vol, rt_snorm_vol
 from utils.log import get_logger
 
 log = get_logger()
@@ -13,24 +13,35 @@ class PreprocStep:
       - Reads `pipeline.processed_tr` (a numpy array of shape (N_voxels, 1))
       - Performs its step-specific transformation
       - Updates `pipeline.processed_tr` with a new numpy array of the same shape
+      
+    Each subclass can also implement `initialize_array(pipeline)` and `run_discard` if you want to save its nifti file
+    at the end of the run.
 
     Limitations:
       - Input/output data shape must be (N_voxels, 1).
       - Will raise runtime errors if this condition is not met.
     """
-    def __init__(self, save):
+    registry = {} # Holds all available step classes that can be instantiated later on in Pipeline.
+
+    def __init__(self, save=False):
         self.save = save
-        
-    @property
-    def name(self):
-        return self.__class__.__name__
+
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+        name = cls.__name__.replace('Step', '').lower()
+        cls.registry[name] = cls
+
+    @classmethod
+    def get_class(cls, name):
+        return cls.registry.get(name.lower())
 
     def initialize_array(self, pipeline):
-        raise NotImplementedError
-
+        # NOTE: can use setattr to define variable names dynamically to make this more easily subclassed, but might be too confusing?
+        pass
+    
     def run(self, pipeline):
         raise NotImplementedError
-    
+
 class EMAStep(PreprocStep):
     # def __init__(self, save, ema_th=0.98):
     #     super().__init__(save)
@@ -114,6 +125,7 @@ class KalmanStep(PreprocStep):
             log.debug(f'[t={pipeline.t},n={pipeline.n}] Online - Kalman - Data_kalman.shape     {pipeline.Data_kalman.shape}')
         
         pipeline.processed_tr = klm_data_out
+    
 
 class SmoothStep(PreprocStep):
     def initialize_array(self, pipeline):
@@ -145,15 +157,3 @@ class SnormStep(PreprocStep):
         log.debug(f'[t={pipeline.t},n={pipeline.n}] Online - Snorm - Data_norm.shape   {pipeline.Data_norm.shape}')
         
         pipeline.processed_tr = norm_out
-
-DEFAULT_STEP_ORDER = [
-    'EMA', 'iGLM', 'kalman', 'smooth', 'snorm'
-]
-
-STEP_REGISTRY = {
-    'iGLM':    (iGLMStep, lambda p: p.do_iGLM, lambda p: p.save_iGLM),
-    'kalman':  (KalmanStep, lambda p: p.do_kalman, lambda p: p.save_kalman),
-    'smooth':  (SmoothStep, lambda p: p.do_smooth, lambda p: p.save_smooth),
-    'snorm':   (SnormStep, lambda p: p.do_snorm, lambda p: p.save_snorm),
-    'EMA':     (EMAStep, lambda p: p.do_EMA, lambda p: p.save_ema),
-}

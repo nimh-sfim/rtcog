@@ -7,9 +7,9 @@ import pandas as pd
 
 sys.path.insert(0, osp.abspath(osp.join(osp.dirname(__file__), '../../../')))
 
-from .preproc_steps import STEP_REGISTRY, DEFAULT_STEP_ORDER
-from utils.core               import welford
-from utils.rt_functions       import kalman_filter_mv, gen_polort_regressors
+from preproc_steps import PreprocStep
+from utils.core import welford
+from utils.rt_functions import kalman_filter_mv, gen_polort_regressors
 from utils.log import get_logger
 from utils.fMRI import unmask_fMRI_img
 from paths import OUTPUT_DIR, CAP_labels
@@ -78,28 +78,28 @@ class Pipeline:
 
         self.motion_estimates = []
         
-        self.save_ema = options.save_ema
-        self.save_smooth = options.save_smooth
-        self.save_kalman = options.save_kalman
-        self.save_iGLM = options.save_iglm
+        # self.save_ema = options.save_ema
+        # self.save_smooth = options.save_smooth
+        # self.save_kalman = options.save_kalman
+        # self.save_iGLM = options.save_iglm
         self.save_orig = options.save_orig
-        self.save_all = options.save_all
+        # self.save_all = options.save_all
 
         self.out_dir = options.out_dir
         self.out_prefix = options.out_prefix
         
         self.snapshot = options.snapshot
-        if self.snapshot:
-            self.save_all = True
+        # if self.snapshot:
+        #     self.save_all = True
 
-        if self.save_all:
-            self.save_orig = True
-            self.save_ema = True
-            self.save_iGLM = True
-            self.save_kalman = True
-            self.save_smooth = True
+        # if self.save_all:
+        #     self.save_orig = True
+        #     self.save_ema = True
+        #     self.save_iGLM = True
+        #     self.save_kalman = True
+        #     self.save_smooth = True
         
-        self.save_snorm = True #TODO
+        # self.save_snorm = True #TODO
 
         self.welford_S = None
         self.welford_M = None
@@ -115,11 +115,14 @@ class Pipeline:
         self.Data_processed = None
 
         # Preprocessing steps
-        self.do_EMA = options.do_EMA
-        self.do_iGLM = options.do_iGLM
-        self.do_kalman = options.do_kalman
-        self.do_smooth = options.do_smooth
-        self.do_snorm = options.do_snorm
+        # self.do_EMA = options.do_EMA
+        # self.do_iGLM = options.do_iGLM
+        # self.do_kalman = options.do_kalman
+        # self.do_smooth = options.do_smooth
+        # self.do_snorm = options.do_snorm
+        
+        self.step_registry = PreprocStep.registry
+        self.step_opts = options.steps
 
         self.build_steps()
 
@@ -154,7 +157,7 @@ class Pipeline:
             self.legendre_pols = None
 
         # If kalman needed, create a pool
-        if self.do_kalman:
+        if 'kalman' in self.steps:
             self.n_cores = options.n_cores
             self.pool = mp.Pool(processes=self.n_cores)
             if self.mask_Nv is not None:
@@ -201,19 +204,17 @@ class Pipeline:
             self.pool.close()
             self.pool.join()
     
-    def build_steps(self, step_order=None):
-        # TODO: just skip adding the function if not do_function
+    def build_steps(self):
         """Build the pipeline"""
         self.steps = []
-        order = step_order or DEFAULT_STEP_ORDER
-        for name in order:
-            if name not in STEP_REGISTRY:
+        for step in self.step_opts:
+            name = step["name"].lower()
+            if name not in self.step_registry:
                 log.error(f'Unknown step: {name}')
                 sys.exit(-1)
-            step_class, enable_fn, save_fn = STEP_REGISTRY.get(name)
-            if enable_fn(self):
-                step = step_class(save_fn(self))
-                self.steps.append(step)
+            StepClass = self.step_registry.get(name)
+            if step["enabled"]:
+                self.steps.append(StepClass(step["save"]))
 
     def process_first_volume(self, this_t_data):
         """Create empty structures"""
@@ -225,7 +226,7 @@ class Pipeline:
         self.welford_M   = np.zeros(self.Nv)
         self.welford_S   = np.zeros(self.Nv)
         self.welford_std = np.zeros(self.Nv)
-        if self.do_smooth:
+        if 'smooth' in self.steps:
             if self.mask_Nv != self.Nv:
                 log.error(f'Discrepancy across masks [data Nv = {self.Nv}, mask Nv = {self.mask_Nv}]')
                 sys.exit(-1)
