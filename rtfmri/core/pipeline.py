@@ -55,8 +55,6 @@ class Pipeline:
         Data after spatial Z-scoring.
     Data_processed : np.ndarray
         Final processed data.
-    iGLM_Coeffs : np.ndarray
-        Beta coefficients from iGLM regression.
     motion_estimates : list
         Motion parameters across volumes.
     pool : multiprocessing.Pool
@@ -103,22 +101,8 @@ class Pipeline:
         
         self.nvols_discard = options.discard # Number of volumes to discard from any analysis (won't enter pre-processing)
 
-        self.iGLM_prev     = {}
-        self.iGLM_motion   = options.iGLM_motion
-        self.iGLM_polort   = options.iGLM_polort
-        self.nuisance      = None
-        if self.iGLM_motion:
-            self.iGLM_num_regressors = self.iGLM_polort + 6
-            self.nuisance_labels = ['Polort'+str(i) for i in np.arange(self.iGLM_polort)] + ['roll','pitch','yaw','dS','dL','dP']
-        else:
-            self.iGLM_num_regressors = self.iGLM_polort
-            self.nuisance_labels = ['Polort'+str(i) for i in np.arange(self.iGLM_polort)]
-
-        # Create Legendre Polynomial regressors
-        if self.iGLM_polort > -1:
-            self.legendre_pols = gen_polort_regressors(self.iGLM_polort, self.Nt)
-        else:
-            self.legendre_pols = None
+        self.iGLM_motion = options.iGLM_motion
+        self.iGLM_polort = options.iGLM_polort
 
         # If kalman needed, create a pool
         if KALMAN in self.steps:

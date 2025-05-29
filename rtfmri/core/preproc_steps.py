@@ -2,6 +2,7 @@ import os.path as osp
 import numpy as np
 
 from utils.log import get_logger
+from utils.rt_functions import gen_polort_regressors
 from utils.rt_functions import rt_EMA_vol, rt_regress_vol, rt_kalman_vol, rt_smooth_vol, rt_snorm_vol
 from utils.fMRI import unmask_fMRI_img
 
@@ -96,49 +97,65 @@ class EMAStep(PreprocStep):
             self.prep_file(pipeline.Data_EMA, '.pp_EMA.nii', pipeline)
     
 class iGLMStep(PreprocStep):
-    # def __init__(self, save):
-    #     super().__init__(save)
+    def __init__(self, save):
+        super().__init__(save)
+        self.iGLM_prev = {}
 
+        if self.save:
+            self.iGLM_Coeffs = None
+        
     def initialize_array(self, pipeline):
+        if pipeline.iGLM_motion:
+            self.iGLM_num_regressors = pipeline.iGLM_polort + 6
+            self.nuisance_labels = ['Polort'+str(i) for i in np.arange(pipeline.iGLM_polort)] + ['roll','pitch','yaw','dS','dL','dP']
+        else:
+            self.iGLM_num_regressors = pipeline.iGLM_polort
+            self.nuisance_labels = ['Polort'+str(i) for i in np.arange(pipeline.iGLM_polort)]
+        
+        if pipeline.iGLM_polort > -1:
+            self.legendre_pols = gen_polort_regressors(pipeline.iGLM_polort, pipeline.Nt)
+        else:
+            self.legendre_pols = None
+
         if self.save:
             pipeline.Data_iGLM = np.zeros((pipeline.Nv, 1))
-            pipeline.iGLM_Coeffs = np.zeros((pipeline.Nv, pipeline.iGLM_num_regressors, 1))
+            self.iGLM_Coeffs = np.zeros((pipeline.Nv, self.iGLM_num_regressors, 1))
             log.debug(f'[t={pipeline.t},n={pipeline.n}] Init - Data_iGLM.shape      {pipeline.Data_iGLM.shape}') 
 
     def run_discard_volumes(self, pipeline):
         if self.save:
             pipeline.Data_iGLM = np.append(pipeline.Data_iGLM, np.zeros((pipeline.Nv,1)), axis=1)
-            pipeline.iGLM_Coeffs = np.append(pipeline.iGLM_Coeffs, np.zeros((pipeline.Nv, pipeline.iGLM_num_regressors,1)), axis=2)
-            log.debug(f'[t={pipeline.t},n={pipeline.n}] Discard - iGLM_Coeffs.shape   {pipeline.iGLM_Coeffs.shape}')
+            self.iGLM_Coeffs = np.append(self.iGLM_Coeffs, np.zeros((pipeline.Nv, self.iGLM_num_regressors,1)), axis=2)
+            log.debug(f'[t={pipeline.t},n={pipeline.n}] Discard - iGLM_Coeffs.shape   {self.iGLM_Coeffs.shape}')
             log.debug(f'[t={pipeline.t},n={pipeline.n}] Discard - Data_iGLM.shape     {pipeline.Data_iGLM.shape}')
             
     def run(self, pipeline): 
         if pipeline.iGLM_motion:
-            this_t_nuisance = np.concatenate((pipeline.legendre_pols[pipeline.t,:], pipeline.motion))[:,np.newaxis]
+            this_t_nuisance = np.concatenate((self.legendre_pols[pipeline.t,:], pipeline.motion))[:,np.newaxis]
         else:
-            this_t_nuisance = (pipeline.legendre_pols[pipeline.t,:])[:,np.newaxis]
+            this_t_nuisance = (self.legendre_pols[pipeline.t,:])[:,np.newaxis]
             
-        iGLM_data_out, pipeline.iGLM_prev, Bn = rt_regress_vol(
+        iGLM_data_out, self.iGLM_prev, Bn = rt_regress_vol(
             pipeline.n, 
             pipeline.processed_tr,
             this_t_nuisance,
-            pipeline.iGLM_prev,
+            self.iGLM_prev,
         )
 
         if self.save:
             pipeline.Data_iGLM = np.append(pipeline.Data_iGLM, iGLM_data_out, axis=1)
-            pipeline.iGLM_Coeffs = np.append(pipeline.iGLM_Coeffs, Bn, axis=2) 
+            self.iGLM_Coeffs = np.append(self.iGLM_Coeffs, Bn, axis=2) 
             log.debug(f'[t={pipeline.t},n={pipeline.n}] Online - iGLM - Data_iGLM.shape     {pipeline.Data_iGLM.shape}')
-            log.debug(f'[t={pipeline.t},n={pipeline.n}] Online - iGLM - iGLM_Coeffs.shape   {pipeline.iGLM_Coeffs.shape}')
+            log.debug(f'[t={pipeline.t},n={pipeline.n}] Online - iGLM - iGLM_Coeffs.shape   {self.iGLM_Coeffs.shape}')
 
         pipeline.processed_tr = iGLM_data_out
 
     def save_nifti(self, pipeline):
         if self.save:
             self.prep_file(pipeline.Data_iGLM, '.pp_iGLM.nii', pipeline)
-            for i, lab in enumerate(pipeline.nuisance_labels):
-                data = pipeline.iGLM_Coeffs[:,i,:]
-                unmask_fMRI_img(data, pipeline.mask_img, osp.join(pipeline.out_dir,pipeline.out_prefix+'.pp_iGLM_'+lab+'.nii'))
+            for i, lab in enumerate(self.nuisance_labels):
+                data = self.iGLM_Coeffs[:,i,:]
+                unmask_fMRI_img(data, pipeline.mask_img, osp.join(pipeline.out_dir, pipeline.out_prefix+'.pp_iGLM_'+lab+'.nii'))
 
 class KalmanStep(PreprocStep):
     def __init__(self, save):
@@ -147,7 +164,6 @@ class KalmanStep(PreprocStep):
         self.S_P = None
         self.fPositDerivSpike = None
         self.fNegatDerivSpike = None
-        # self.kalmThreshold = None
 
     def initialize_array(self, pipeline):
         self.S_x = np.zeros(pipeline.Nv)
