@@ -48,17 +48,20 @@ class PreprocStep:
 
     def initialize_array(self, pipeline):
         # NOTE: can use setattr to define variable names dynamically to make this more easily subclassed, but might be too confusing?
-        pass
+        if self.save:
+            raise NotImplementedError
 
     def run_discard_volumes(self, pipeline):
         """Append a bunch of zeros for volumes we will be discarding"""
-        pass
+        if self.save:
+            raise NotImplementedError
     
     def run(self, pipeline):
         raise NotImplementedError
     
     def save_nifti(self, pipeline):
-        pass
+        if self.save:
+            raise NotImplementedError
 
     @staticmethod
     def prep_file(data, file_suffix, pipeline):
