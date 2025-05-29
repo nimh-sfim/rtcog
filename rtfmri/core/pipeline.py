@@ -8,11 +8,12 @@ import pandas as pd
 sys.path.insert(0, osp.abspath(osp.join(osp.dirname(__file__), '../../../')))
 
 from preproc_steps import PreprocStep
+from preproc_steps import KALMAN, SMOOTH
 from utils.core import welford
 from utils.rt_functions import kalman_filter_mv, gen_polort_regressors
 from utils.log import get_logger
 from utils.fMRI import unmask_fMRI_img
-from paths import OUTPUT_DIR, CAP_labels
+from paths import OUTPUT_DIR
 
 log = get_logger()
 
@@ -78,10 +79,6 @@ class Pipeline:
 
         self.motion_estimates = []
         
-        # self.save_ema = options.save_ema
-        # self.save_smooth = options.save_smooth
-        # self.save_kalman = options.save_kalman
-        # self.save_iGLM = options.save_iglm
         self.save_orig = options.save_orig
         # self.save_all = options.save_all
 
@@ -89,17 +86,6 @@ class Pipeline:
         self.out_prefix = options.out_prefix
         
         self.snapshot = options.snapshot
-        # if self.snapshot:
-        #     self.save_all = True
-
-        # if self.save_all:
-        #     self.save_orig = True
-        #     self.save_ema = True
-        #     self.save_iGLM = True
-        #     self.save_kalman = True
-        #     self.save_smooth = True
-        
-        # self.save_snorm = True #TODO
 
         self.welford_S = None
         self.welford_M = None
@@ -128,15 +114,6 @@ class Pipeline:
             self.iGLM_num_regressors = self.iGLM_polort
             self.nuisance_labels = ['Polort'+str(i) for i in np.arange(self.iGLM_polort)]
 
-        self.S_x = None
-        self.S_P = None
-        self.fPositDerivSpike = None
-        self.fNegatDerivSpike = None
-        self.kalmThreshold = None
-
-        self.EMA_th = 0.98
-        self.EMA_filt = None
-
         # Create Legendre Polynomial regressors
         if self.iGLM_polort > -1:
             self.legendre_pols = gen_polort_regressors(self.iGLM_polort, self.Nt)
@@ -144,7 +121,7 @@ class Pipeline:
             self.legendre_pols = None
 
         # If kalman needed, create a pool
-        if 'kalman' in self.steps:
+        if KALMAN in self.steps:
             self.n_cores = options.n_cores
             self.pool = mp.Pool(processes=self.n_cores)
             if self.mask_Nv is not None:
@@ -212,18 +189,15 @@ class Pipeline:
         self.welford_M   = np.zeros(self.Nv)
         self.welford_S   = np.zeros(self.Nv)
         self.welford_std = np.zeros(self.Nv)
-        if 'smooth' in self.steps:
+        if SMOOTH in self.steps:
             if self.mask_Nv != self.Nv:
                 log.error(f'Discrepancy across masks [data Nv = {self.Nv}, mask Nv = {self.mask_Nv}]')
                 sys.exit(-1)
         self.Data_FromAFNI = np.array(this_t_data[:,np.newaxis])
         self.Data_processed = np.zeros((self.Nv, 1)) # Final output
         
-        self.S_x           = np.zeros(self.Nv)
-        self.S_P           = np.zeros(self.Nv) 
-        self.fPositDerivSpike = np.zeros(self.Nv)
-        self.fNegatDerivSpike = np.zeros(self.Nv)
-        if self.save_orig:   log.debug(f'[t={self.t},n={self.n}] Init - Data_FromAFNI.shape {self.Data_FromAFNI.shape}')
+        if self.save_orig:
+            log.debug(f'[t={self.t},n={self.n}] Init - Data_FromAFNI.shape {self.Data_FromAFNI.shape}')
 
         for step in self.steps:
             step.initialize_array(self)
@@ -278,10 +252,6 @@ class Pipeline:
             step.run(self)     
         
         self.Data_processed = np.append(self.Data_processed, self.processed_tr, axis=1)
-        if self.processed_tr.shape != (self.Nv, 1):
-            log.error(f'Unexpected shape for processed_tr! Expected ({self.Nv}, 1) | Actual: {self.processed_tr.shape}')
-            sys.exit(-1)
-            
 
     def final_steps(self):
         self.save_motion_estimates()
@@ -305,7 +275,7 @@ class Pipeline:
                 'Data_processed': self.Data_processed
             }
         
-            snap_path = osp.join(OUTPUT_DIR, f'{self.out_prefix}_snapshots.npz')
+            snap_path = osp.join(OUTPUT_DIR, f'snapshots.npz')
             np.savez(snap_path, **var_dict) 
             log.info(f'Snapshot saved to OUTPUT_DIR at {snap_path}')
         

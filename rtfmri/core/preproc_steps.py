@@ -16,8 +16,8 @@ class PreprocStep:
       - Performs its step-specific transformation
       - Updates `pipeline.processed_tr` with a new numpy array of the same shape
       
-    Each subclass can also implement `initialize_array(pipeline)` and `run_discard` if you want to save its nifti file
-    at the end of the run.
+    Each subclass can also implement `initialize_array(pipeline)`, `run_discard(pipeline)`,
+    and `save_nifti(pipeline)` if you want to save its nifti file at the end of the run.
 
     Limitations:
       - Input/output data shape must be (N_voxels, 1).
@@ -47,14 +47,13 @@ class PreprocStep:
         return cls.registry.get(name.lower())
 
     def initialize_array(self, pipeline):
+        """Optional: Handle discarded volumes (e.g., append zero columns)."""
         # NOTE: can use setattr to define variable names dynamically to make this more easily subclassed, but might be too confusing?
-        if self.save:
-            raise NotImplementedError
+        pass
 
     def run_discard_volumes(self, pipeline):
-        """Append a bunch of zeros for volumes we will be discarding"""
-        if self.save:
-            raise NotImplementedError
+        """Optional: Define arrays needed before processing begins (e.g., for saving data)."""
+        pass
     
     def run(self, pipeline):
         raise NotImplementedError
@@ -69,10 +68,10 @@ class PreprocStep:
         unmask_fMRI_img(data, pipeline.mask_img, out_path)
 
 class EMAStep(PreprocStep):
-    # def __init__(self, save, ema_th=0.98):
-    #     super().__init__(save)
-    #     self.ema_th = ema_th
-    #     self.ema_filt = None
+    def __init__(self, save, ema_th=0.98):
+        super().__init__(save)
+        self.EMA_th = ema_th
+        self.EMA_filt = None
 
     def initialize_array(self, pipeline):
         if self.save:
@@ -85,7 +84,7 @@ class EMAStep(PreprocStep):
             log.debug(f'[t={pipeline.t},n={pipeline.n}] Discard - EMA - Data_EMA.shape      {pipeline.Data_EMA.shape}')
 
     def run(self, pipeline):
-        ema_data_out, pipeline.EMA_filt = rt_EMA_vol(pipeline.n, pipeline.EMA_th, pipeline.Data_FromAFNI, pipeline.EMA_filt)
+        ema_data_out, self.EMA_filt = rt_EMA_vol(pipeline.n, self.EMA_th, pipeline.Data_FromAFNI, self.EMA_filt)
         if self.save: 
             pipeline.Data_EMA = np.append(pipeline.Data_EMA, ema_data_out, axis=1)
             log.debug(f'[t={pipeline.t},n={pipeline.n}] Online - EMA - Data_EMA.shape      {pipeline.Data_EMA.shape}')
@@ -142,15 +141,20 @@ class iGLMStep(PreprocStep):
                 unmask_fMRI_img(data, pipeline.mask_img, osp.join(pipeline.out_dir,pipeline.out_prefix+'.pp_iGLM_'+lab+'.nii'))
 
 class KalmanStep(PreprocStep):
-    # def __init__(self, save):
-    #     super().__init__(save)
-    #     self.S_x = None
-    #     self.S_P = None
-    #     self.fPositDerivSpike = None
-    #     self.fNegatDerivSpike = None
-    #     self.kalmThreshold = None
+    def __init__(self, save):
+        super().__init__(save)
+        self.S_x = None
+        self.S_P = None
+        self.fPositDerivSpike = None
+        self.fNegatDerivSpike = None
+        # self.kalmThreshold = None
 
     def initialize_array(self, pipeline):
+        self.S_x = np.zeros(pipeline.Nv)
+        self.S_P = np.zeros(pipeline.Nv) 
+        self.fPositDerivSpike = np.zeros(pipeline.Nv)
+        self.fNegatDerivSpike = np.zeros(pipeline.Nv)
+
         if self.save:
             pipeline.Data_kalman = np.zeros((pipeline.Nv, 1))
             log.debug(f'[t={pipeline.t},n={pipeline.n}] Init - Data_kalman.shape   {pipeline.Data_kalman.shape}')
@@ -161,15 +165,15 @@ class KalmanStep(PreprocStep):
             log.debug(f'[t={pipeline.t},n={pipeline.n}] Discard - Data_kalman.shape   {pipeline.Data_kalman.shape}')
 
     def run(self, pipeline):
-        klm_data_out, pipeline.S_x, pipeline.S_P, pipeline.fPositDerivSpike, pipeline.fNegatDerivSpike = rt_kalman_vol(
+        klm_data_out, self.S_x, self.S_P, self.fPositDerivSpike, self.fNegatDerivSpike = rt_kalman_vol(
             pipeline.n,
             pipeline.t,
             pipeline.processed_tr,
             pipeline.welford_std,
-            pipeline.S_x,
-            pipeline.S_P,
-            pipeline.fPositDerivSpike,
-            pipeline.fNegatDerivSpike,
+            self.S_x,
+            self.S_P,
+            self.fPositDerivSpike,
+            self.fNegatDerivSpike,
             pipeline.n_cores,
             pipeline.pool,
         )
@@ -219,8 +223,6 @@ class SnormStep(PreprocStep):
             log.debug(f'[t={pipeline.t},n={pipeline.n}] Discard - Data_norm.shape     {pipeline.Data_norm.shape}')
 
     def run(self, pipeline):
-        # Should i make a pipeline.save_norm? I'm pretty sure this doesn't exist becuase it's the last step, so it was just
-        # whatever was saved in the end...
         norm_out = rt_snorm_vol(pipeline.processed_tr)
         if self.save:
             pipeline.Data_norm = np.append(pipeline.Data_norm, norm_out, axis=1)
@@ -232,3 +234,10 @@ class SnormStep(PreprocStep):
         if self.save:
             self.prep_file(pipeline.Data_norm, '.pp_Snorm.nii', pipeline)
     
+
+# Avoid use of string literals in pipeline.py
+EMA = 'ema'
+IGLM = 'iglm'
+KALMAN = 'kalman'
+SMOOTH = 'smooth'
+SNORM = 'snorm'
