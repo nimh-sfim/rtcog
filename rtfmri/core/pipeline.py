@@ -237,6 +237,8 @@ class Pipeline:
         
         self.Data_processed = np.append(self.Data_processed, self.processed_tr, axis=1)
 
+        return self.processed_tr
+
     def final_steps(self):
         self.save_motion_estimates()
 

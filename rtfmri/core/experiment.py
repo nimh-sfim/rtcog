@@ -46,8 +46,6 @@ class Experiment:
 
         self.n = 0 # Counter for number of volumes pre-processed (Start = 1)
         self.t = -1 # Counter for number of received volumes (Start = 0
-        self.lastQA_endTR  = 0
-        # self.vols_noqa = options.vols_noqa
         self.Nv= None # Number of voxels in data mask
         self.Nt = options.nvols # Number acquisitions
         self.TR = options.tr # TR [seconds]
@@ -64,7 +62,7 @@ class Experiment:
 
         self.pipe = Pipeline(options, self.Nt, self.mask_Nv, self.mask_img, self.exp_type)        
 
-    def compute_TR_data(self, motion, extra):
+    def _compute_TR_data_impl(self, motion, extra):
         """
         Process data for the current TR by passing it to the pipeline.
 
@@ -77,8 +75,8 @@ class Experiment:
 
         Returns
         -------
-        int
-            Always returns 1 to indicate success.
+        np.array
+            pipeline.processed_tr (the processed data for this TR)
         """
         self.t += 1
         self.log.info(f' - Time point [t={self.t}, n={self.n}]')
@@ -93,7 +91,8 @@ class Experiment:
             sys.exit(-1)
         
         this_t_data = np.array([e[self.t] for e in extra])
-        
+        del extra # Save resources
+
         self.Nv = len(this_t_data)
 
         if self.t > 0:
@@ -106,13 +105,11 @@ class Experiment:
         if self.t > self.nvols_discard - 1:
             self.n += 1
 
-        self.pipe.process(self.t, self.n, motion, this_t_data)
-        
-        del extra # Save resources
-        
-        return 1
+        return self.pipe.process(self.t, self.n, motion, this_t_data)
 
-        
+    def compute_TR_data(self, motion, extra):
+        _ = self._compute_TR_data_impl(motion, extra)
+        return 1
     
     def end_run(self, save=True):
         """Finalize the experiment by saving all outputs and signaling completion."""
