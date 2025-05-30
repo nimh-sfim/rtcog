@@ -33,26 +33,26 @@ class Experiment:
     def __init__(self, options, mp_evt_hit, mp_evt_end, mp_evt_qa_end):
         self.log = set_logger(options.debug, options.silent)
 
-        self.mp_evt_hit = mp_evt_hit           # Signals a CAP hit
-        self.mp_evt_end = mp_evt_end           # Signals the end of the experiment
-        self.mp_evt_qa_end = mp_evt_qa_end     # Signals the end of a QA set
+        self.mp_evt_hit = mp_evt_hit # Signals a CAP hit
+        self.mp_evt_end = mp_evt_end # Signals the end of the experiment
+        self.mp_evt_qa_end = mp_evt_qa_end # Signals the end of a QA set
 
-        self.ewin          = None
-        self.exp_type      = options.exp_type
+        self.ewin = None
+        self.exp_type = options.exp_type
         self.no_proc_chair = options.no_proc_chair
-        self.screen_size   = [512, 288]
-        self.fullscreen    = options.fullscreen
-        self.screen        = options.screen
+        self.screen_size = [512, 288]
+        self.fullscreen = options.fullscreen
+        self.screen = options.screen
 
-        self.n             = 0               # Counter for number of volumes pre-processed (Start = 1)
-        self.t             = -1              # Counter for number of received volumes (Start = 0
+        self.n = 0 # Counter for number of volumes pre-processed (Start = 1)
+        self.t = -1 # Counter for number of received volumes (Start = 0
         self.lastQA_endTR  = 0
-        self.vols_noqa     = options.vols_noqa
-        self.Nv            = None            # Number of voxels in data mask
-        self.Nt            = options.nvols   # Number acquisitions
-        self.TR            = options.tr      # TR [seconds]
+        # self.vols_noqa = options.vols_noqa
+        self.Nv= None # Number of voxels in data mask
+        self.Nt = options.nvols # Number acquisitions
+        self.TR = options.tr # TR [seconds]
 
-        self.nvols_discard = options.discard      # Number of volumes to discard from any analysis (won't enter pre-processing)
+        self.nvols_discard = options.discard # Number of volumes to discard from any analysis (won't enter pre-processing)
 
         if options.mask_path is None:
             self.log.warning('  Experiment_init_ - No mask was provided!')
@@ -105,14 +105,17 @@ class Experiment:
         # Update n (only if not longer a discard volume)
         if self.t > self.nvols_discard - 1:
             self.n += 1
-        
+
         self.pipe.process(self.t, self.n, motion, this_t_data)
         
         del extra # Save resources
         
         return 1
+
+        
     
-    def end_run(self):
+    def end_run(self, save=True):
         """Finalize the experiment by saving all outputs and signaling completion."""
-        self.pipe.final_steps()
+        if save:
+            self.pipe.final_steps()
         self.mp_evt_end.set()

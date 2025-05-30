@@ -3,13 +3,16 @@ import os.path as osp
 import logging
 import multiprocessing as mp
 import time
-
 from psychopy import event
+
 sys.path.insert(0, osp.abspath(osp.join(osp.dirname(__file__), 'core')))
 
 from core.options import Options
 from utils.log import get_logger, set_logger
 from utils.experiment_qa import  get_experiment_info, DefaultScreen, QAScreen
+
+from psychopy import logging
+logging.console.setLevel(logging.ERROR)
 
 log = get_logger()
 
@@ -18,6 +21,8 @@ def main():
     # ------------------------------------------
     opts = Options.from_cli()
     opts.save_config()
+    
+    print(opts)
 
     log = set_logger(debug=opts.debug, silent=opts.silent)
 
@@ -27,9 +32,9 @@ def main():
 
     # 2) Create Multi-processing infrastructure
     # ------------------------------------------
-    mp_evt_hit    = mp.Event() # Start with false
-    mp_evt_end    = mp.Event() # Start with false
-    mp_evt_qa_end = mp.Event() # Start with false
+    mp_evt_hit    = mp.Event()
+    mp_evt_end    = mp.Event()
+    mp_evt_qa_end = mp.Event()
     mp_prc_comm   = mp.Process(target=comm_process, args=(opts, mp_evt_hit, mp_evt_end, mp_evt_qa_end))
     mp_prc_comm.start()
 
@@ -75,7 +80,7 @@ def comm_process(opts, mp_evt_hit, mp_evt_end, mp_evt_qa_end):
     
     # 4) Start Communications
     log.info('- comm_process - 3) Opening Communication Channel...')
-    receiver = CustomReceiverInterface(port=opts.tcp_port, show_data=opts.show_data)
+    receiver = CustomReceiverInterface(port=opts.tcp_port, show_data=opts.show_data, auto_save=opts.auto_save)
     if not receiver:
         return 1
 

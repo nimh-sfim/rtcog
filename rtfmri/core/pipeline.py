@@ -233,7 +233,7 @@ class Pipeline:
             log.debug('[t=%d,n=%d] Online - Input - Data_FromAFNI.shape %s' % (self.t, self.n, str(self.Data_FromAFNI.shape)))
 
         for step in self.steps:
-            step.run(self)     
+            step.run(self)
         
         self.Data_processed = np.append(self.Data_processed, self.processed_tr, axis=1)
 
