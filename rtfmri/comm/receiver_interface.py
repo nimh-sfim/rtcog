@@ -109,7 +109,7 @@ class CustomReceiverInterface(ReceiverInterface):
                 self.final_steps()
             return
         except Exception as e:
-            log.error(f"++ ERROR: An unknown error occurred: {e}")
+            log.error(f"++ ERROR: An unexpected error occurred: {e}")
             log.error(traceback.format_exc())
             if self.final_steps:
                 if self.auto_save:
