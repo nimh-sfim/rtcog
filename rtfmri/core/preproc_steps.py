@@ -2,6 +2,7 @@ import os.path as osp
 import numpy as np
 
 from utils.log import get_logger
+from core.exceptions import VolumeOverflowError
 from utils.rt_functions import gen_polort_regressors
 from utils.rt_functions import rt_EMA_vol, rt_regress_vol, rt_kalman_vol, rt_smooth_vol, rt_snorm_vol
 from utils.fMRI import unmask_fMRI_img
@@ -130,10 +131,13 @@ class iGLMStep(PreprocStep):
             log.debug(f'[t={pipeline.t},n={pipeline.n}] Discard - Data_iGLM.shape     {pipeline.Data_iGLM.shape}')
             
     def run(self, pipeline): 
-        if pipeline.iGLM_motion:
-            this_t_nuisance = np.concatenate((self.legendre_pols[pipeline.t,:], pipeline.motion))[:,np.newaxis]
-        else:
-            this_t_nuisance = (self.legendre_pols[pipeline.t,:])[:,np.newaxis]
+        try:
+            if pipeline.iGLM_motion:
+                this_t_nuisance = np.concatenate((self.legendre_pols[pipeline.t,:], pipeline.motion))[:,np.newaxis]
+            else:
+                this_t_nuisance = (self.legendre_pols[pipeline.t,:])[:,np.newaxis]
+        except IndexError:
+            raise VolumeOverflowError()
             
         iGLM_data_out, self.iGLM_prev, Bn = rt_regress_vol(
             pipeline.n, 

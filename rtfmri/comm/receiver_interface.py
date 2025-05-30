@@ -3,6 +3,10 @@
 import sys
 import os.path as osp
 import shutil
+import traceback
+
+sys.path.append('..')
+from core.exceptions import VolumeOverflowError
 
 import logging
 log = logging.getLogger(__name__)
@@ -26,7 +30,7 @@ from realtime_receiver import ReceiverInterface
 from afnipy import lib_realtime as RT
 
 class CustomReceiverInterface(ReceiverInterface):
-    def __init__(self, port=None, show_data=False, verb=0):
+    def __init__(self, port=None, show_data=False, verb=0, auto_save=True):
         super().__init__()
         self.RTI = RT.RTInterface()
         
@@ -41,7 +45,6 @@ class CustomReceiverInterface(ReceiverInterface):
         }.get(verb, logging.ERROR)
         log.setLevel(level)
 
-
         if not self.RTI:
             return
         
@@ -51,8 +54,8 @@ class CustomReceiverInterface(ReceiverInterface):
         # callbacks
         self.compute_TR_data = None
         self.final_steps     = None
-
-        self.TR_data         = []
+        
+        self.auto_save = auto_save
 
     def process_one_TR(self):
         """return 0 to continue, 1 on valid termination, -1 on error"""
@@ -72,9 +75,10 @@ class CustomReceiverInterface(ReceiverInterface):
 
         # if callback is registered
         data = None
+
         if self.compute_TR_data:
-            data = self.compute_TR_data(self.RTI.motion, self.RTI.extras)  # PROCESS DATA HERE
-       
+            data = self.compute_TR_data(self.RTI.motion, self.RTI.extras)
+
         if not data:
             return 1
 
@@ -94,9 +98,25 @@ class CustomReceiverInterface(ReceiverInterface):
         # process one TR at a time until
         log.info('-- incoming data')
 
-        rv = self.process_one_TR()
-        while rv == 0:
+        try:
             rv = self.process_one_TR()
+            while rv == 0:
+                rv = self.process_one_TR()
+        except VolumeOverflowError:
+            log.error(f'++ ERROR: Receiving more volumes from the scanner than expected.')
+            log.error(f'Exiting experiment...')
+            if self.final_steps:
+                self.final_steps()
+            return
+        except Exception as e:
+            log.error(f"++ ERROR: An unexpected error occurred: {e}")
+            log.error(traceback.format_exc())
+            if self.final_steps:
+                if self.auto_save:
+                    self.final_steps()
+                else:
+                    self.final_steps(save=False)
+            return
 
         log.info("-- The life of this program is coming to an end....")
         log.info("-- Calling the Final Steps Function...")
