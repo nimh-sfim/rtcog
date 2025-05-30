@@ -3,7 +3,9 @@ import os.path as osp
 import numpy as np
 import pandas as pd
 
-from .pipeline import Pipeline
+from core.pipeline import Pipeline
+from matching.matcher import SVRMatcher
+from matching.hit_detector import HitDetector
 from utils.log import set_logger
 
 sys.path.insert(0, osp.abspath(osp.join(osp.dirname(__file__), '..')))
@@ -115,4 +117,37 @@ class Experiment:
     def end_run(self):
         """Finalize the experiment by saving all outputs and signaling completion."""
         self.pipe.final_steps()
+        self.mp_evt_end.set()
+
+
+class ESAMExperiment(Experiment):
+    def __init__(self, options, mp_evt_hit, mp_evt_end, mp_evt_qa_end):
+        super().__init__(options, mp_evt_hit, mp_evt_end, mp_evt_qa_end)
+        self.lastQA_endTR  = 0
+        self.vols_noqa = options.vols_noqa
+
+        self.outhtml = osp.join(self.out_dir,self.out_prefix+'.dyn_report')
+
+        self.qa_onsets = []
+        self.qa_offsets = []
+        self.qa_onsets_path  = osp.join(self.out_dir,self.out_prefix+'.qa_onsets.txt')
+        self.qa_offsets_path = osp.join(self.out_dir,self.out_prefix+'.qa_offsets.txt')
+        
+        # TODO: add in other matcher options as I make them
+        self.matcher = SVRMatcher(options)
+        self.hit_detector = HitDetector(options)
+        
+    def compute_TR_data(self, motion, extra):
+        processed = super()._compute_TR_data_impl(motion, extra)
+        scores = self.matcher.match(self.t, self.n, processed)
+        hit = self.hit_detector.detect(scores)
+        if hit:
+            pass
+            # action.act()
+
+        return 1
+
+    def end_run(self, save=True):
+        if save:
+            self.pipe.final_steps()
         self.mp_evt_end.set()
