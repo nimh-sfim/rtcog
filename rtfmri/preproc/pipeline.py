@@ -180,6 +180,8 @@ class Pipeline:
 
         return self.processed_tr
 
+        return self.processed_tr
+
     def final_steps(self):
         self.save_motion_estimates()
 
