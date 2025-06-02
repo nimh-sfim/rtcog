@@ -2,14 +2,16 @@ import sys
 import os.path as osp
 import logging
 import multiprocessing as mp
+import json
 import time
 from psychopy import event
 
 sys.path.insert(0, osp.abspath(osp.join(osp.dirname(__file__), 'core')))
 
+from paths import RESOURCES_DIR
 from core.options import Options
 from utils.log import get_logger, set_logger
-from utils.experiment_qa import  get_experiment_info, DefaultScreen, QAScreen
+from utils.gui import  get_experiment_info, DefaultGUI, EsamGUI
 
 from psychopy import logging
 logging.console.setLevel(logging.ERROR)
@@ -26,10 +28,23 @@ def main():
 
     log = set_logger(debug=opts.debug, silent=opts.silent)
 
-    if opts.exp_type in ['esam', 'esam_test']:
-        # have function to verify files
-        pass
-
+    if opts.exp_type == "esam":
+        if not opts.q_path:
+            log.error('Path to Likert questions was not provided. Program will exit.')
+            sys.exit(-1)
+        if not osp.isfile(opts.q_path): # If not file, assume in RESOURCES_DIR
+            fname = opts.q_path + ".json" if not opts.q_path.endswith(".json") else opts.q_path 
+            opts.q_path = osp.join(RESOURCES_DIR, fname)
+        try:
+            with open(opts.q_path, 'r') as f:
+                opts.likert_questions = json.load(f)
+        except json.JSONDecodeError:
+            log.error(f'The question file at {opts.q_path} is not a valid JSON.')
+            sys.exit(-1)
+        except Exception as e:
+            log.error(f'Error loading questions at {opts.q_path}: {e}')
+            sys.exit(-1)
+        
     # 2) Create Multi-processing infrastructure
     # ------------------------------------------
     mp_evt_hit    = mp.Event()
@@ -47,40 +62,64 @@ def main():
     if opts.exp_type == "preproc":
         if not opts.no_gui:
             # 4) Start GUI
-            rest_exp = DefaultScreen(exp_info, opts)
+            preproc_gui = DefaultGUI(exp_info, opts)
 
             # 5) Keep the experiment going, until it ends
             while not mp_evt_end.is_set():
-                rest_exp.draw_resting_screen()
+                preproc_gui.draw_resting_screen()
                 if event.getKeys(['escape']):
                     log.info('- User pressed escape key')
                     mp_evt_end.set()
 
             # 6) Close Psychopy Window
             # ------------------------
-            rest_exp.close_psychopy_infrastructure()
+            preproc_gui.close_psychopy_infrastructure()
         else:
             # 4) In no_gui mode, wait passively for experiment to end
             while not mp_evt_end.is_set():
                 time.sleep(0.1)
+
+    if opts.exp_type == "esam":
+        # 4) Start GUI
+        # ------------
+        esam_gui = EsamGUI(exp_info, opts)
     
+        # 5) Wait for things to happen
+        # ----------------------------
+        while not mp_evt_end.is_set():
+            esam_gui.draw_resting_screen()
+            if event.getKeys(['escape']):
+                log.info('- User pressed escape key')
+                mp_evt_end.set()
+            if mp_evt_hit.is_set():
+                responses = esam_gui.run_full_QA()
+                log.info(' - Responses: %s' % str(responses))
+                mp_evt_hit.clear()
+                mp_evt_qa_end.set()
+        
+        # 6) Close Psychopy Window
+        # ------------------------
+        esam_gui.save_likert_files()
+        esam_gui.close_psychopy_infrastructure()
+
 
 def comm_process(opts, mp_evt_hit, mp_evt_end, mp_evt_qa_end):
     from comm.receiver_interface import CustomReceiverInterface
-    from core.experiment import Experiment
+    from core.experiment import Experiment, ESAMExperiment
     
     # 2) Create Experiment Object
     log.info('- comm_process - 2) Instantiating Experiment Object...')
-    experiment = Experiment(opts, mp_evt_hit, mp_evt_end, mp_evt_qa_end)
+    if opts.exp_type == 'esam':
+        log.info('This an experimental run')
+        experiment = ESAMExperiment(opts, mp_evt_hit, mp_evt_end, mp_evt_qa_end)
+    else:
+        experiment = Experiment(opts, mp_evt_hit, mp_evt_end, mp_evt_qa_end)
 
-    # 3) Initilize GUI (if needed):
-    if experiment.exp_type == "esam" or experiment.exp_type == "esam_test":
-        log.info('- comm_process - 2.a) This is an experimental run')
-        experiment.setup_esam_run(opts) 
-    
     # 4) Start Communications
     log.info('- comm_process - 3) Opening Communication Channel...')
-    receiver = CustomReceiverInterface(port=opts.tcp_port, show_data=opts.show_data, auto_save=opts.auto_save)
+
+    auto_save = opts.auto_save if hasattr(opts, "auto_save") else False
+    receiver = CustomReceiverInterface(port=opts.tcp_port, show_data=opts.show_data, auto_save=auto_save)
     if not receiver:
         return 1
 

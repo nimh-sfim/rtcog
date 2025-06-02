@@ -44,9 +44,7 @@ class SVRMatcher(Matcher):
         
         self.scores = np.zeros((self.Ntemplates, 1))
 
-        self.do_win = match_opts.hit_dowin
-
-        self.do_win = match_opts.hit_dowin
+        self.do_win = match_opts.do_win
         self.hit_wl = match_opts.hit_wl
         
         if self.do_win:

@@ -4,10 +4,7 @@ from utils.svr_methods import is_hit_rt01
 
 class HitDetector:
     """Class for deciding if a TR counts as a hit based on Matcher's scores"""
-    def __init__(self, hit_opts, mp_evt_hit):
-        self.mp_evt_hit = mp_evt_hit
-        
-
+    def __init__(self, hit_opts):
         self.hit_method = hit_opts.hit_method
         self.zscore_thr = hit_opts.zscore_thr
         self.nconsec_vols  = hit_opts.nconsec_vols

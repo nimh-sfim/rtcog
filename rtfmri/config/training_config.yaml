@@ -1,12 +1,12 @@
 # General options
-debug: false
-silent: false
+debug: false # set logger level to debug
+silent: false # set logger level to warning
 tcp_port: 53214
 show_data: false
 tr: 1.0
-n_cores: 10
+n_cores: 10 # number of cores for Kalman
 mask_path: GMribbon_R4Feed.nii
-save_orig: False
+save_orig: False # save the unprocessed image data
 
 # Preprocessing steps in order
 steps:
@@ -31,10 +31,6 @@ steps:
     save: false
 
 
-# Saving options
-# out_dir: ./
-# out_prefix: preproc
-
 # iGLM Options
 iGLM_polort: 2
 iGLM_motion: true
@@ -45,11 +41,26 @@ discard: 10
 FWHM: 4.0
 
 # Experiment/GUI Options
-exp_type: preproc
 no_gui: false
-no_proc_chair: false
+no_proc_chair: false # no crosshair
 fullscreen: false
 screen: 1
+q_path: questions_v1 # path to the questions used for the experiment TODO: FIX
 
 # Testing options
 snapshot: false
+
+# Matching options
+matching:
+  matcher_type: svr # The matching algorithm to use
+  match_start: 100 # Volume when matching should start
+  do_win: false # Activate windowing of individual volumes prior to hit estimation
+  hit_wl: 4
+  vols_noqa: 45 # Min. number of volumes to wait since end of last QA before declaing a new hit
+  svr_path: training_svr.pkl
+
+# Hit options
+hits:
+  zscore_thr: 1.75 # Z-score threshold for deciding hits
+  nconsec_vols: 2 # Number of consecutive vols over threshold required for a hit
+  hit_method: method01 # Method for deciding hits

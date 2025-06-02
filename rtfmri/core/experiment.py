@@ -1,5 +1,7 @@
 import sys
 import os.path as osp
+from types import SimpleNamespace
+
 import numpy as np
 import pandas as pd
 
@@ -122,11 +124,48 @@ class Experiment:
 
 
 class ESAMExperiment(Experiment):
+    """
+    Class for running a real-time fMRI experiment in Experience Sampling (ESAM) mode.
+
+    This class extends `Experiment` to support online template matching and GUI presentation.
+
+    Attributes
+    ----------
+    lastQA_endTR : int
+        The TR index of the last time a QA block ended.
+    
+    vols_noqa : int
+        Number of volumes to skip after QA ends before hit detection resumes.
+
+    outhtml : str
+        Path to the dynamic HTML report output.
+
+    qa_onsets : list of int
+        List of TRs where QA blocks began.
+
+    qa_offsets : list of int
+        List of TRs where QA blocks ended.
+
+    qa_onsets_path : str
+        Path where QA onsets will be saved.
+
+    qa_offsets_path : str
+        Path where QA offsets will be saved.
+
+    matcher : SVRMatcher
+        Object that performs template matching with SVR models.
+
+    hits : np.ndarray
+        2D array tracking detected hits [template x time].
+
+    hit_detector : HitDetector
+        Object that applies hit detection logic to matcher scores.
+    """
     def __init__(self, options, mp_evt_hit, mp_evt_end, mp_evt_qa_end):
         super().__init__(options, mp_evt_hit, mp_evt_end, mp_evt_qa_end)
         self.lastQA_endTR  = 0
-        self.vols_noqa = options.vols_noqa
-
+        self.out_dir = options.out_dir
+        self.out_prefix = options.out_prefix
         self.outhtml = osp.join(self.out_dir,self.out_prefix+'.dyn_report')
 
         self.qa_onsets = []
@@ -134,18 +173,44 @@ class ESAMExperiment(Experiment):
         self.qa_onsets_path  = osp.join(self.out_dir,self.out_prefix+'.qa_onsets.txt')
         self.qa_offsets_path = osp.join(self.out_dir,self.out_prefix+'.qa_offsets.txt')
         
+        # Convert dicts into a objects that allow dot notation (ex. matching_opts.matcher_type)
+        matching_opts = SimpleNamespace(**options.matching)
+        hit_opts = SimpleNamespace(**options.hits)
+
+        self.vols_noqa = matching_opts.vols_noqa
+        
         # TODO: add in other matcher options as I make them
-        self.matcher = SVRMatcher(options)
-        self.hit_detector = HitDetector(options)
+        if matching_opts.matcher_type == "svr":
+            self.matcher = SVRMatcher(matching_opts)
+
+        self.hits = np.zeros((self.matcher.Ntemplates, 1))
+        self.hit_detector = HitDetector(hit_opts)
+        
         
     def compute_TR_data(self, motion, extra):
+        hit_status    = self.mp_evt_hit.is_set()
+        qa_end_status = self.mp_evt_qa_end.is_set()
+
         processed = super()._compute_TR_data_impl(motion, extra)
         scores = self.matcher.match(self.t, self.n, processed)
-        hit = self.hit_detector.detect(scores)
-        if hit:
-            pass
-            # action.act()
 
+        if qa_end_status:
+            self.lastQA_endTR = self.t
+            self.qa_offsets.append(self.t)
+            self.mp_evt_qa_end.clear()
+            self.log.info(f'QA ended (cleared) --> updating lastQA_endTR = {self.lastQA_endTR}')
+        
+        if hit_status or (self.t <= self.lastQA_endTR + self.vols_noqa):
+            hit = None
+        else:
+            hit = self.hit_detector.detect(self.t, self.matcher.template_labels, scores)
+        
+        if hit:
+            self.log.info(f'[t=self.t,n=self.n] =============================================  CAP hit [hit]')
+            self.qa_onsets.append(self.t)
+            self.hits[self.caps_labels.index(hit),self.t] = 1
+            self.mp_evt_hit.set()
+            
         return 1
 
     def end_run(self, save=True):
