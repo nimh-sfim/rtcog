@@ -15,7 +15,7 @@ import pandas as pd
 
 sys.path.insert(0, osp.abspath(osp.join(osp.dirname(__file__), '..')))
 
-from config                       import RESOURCES_DIR, CAP_labels
+from config                       import RESOURCES_DIR
 # from rtcap_lib.receiver_interface import ReceiverInterface
 from rtcap_lib.receiver_interface import CustomReceiverInterface
 from rtcap_lib.core               import welford
@@ -241,8 +241,8 @@ class Experiment:
             if self.exp_type == "esam" or self.exp_type == "esam_test":
                 # These two variables are only needed if this is an experimental
                 log.debug('[t=%d,n=%d] Initializing hits and svrscores' % (self.t, self.n))
-                self.hits             = np.zeros((self.Ncaps, 1))
-                self.svrscores        = np.zeros((self.Ncaps, 1))
+                self.hits             = np.zeros((self.Ntemplates, 1))
+                self.svrscores        = np.zeros((self.Ntemplates, 1))
 
             self.welford_M   = np.zeros(self.Nv)
             self.welford_S   = np.zeros(self.Nv)
@@ -290,8 +290,8 @@ class Experiment:
             if self.save_iGLM: log.debug('[t=%d,n=%d] Discard - iGLM_Coeffs.shape   %s' % (self.t, self.n, str(self.iGLM_Coeffs.shape)))
             if self.exp_type == "esam" or self.exp_type == "esam_test":
                 # These two variables are only needed if this is an experimental
-                self.hits      = np.append(self.hits,      np.zeros((self.Ncaps,1)),  axis=1)
-                self.svrscores = np.append(self.svrscores, np.zeros((self.Ncaps,1)), axis=1)
+                self.hits      = np.append(self.hits,      np.zeros((self.Ntemplates,1)),  axis=1)
+                self.svrscores = np.append(self.svrscores, np.zeros((self.Ntemplates,1)), axis=1)
                 log.debug('[t=%d,n=%d] Discard - hits.shape      %s' % (self.t, self.n, str(self.hits.shape)))
                 log.debug('[t=%d,n=%d] Discard - svrscores.shape %s' % (self.t, self.n, str(self.svrscores.shape)))
             
@@ -318,11 +318,16 @@ class Experiment:
             log.debug('[t=%d,n=%d] Online - EMA - Data_EMA.shape      %s' % (self.t, self.n, str(self.Data_EMA.shape)))
         # Do iGLM (if needed)
         # ===================
-        if self.iGLM_motion:
-            this_t_nuisance = np.concatenate((self.legendre_pols[self.t,:],motion))[:,np.newaxis]
-        else:
-            this_t_nuisance = (self.legendre_pols[self.t,:])[:,np.newaxis]
-            
+        try: 
+            if self.iGLM_motion:
+                this_t_nuisance = np.concatenate((self.legendre_pols[self.t,:],motion))[:,np.newaxis]
+            else:
+                this_t_nuisance = (self.legendre_pols[self.t,:])[:,np.newaxis]
+        except IndexError:
+            log.error(f'Number of expected volumes is {self.Nt}, but still receiving data from scanner.')     
+            log.info(f'Exiting experiment...')     
+            return
+
         iGLM_data_out, self.iGLM_prev, Bn = rt_regress_vol(
             self.n, 
             ema_data_out,
@@ -385,9 +390,9 @@ class Experiment:
             # Compute SVR scores (if needed)
             # ==============================
             if self.t < self.dec_start_vol:   # We don't want to start decoding before iGLM is stable.
-                self.svrscores = np.append(self.svrscores, np.zeros((self.Ncaps,1)), axis=1)
+                self.svrscores = np.append(self.svrscores, np.zeros((self.Ntemplates,1)), axis=1)
             else:
-                this_t_svrscores = rt_svrscore_vol(np.squeeze(out_data_windowed), self.SVRs, self.caps_labels)
+                this_t_svrscores = rt_svrscore_vol(np.squeeze(out_data_windowed), self.SVRs, self.template_labels)
                 self.svrscores   = np.append(self.svrscores, this_t_svrscores, axis=1)
             log.debug('[t=%d,n=%d] Online - SVRs - svrscores.shape   %s' % (self.t, self.n, str(self.svrscores.shape)))
 
@@ -408,21 +413,21 @@ class Experiment:
             else:
                 hit = self.hit_method_func(
                     self.t,
-                    self.caps_labels,
+                    self.template_labels,
                     self.svrscores,
                     self.hit_zth,
                     self.nconsec_vols
                 )
             
             # Add one more line to the hits data structure with zeros (if a hit happen, a 1 will be added later)
-            self.hits = np.append(self.hits, np.zeros((self.Ncaps,1)), axis=1)
+            self.hits = np.append(self.hits, np.zeros((self.Ntemplates,1)), axis=1)
 
             # If there was a hit, then add that one, inform the use, and set the hit event to true
             if hit is not None:
                 #if (hit != None) and ( hit_status == False ) and (self.t >= self.lastQA_endTR + self.vols_noqa):
                 log.info('[t=%d,n=%d] =============================================  CAP hit [%s]' % (self.t,self.n, hit))
                 self.qa_onsets.append(self.t)
-                self.hits[self.caps_labels.index(hit),self.t] = 1
+                self.hits[self.template_labels.index(hit),self.t] = 1
                 self.mp_evt_hit.set()
 
         return 1
@@ -478,13 +483,13 @@ class Experiment:
 
         # Write out the dynamic report for this run
         if self.exp_type == "esam" or self.exp_type == "esam_test":
-            SVR_Scores_DF       = pd.DataFrame(self.svrscores.T, columns=CAP_labels)
+            SVR_Scores_DF       = pd.DataFrame(self.svrscores.T, columns=self.template_labels)
             SVR_Scores_DF['TR'] = SVR_Scores_DF.index
             SVRscores_curve     = SVR_Scores_DF.hvplot(legend='top', label='SVR Scores', x='TR').opts(width=1500)
             Threshold_line      = hv.HLine(self.hit_zth).opts(color='black', line_dash='dashed', line_width=1)
             Hits_ToPlot         = self.hits.T * self.svrscores.T
             Hits_ToPlot[Hits_ToPlot==0.0] = None
-            Hits_DF             = pd.DataFrame(Hits_ToPlot, columns=CAP_labels)
+            Hits_DF             = pd.DataFrame(Hits_ToPlot, columns=self.template_labels)
             Hits_DF['TR']       = Hits_DF.index
             Hits_Marks          = Hits_DF.hvplot(legend='top', label='SVR Scores', 
                                              x='TR', kind='scatter', marker='circle', 
@@ -506,18 +511,18 @@ class Experiment:
 
         # Write out the maps associated with the hits
         if self.exp_type == "esam" or self.exp_type == "esam_test":
-            Hits_DF = pd.DataFrame(self.hits.T, columns=CAP_labels)
-            for cap in CAP_labels:
-                thisCAP_hits = Hits_DF[cap].sum()
-                if thisCAP_hits > 0: # There were hits for this particular cap
+            Hits_DF = pd.DataFrame(self.hits.T, columns=self.template_labels)
+            for template in self.template_labels:
+                thisCAP_hits = Hits_DF[template].sum()
+                if thisCAP_hits > 0: # There were hits for this particular template
                     hit_ID = 1
-                    for vol in Hits_DF[Hits_DF[cap]==True].index:
+                    for vol in Hits_DF[Hits_DF[template]==True].index:
                         if self.hit_dowin == True:
                             thisCAP_Vols = vol-np.arange(self.hit_wl+self.nconsec_vols-1)
                         else:
                             thisCAP_Vols = vol-np.arange(self.nconsec_vols)
-                        out_file = osp.join(self.out_dir, self.out_prefix + '.Hit_'+cap+'_'+str(hit_ID).zfill(2)+'.nii')
-                        log.info(' - final_steps - [%s-%d]. Contributing Vols: %s | File: %s' % (cap, hit_ID,str(thisCAP_Vols), out_file ))
+                        out_file = osp.join(self.out_dir, self.out_prefix + '.Hit_'+template+'_'+str(hit_ID).zfill(2)+'.nii')
+                        log.info(' - final_steps - [%s-%d]. Contributing Vols: %s | File: %s' % (template, hit_ID,str(thisCAP_Vols), out_file ))
                         log.debug(' - final_steps - self.Data_norm.shape %s' % str(self.Data_norm.shape))
                         log.debug(' - final_steps - self.Data_norm[:,thisCAP_Vols].shape %s' % str(self.Data_norm[:,thisCAP_Vols].shape))
                         thisCAP_InMask  = self.Data_norm[:,thisCAP_Vols].mean(axis=1)
@@ -571,9 +576,9 @@ class Experiment:
             self.mp_evt_end.set()
             sys.exit(-1)
 
-        self.Ncaps = len(self.SVRs.keys())
-        self.caps_labels = list(self.SVRs.keys())
-        log.info('- setup_esam_run - List of CAPs to be tested: %s' % str(self.caps_labels))
+        self.Ntemplates = len(self.SVRs.keys())
+        self.template_labels = list(self.SVRs.keys())
+        log.info('- setup_esam_run - List of CAPs to be tested: %s' % str(self.template_labels))
 
         # Decoder-related initializations
         self.dec_start_vol = options.dec_start_vol # First volume to do decoding on.
@@ -688,7 +693,7 @@ def processExperimentOptions (self, options=None):
     parser_iglm = parser.add_argument_group("Incremental GLM Options")
     parser_iglm.add_argument("--polort",     help="Order of Legengre Polynomials for iGLM  [default: %(default)s]",     dest="iGLM_polort", default=2, action="store", type=int)
     parser_iglm.add_argument("--no_iglm_motion", help="Do not use 6 motion parameters in iGLM  [default: %(default)s]", dest="iGLM_motion", default=True, action="store_false")
-    parser_iglm.add_argument("--nvols",      help="Number of expected volumes (for legendre pols only)  [default: %(default)s]", dest="nvols",default=500, action="store", type=int, required=True)
+    parser_iglm.add_argument("--nvols",      help="Number of expected volumes (for legendre pols only)  [default: %(default)s]", dest="nvols",default=1000, action="store", type=int, required=True)
     parser_iglm.add_argument("--discard",    help="Number of volumes to discard (they won't enter the iGLM step)  [default: %(default)s]",  default=10, dest="discard", action="store", type=int)
     parser_smo = parser.add_argument_group("Smoothing Options")
     parser_smo.add_argument("--fwhm",      help="FWHM for Spatial Smoothing in [mm]  [default: %(default)s]",          dest="FWHM",        default=4.0, action="store", type=float)

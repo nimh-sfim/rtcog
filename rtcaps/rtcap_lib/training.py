@@ -18,8 +18,6 @@ import panel as pn
 from bokeh.palettes import Category10_7
 tqdm().pandas()
 
-from config import CAP_indexes, CAP_labels
-
 import logging
 log     = logging.getLogger("training")
 log_fmt = logging.Formatter('[%(levelname)s - training]: %(message)s')
@@ -29,15 +27,15 @@ log.setLevel(logging.INFO)
 log.addHandler(log_ch)
 
 def train_one_svr(input_dict):
-    cap_label = input_dict['cap_label']
-    print(' +++ Starting for %s' % cap_label)
+    template_label = input_dict['template_label']
+    print(' +++ Starting for %s' % template_label)
     data    = input_dict['data']
     labels  = input_dict['labels']
     C       = input_dict['C']
     epsilon = input_dict['epsilon']
     svr = SVR(kernel='linear', C=C, epsilon=epsilon)
     svr.fit(data,labels)
-    print(' --- Ending for %s' % cap_label)
+    print(' --- Ending for %s' % template_label)
     return svr
 
 class SVRtrainer(object):
@@ -67,25 +65,36 @@ class SVRtrainer(object):
         if osp.exists(self.outpkl):
             log.warning('Output File does exists. File will be overwritten.')
 
-        # Ensure CAPs file exists
-        if not osp.exists(opts.caps_path):
-            log.error('CAPs Template does not exists. Please correct.')
+        # Ensure templates file exists
+        if not osp.exists(opts.templates_path):
+            log.error('templates Template does not exists. Please correct.')
             sys.exit(-1)
         
-        self.caps_path   = opts.caps_path
-        self.caps_indexes = CAP_indexes
-        self.caps_labels  = CAP_labels
+        self.templates_path = opts.templates_path
+        self.template_labels_path = opts.template_labels_path
     
     def load_datasets(self):
-        self.caps_img = load_fMRI_file(self.caps_path, verbose=True)
+        try:
+            with open (self.template_labels_path, 'r') as f:
+                lines = f.read()
+                self.template_labels = [label.strip() for label in lines.strip().split(',')]
+        except FileNotFoundError:
+            log.error('Template labels file does not exist.')
+            sys.exit(-1)
+        except Exception as e:
+            log.error(e)
+            sys.exit(-1)
+
+        self.templates_img = load_fMRI_file(self.templates_path, verbose=True)
         self.mask_img = load_fMRI_file(self.mask_path, verbose=True)
         self.data_img = load_fMRI_file(self.data_path, verbose=True)
 
-        self.caps_masked = mask_fMRI_img(self.caps_img,self.mask_img)
-        self.caps_masked = self.caps_masked[:, self.caps_indexes]  # Select only CAPs of interest 
+        self.templates_masked = mask_fMRI_img(self.templates_img, self.mask_img)
+        # Now assuming we are using every template within a file.
+        # self.templates_masked = self.templates_masked[:, self.templates_indexes]  # Select only templates of interest 
         self.data_masked = mask_fMRI_img(self.data_img, self.mask_img)
         [self.data_nv, self.data_nt] = self.data_masked.shape
-        log.debug('Masked CAPs Dimensions: %s' % str(self.caps_masked.shape))
+        log.debug('Masked templates Dimensions: %s' % str(self.templates_masked.shape))
         log.debug('Masked Data Dimensions: %s' % str(self.data_masked.shape))
     
     def generate_training_labels(self):
@@ -94,36 +103,36 @@ class SVRtrainer(object):
 
         # Initialize Results Structure
         results = {}
-        for cap in self.caps_labels:
-            results[cap] = []
+        for template in self.template_labels:
+            results[template] = []
         self.lm_R2 = []
 
         # Perform linear regression 
-        X_fmri = pd.DataFrame(self.caps_masked, columns=self.caps_labels)
+        X_fmri = pd.DataFrame(self.templates_masked, columns=self.template_labels)
         #for vol in tqdm(self.vols4training):
         for vol in tqdm(range(self.data_nt)):
             if vol in self.vols4training:
                 Y_fmri = pd.Series(self.data_masked[:,vol], name='V'+str(vol).zfill(4))
                 lm     = linear_model.LinearRegression()
                 model  = lm.fit(X_fmri, Y_fmri)
-                for i, cap in enumerate(self.caps_labels):
-                    results[cap].append(lm.coef_[i])
+                for i, template in enumerate(self.template_labels):
+                    results[template].append(lm.coef_[i])
                 self.lm_R2.append(lm.score(X_fmri, Y_fmri))
             else:
-                for i, cap in enumerate(self.caps_labels):
-                    results[cap].append(0)
+                for i, template in enumerate(self.template_labels):
+                    results[template].append(0)
                 self.lm_R2.append(0)
         
         lm_results = pd.DataFrame(results)
         self.LR_labels_preZscore = lm_results
 
         # Z-score the results from the linear regression
-        [lmr_nt, lmr_ncaps] = lm_results.shape
+        [lmr_nt, lmr_ntemplates] = lm_results.shape
         lm_results_flat     = lm_results
-        lm_results_flat     = lm_results_flat.values.reshape(lmr_ncaps*lmr_nt, order='F')
+        lm_results_flat     = lm_results_flat.values.reshape(lmr_ntemplates*lmr_nt, order='F')
         lm_results_flat_Z   = zscore(lm_results_flat)
-        lm_results_flat_Z   = lm_results_flat_Z.reshape((lmr_nt,lmr_ncaps), order='F')
-        self.lm_res_z       = pd.DataFrame(lm_results_flat_Z, columns=self.caps_labels, index=lm_results.index)
+        lm_results_flat_Z   = lm_results_flat_Z.reshape((lmr_nt,lmr_ntemplates), order='F')
+        self.lm_res_z       = pd.DataFrame(lm_results_flat_Z, columns=self.template_labels, index=lm_results.index)
 
     def generate_training_labels_lasso(self):
         self.vols4training = np.arange(self.nvols_discard, self.data_nt)
@@ -131,59 +140,59 @@ class SVRtrainer(object):
 
         # Initialize Results Structure
         results = {}
-        for cap in self.caps_labels:
-            results[cap] = []
+        for template in self.template_labels:
+            results[template] = []
         self.lm_R2 = []
 
         # Perform linear regression 
-        X_fmri = pd.DataFrame(self.caps_masked, columns=self.caps_labels)
+        X_fmri = pd.DataFrame(self.templates_masked, columns=self.template_labels)
         for vol in tqdm(range(self.data_nt)):
             if vol in self.vols4training:
                 Y_fmri = pd.Series(self.data_masked[:,vol], name='V'+str(vol).zfill(4))
                 lm     = linear_model.Lasso(alpha=self.lasso_alpha, max_iter=5000, positive=self.lasso_pos)
                 model  = lm.fit(X_fmri, Y_fmri)
-                for i, cap in enumerate(self.caps_labels):
-                    results[cap].append(lm.coef_[i])
+                for i, template in enumerate(self.template_labels):
+                    results[template].append(lm.coef_[i])
                 self.lm_R2.append(lm.score(X_fmri, Y_fmri))
             else:
-                for i, cap in enumerate(self.caps_labels):
-                    results[cap].append(0)
+                for i, template in enumerate(self.template_labels):
+                    results[template].append(0)
                 self.lm_R2.append(0)
         lm_results = pd.DataFrame(results)
         self.LR_labels_preZscore = lm_results
         print(' +++++++++++ lm_results.shape %s' % str(lm_results.shape))
         # Z-score the results from the linear regression
-        [lmr_nt, lmr_ncaps] = lm_results.shape
+        [lmr_nt, lmr_ntemplates] = lm_results.shape
         #lm_results_flat     = lm_results
-        #lm_results_flat     = lm_results_flat.values.reshape(lmr_ncaps*lmr_nt, order='F')
+        #lm_results_flat     = lm_results_flat.values.reshape(lmr_ntemplates*lmr_nt, order='F')
         #lm_results_flat     = lm_results_flat.reshape(-1,1)
         #sc                  = StandardScaler(with_mean=False)
         #print(' +++++++++++ lm_results_flat.shape %s' % str(lm_results_flat.shape))
         mas                 = MaxAbsScaler()
         lm_results_flat_Z   = mas.fit_transform(lm_results)
-        #lm_results_flat_Z   = lm_results_flat_Z.reshape((lmr_nt,lmr_ncaps), order='F')
-        self.lm_res_z       = pd.DataFrame(lm_results_flat_Z, columns=self.caps_labels, index=lm_results.index)
+        #lm_results_flat_Z   = lm_results_flat_Z.reshape((lmr_nt,lmr_ntemplates), order='F')
+        self.lm_res_z       = pd.DataFrame(lm_results_flat_Z, columns=self.template_labels, index=lm_results.index)
         
     def train_svrs(self):
-        for cap_lab in tqdm(self.caps_labels):
-            Training_Labels = self.lm_res_z[cap_lab]
+        for template_lab in tqdm(self.template_labels):
+            Training_Labels = self.lm_res_z[template_lab]
             mySVR = SVR(kernel='linear', C=self.C, epsilon=self.epsilon)
             mySVR.fit(self.data_masked[:,self.vols4training].T,Training_Labels[self.vols4training])
-            self.SVRs[cap_lab] = mySVR
+            self.SVRs[template_lab] = mySVR
         return 1
     
     def train_svrs_mp(self):
-        num_cores = len(self.caps_labels)
+        num_cores = len(self.template_labels)
         pool = mp.Pool(num_cores)  # Create as many processes as SVRs need to be trained
-        inputs = ({'cap_label': cap_lab,
+        inputs = ({'template_label': template_lab,
                    'data'   : self.data_masked[:,self.vols4training].T,
-                   'labels' : self.lm_res_z[cap_lab][self.vols4training],
+                   'labels' : self.lm_res_z[template_lab][self.vols4training],
                    'C'      : self.C,
-                   'epsilon': self.epsilon} for cap_lab in self.caps_labels)
+                   'epsilon': self.epsilon} for template_lab in self.template_labels)
         log.info(' +++ About to go parallel with %d cores' % (num_cores))       
         res = pool.map(train_one_svr, inputs)
         log.info(' +++ All parallel operations completed.')
-        self.SVRs = {cap_lab:res[c] for c,cap_lab in enumerate(self.caps_labels)}
+        self.SVRs = {template_lab:res[c] for c,template_lab in enumerate(self.template_labels)}
         
         # Shut down pool 
         pool.close()
@@ -225,7 +234,7 @@ class SVRtrainer(object):
         plt.plot(self.lm_res_z)
         plt.xlabel('Time [TRs]')
         plt.ylabel('Z-Score')
-        plt.legend(self.caps_labels)
+        plt.legend(self.template_labels)
         plt.tight_layout()
         plt.savefig(self.outpng, dpi=200)
         log.info(' - save_results - Saved Label Computation Results to [%s]' % self.outpng)
@@ -245,11 +254,11 @@ class SVRtrainer(object):
         ZLabels_DF['TR'] = ZLabels_DF.index
         ZL_curve         = ZLabels_DF.hvplot(legend='top', label='Labels for SVR Training (post Z-scoring)', x='TR').opts(width=1500, height=200)
 
-        for i,(cap,color) in enumerate(zip(self.caps_labels,Category10_7)):
+        for i,(template,color) in enumerate(zip(self.template_labels,Category10_7)):
             if i == 0:
-                Hist_Layout = ZLabels_DF.hvplot.hist(y=cap, fill_color=color, width=500, height=200)
+                Hist_Layout = ZLabels_DF.hvplot.hist(y=template, fill_color=color, width=500, height=200)
             else:
-                Hist_Layout = Hist_Layout + ZLabels_DF.hvplot.hist(y=cap, fill_color=color,  width=500, height=200)
+                Hist_Layout = Hist_Layout + ZLabels_DF.hvplot.hist(y=template, fill_color=color,  width=500, height=200)
 
         Hist_Layout.cols(3)
         LM_Layout        = (R2_curve + Labels_curve + ZL_curve).cols(1).opts(shared_axes=False)

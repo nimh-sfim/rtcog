@@ -19,14 +19,17 @@ tqdm().pandas()
 
 from rtcap_lib.fMRI import load_fMRI_file, mask_fMRI_img
 from rtcap_lib.training import SVRtrainer
+from bin.rtcaps_matcher import file_exists
 # -------------------------------------------------------------------------------------
 
 def processProgramOptions (self, options=None):
     parser = argparse.ArgumentParser(description="Train SVRs for spatial template matching")
     parser_inopts = parser.add_argument_group('Input Options','Inputs to this program')
     parser_inopts.add_argument("-d","--data", action="store", type=str, dest="data_path", default=None, help="path to training dataset [Default: %(default)s]", required=True)
+    parser_inopts.add_argument("-t", "--templates_path",       help="Path to templates file",     dest="templates_path", action="store", type=file_exists, default=None, required=True)
+    parser_inopts.add_argument("-l", "--template_labels_path",       help="Path to text file containing comma-separated template labels in order",     dest="template_labels_path", action="store", type=file_exists, default=None, required=True)
     parser_inopts.add_argument("-m","--mask", action="store", type=str, dest="mask_path", default=None, help="path to mask [Default: %(default)s]", required=True)
-    parser_inopts.add_argument("-c","--caps", action="store", type=str, dest="caps_path", default=None, help="path to caps template [Default: ]", required=True)
+    # parser_inopts.add_argument("-c","--caps", action="store", type=str, dest="caps_path", default=None, help="path to caps template [Default: ]", required=True)
     parser_inopts.add_argument("--discard",   action="store", type=int, dest="nvols_discard",   default=100,  help="number of volumes [Default: %(default)s]")
     parser_outopts = parser.add_argument_group('Output Options','Were to save results')
     parser_outopts.add_argument("-o","--outdir",  action="store", type=str, dest="outdir",  default='./', help="output directory [Default: %(default)s]")
@@ -53,11 +56,11 @@ def main():
     if opts.outdir is None:
         log.error('Output directory is missing. Please provide one.')
         sys.exit(-1)
-    if opts.caps_path is None:
-        log.error('Path to CAPs templates is missing. Please provide one.')
+    if opts.templates_path is None:
+        log.error('Path to templates is missing. Please provide one.')
         sys.exit(-1)
     
-    # 3) Initialize Progrma Object
+    # 3) Initialize Program Object
     log.info('2) Initializing Program Object...')
     svr_trainer = SVRtrainer(opts)
 
