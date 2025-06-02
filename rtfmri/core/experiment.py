@@ -83,7 +83,6 @@ class Experiment:
             pipeline.processed_tr (the processed data for this TR)
         """
         self.t += 1
-        self.log.info(f' - Time point [t={self.t}, n={self.n}]')
 
         # Keep a record of motion estimates
         motion = [i[self.t] for i in motion]
@@ -113,6 +112,7 @@ class Experiment:
 
     def compute_TR_data(self, motion, extra):
         _ = self._compute_TR_data_impl(motion, extra)
+        self.log.info(f' - Time point [t={self.t}, n={self.n}]')
         return 1
     
     def end_run(self, save=True):
@@ -185,6 +185,7 @@ class ESAMExperiment(Experiment):
 
         self.hits = np.zeros((self.matcher.Ntemplates, 1))
         self.hit_detector = HitDetector(hit_opts)
+        self.last_hit = None
         
         
     def compute_TR_data(self, motion, extra):
@@ -200,16 +201,24 @@ class ESAMExperiment(Experiment):
             self.mp_evt_qa_end.clear()
             self.log.info(f'QA ended (cleared) --> updating lastQA_endTR = {self.lastQA_endTR}')
         
+        template_labels = self.matcher.template_labels
         if hit_status or (self.t <= self.lastQA_endTR + self.vols_noqa):
+            info_text = f' - Time point [t={self.t}, n={self.n}]'
+            if self.last_hit:
+                info_text += f' | Last hit: {self.last_hit}'
+            self.log.info(info_text)
             hit = None
         else:
-            hit = self.hit_detector.detect(self.t, self.matcher.template_labels, scores)
+            hit = self.hit_detector.detect(self.t, template_labels, scores)
         
+        self.hits = np.append(self.hits, np.zeros((self.matcher.Ntemplates,1)), axis=1)
+
         if hit:
-            self.log.info(f'[t=self.t,n=self.n] =============================================  CAP hit [hit]')
+            self.log.info(f'[t={self.t},n={self.n}] =============================================  CAP hit [{hit}]')
             self.qa_onsets.append(self.t)
-            self.hits[self.caps_labels.index(hit),self.t] = 1
+            self.hits[template_labels.index(hit),self.t] = 1
             self.mp_evt_hit.set()
+            self.last_hit = hit
             
         return 1
 
