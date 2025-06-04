@@ -42,7 +42,7 @@
     },
     {
         "text": "Q10/11. Was your attention focused intentionally or unintentionally?",
-        "labels": ["Very negative","Somewhat\nnegative","Neutral","Somewhat\npositive", "Very positive"],
+        "labels": ["Very\nunintentionally","Somewhat\nunintentionally","Neutral","Somewhat\nintentionally", "Very\nintentionally"],
         "name": "rs_attention"
     },
     {
