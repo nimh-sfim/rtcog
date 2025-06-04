@@ -479,7 +479,7 @@ class Experiment:
                 unmask_fMRI_img(data, self.mask_img, osp.join(self.out_dir,self.out_prefix+'.pp_iGLM_'+lab+'.nii'))    
 
         if self.exp_type == "esam" or self.exp_type == "esam_test":
-            match_scores_path = osp.join(self.out_dir,self.out_prefix+'.match_scores')
+            match_scores_path = osp.join(self.out_dir,self.out_prefix+f'.{self.match_method}_scores')
             np.save(match_scores_path,self.match_scores)
             log.info('Saved match_scores to %s' % match_scores_path)
             hits_path = osp.join(self.out_dir,self.out_prefix+'.hits')
