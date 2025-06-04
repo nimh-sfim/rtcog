@@ -6,6 +6,7 @@ import pandas as pd
 import holoviews as hv
 import hvplot.pandas
 import panel as pn
+import matplotlib.pyplot as plt
 
 sys.path.insert(0, osp.abspath(osp.join(osp.dirname(__file__), '..')))
 from rtcap_lib.fMRI import load_fMRI_file, mask_fMRI_img
@@ -31,8 +32,7 @@ class OfflineMask:
         
         self.template_labels_path = opts.template_labels_path
 
-        self.out_dir = opts.out_dir
-        self.out_prefix = opts.prefix
+        self.out_path = osp.join(opts.out_dir, opts.prefix)
 
         self.template_thr = opts.template_thr
         
@@ -88,11 +88,11 @@ class OfflineMask:
             voxel_counts[label] = Nvoxels_in_mask
 
         # Save activation traces
-        trace_out = osp.join(self.out_dir, f'{self.out_prefix}_self.act_traces.npz')
+        trace_out = self.out_path + '.act_traces.npz'
         np.savez(trace_out, **self.act_traces)
 
         # Save thresholded template info for online use
-        template_out = osp.join(self.out_dir, f'{self.out_prefix}_template_data.npz')
+        template_out = self.out_path + '.template_data.npz'
         np.savez(
             template_out,
             labels=np.array(self.template_labels),
@@ -104,12 +104,27 @@ class OfflineMask:
         log.info(f'Saved traces to: {trace_out}')
         log.info(f'Saved thresholded template data to: {template_out}')
     
-    def plot_traces(self):
+    def save_figures(self):
         df = pd.DataFrame.from_dict(self.act_traces, orient='index').T
+
+        # Static figure
+        fig = plt.figure(figsize=(20,5))
+        plt.plot(df)
+        plt.xlabel('Time [TRs]')
+        plt.ylabel('Weighted average')
+        plt.legend(self.template_labels)
+        png_out = self.out_path + '.traces.png'
+        plt.savefig(png_out, dpi=200)
+        plt.close(fig)
+        log.info(f'Saved static figure to: {png_out}')
+        # Note: for some reason the file will not open through preview, but it opens just fine when loaded with Pillow,
+        # so it's not corrupted.
+
+        # Dynamic figure
         plot = df.hvplot(width=1000)
-        out = osp.join(self.out_dir, f'{self.out_prefix}_traces')
-        # out_html = 
-        pn.Column(plot).save(out + '.html')
+        html_out = self.out_path + '.traces.html'
+        pn.Column(plot).save(html_out)
+        log.info(f'Saved dynamic figure to: {html_out}')
 
 def process_options():
     parser = argparse.ArgumentParser(description="Train SVRs for spatial template matching")
@@ -133,7 +148,7 @@ if __name__ == "__main__":
     offline_mask = OfflineMask(opts)
     offline_mask.load_datasets()
     offline_mask.get_masked_traces()
-    offline_mask.plot_traces()
+    offline_mask.save_figures()
  
 # npz = np.load("template_data.npz", allow_pickle=True)
 # labels = npz["labels"]
