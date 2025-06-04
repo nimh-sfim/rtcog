@@ -595,3 +595,16 @@ def rt_svrscore_vol(data, SVRs, caps_labels):
         out.append(SVRs[cap_lab].predict(data[:,np.newaxis].T)[0])
 
     return np.array(out)[:,np.newaxis]
+
+def rt_maskscore_vol(data, inputs, labels):
+    out = []
+    masked_templates = inputs["masked_templates"].item()
+    masks = inputs["masks"].item()
+    voxel_counts = inputs["voxel_counts"].item()
+
+    for name in labels:
+        mask = masks[name]
+        template = masked_templates[name]
+        masked_data = data[mask]        
+        out.append(np.dot(template, masked_data) / voxel_counts[name])
+    return np.array(out)[:, np.newaxis]

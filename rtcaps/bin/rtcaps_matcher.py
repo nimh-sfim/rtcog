@@ -20,7 +20,7 @@ from config                       import RESOURCES_DIR
 from rtcap_lib.receiver_interface import CustomReceiverInterface
 from rtcap_lib.core               import welford
 from rtcap_lib.rt_functions       import rt_EMA_vol, rt_regress_vol, rt_kalman_vol, kalman_filter_mv
-from rtcap_lib.rt_functions       import rt_smooth_vol, rt_snorm_vol, rt_svrscore_vol
+from rtcap_lib.rt_functions       import rt_smooth_vol, rt_snorm_vol, rt_svrscore_vol, rt_maskscore_vol
 from rtcap_lib.rt_functions       import gen_polort_regressors
 from rtcap_lib.fMRI               import load_fMRI_file, unmask_fMRI_img
 from rtcap_lib.svr_methods        import is_hit_rt01
@@ -92,6 +92,12 @@ class Experiment:
         self.save_orig     = options.save_orig
         self.save_all      = options.save_all
         
+        self.score_method = options.score_method
+        if self.score_method == 'svr':
+            self.rt_score_func = rt_svrscore_vol
+        elif self.score_method == 'mask_method':
+            self.rt_score_func = rt_maskscore_vol
+
         if self.save_all:
             self.save_orig   = True
             self.save_ema    = True
@@ -392,7 +398,7 @@ class Experiment:
             if self.t < self.dec_start_vol:   # We don't want to start decoding before iGLM is stable.
                 self.svrscores = np.append(self.svrscores, np.zeros((self.Ntemplates,1)), axis=1)
             else:
-                this_t_svrscores = rt_svrscore_vol(np.squeeze(out_data_windowed), self.SVRs, self.template_labels)
+                this_t_svrscores = self.rt_score_func(np.squeeze(out_data_windowed), self.SVRs, self.template_labels)
                 self.svrscores   = np.append(self.svrscores, this_t_svrscores, axis=1)
             log.debug('[t=%d,n=%d] Online - SVRs - svrscores.shape   %s' % (self.t, self.n, str(self.svrscores.shape)))
 
@@ -562,23 +568,34 @@ class Experiment:
             self.mp_evt_end.set()
             sys.exit(-1)
         self.svr_path = options.svr_path
-        try:
-            SVRs_pickle_in = open(self.svr_path, "rb")
-            self.SVRs = pickle.load(SVRs_pickle_in)
-        except OSError as ose:
-            log.error('SVR Model File opening threw OSError Exception.')
-            log.error(traceback.format_exc(ose))
-            self.mp_evt_end.set()
-            sys.exit(-1)
-        except Exception as e:
-            log.error('SVR Model File opening threw generic Exception.')
-            log.error(traceback.format_exc(e))
-            self.mp_evt_end.set()
-            sys.exit(-1)
+        if self.score_method == 'svr':
+            try:
+                SVRs_pickle_in = open(self.svr_path, "rb")
+                self.SVRs = pickle.load(SVRs_pickle_in)
+            except OSError as ose:
+                log.error('SVR Model File opening threw OSError Exception.')
+                log.error(traceback.format_exc(ose))
+                self.mp_evt_end.set()
+                sys.exit(-1)
+            except Exception as e:
+                log.error('SVR Model File opening threw generic Exception.')
+                log.error(traceback.format_exc(e))
+                self.mp_evt_end.set()
+                sys.exit(-1)
 
-        self.Ntemplates = len(self.SVRs.keys())
-        self.template_labels = list(self.SVRs.keys())
-        log.info('- setup_esam_run - List of CAPs to be tested: %s' % str(self.template_labels))
+            self.Ntemplates = len(self.SVRs.keys())
+            self.template_labels = list(self.SVRs.keys())
+
+        elif self.score_method == 'mask_method':
+            try:
+                self.SVRs = np.load(self.svr_path, allow_pickle=True)
+            except Exception as e:
+                log.error(f'Error loading mask method file: {e}')
+            
+            self.template_labels = list(self.SVRs["labels"])
+            self.Ntemplates = len(self.template_labels)
+
+        log.info('- setup_esam_run - List of templates to be tested: %s' % str(self.template_labels))
 
         # Decoder-related initializations
         self.dec_start_vol = options.dec_start_vol # First volume to do decoding on.
@@ -713,8 +730,9 @@ def processExperimentOptions (self, options=None):
     parser_exp.add_argument("--fscreen", help="Use full screen for Experiment [%(default)s]", default=False, action="store_true", dest="fullscreen")
     parser_exp.add_argument("--screen", help="Monitor to use [%(default)s]", default=1, action="store", dest="screen",type=int)
     parser_dec = parser.add_argument_group('SVR/Decoding Options')
+    parser_dec.add_argument("--score_method",  help="Which method to use [%(default)s]", default="svr", dest="score_method", choices=['svr', 'mask_method'], action="store", type=str)
     parser_dec.add_argument("--svr_start",  help="Volume when decoding should start. When we think iGLM is sufficient_stable [%(default)s]", default=100, dest="dec_start_vol", action="store", type=int)
-    parser_dec.add_argument("--svr_path",   help="Path to pre-trained SVR models [%(default)s]", dest="svr_path", action="store", type=file_exists, default=None)
+    parser_dec.add_argument("--svr_path",   help="Path to pre-trained SVR models, or mask method data", dest="svr_path", action="store", type=file_exists, default=None)
     parser_dec.add_argument("--svr_zth",    help="Z-score threshold for deciding hits [%(default)s]", dest="hit_zth", action="store", type=float, default=1.75)
     parser_dec.add_argument("--svr_consec_vols",   help="Number of consecutive vols over threshold required for a hit [%(default)s]", dest="nconsec_vols", action="store", type=int, default=2)
     parser_dec.add_argument("--svr_win_activate", help="Activate windowing of individual volumes prior to hit estimation [%(default)s]", dest="hit_dowin", action="store_true", default=False)
