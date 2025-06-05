@@ -265,10 +265,10 @@ class Pipeline:
         # If running snapshot test, save the variable states
         if self.snapshot:
             var_dict = {
-                'Data_norm': np.concatenate(self.Data_norm, axis=1),
-                'Data_EMA': np.concatenate(self.Data_EMA, axis=1),
-                'Data_iGLM': np.concatenate(self.Data_iGLM, axis=1),
-                'Data_smooth': np.concatenate(self.Data_smooth, axis=1),
+                'Data_norm': self.Data_norm,
+                'Data_EMA': self.Data_EMA,
+                'Data_iGLM': self.Data_iGLM,
+                'Data_smooth': self.Data_smooth,
                 # 'Data_kalman': np.concatenate(self.Data_kalman, axis=1),
                 'Data_FromAFNI': self.Data_FromAFNI,
                 'Data_processed': self.Data_processed

@@ -67,7 +67,7 @@ class PreprocStep:
     @staticmethod
     def prep_file(data, file_suffix, pipeline):
         out_path = osp.join(pipeline.out_dir, pipeline.out_prefix+file_suffix)
-        unmask_fMRI_img(np.concatenate(data, axis=1), pipeline.mask_img, out_path)
+        unmask_fMRI_img(data, pipeline.mask_img, out_path)
 
 class EMAStep(PreprocStep):
     def __init__(self, save, ema_th=0.98):
@@ -77,16 +77,16 @@ class EMAStep(PreprocStep):
 
     def initialize_array(self, pipeline):
         if self.save:
-            pipeline.Data_EMA = []
+            pipeline.Data_EMA = np.zeros((pipeline.Nv, pipeline.Nt))
     
     def run_discard_volumes(self, pipeline):
         if self.save:
-            pipeline.Data_EMA.append(np.zeros((pipeline.Nv, 1)))
+            pipeline.Data_EMA[:, pipeline.t] = np.zeros((pipeline.Nv,))
 
     def run(self, pipeline):
         ema_data_out, self.EMA_filt = rt_EMA_vol(pipeline.n, self.EMA_th, pipeline.Data_FromAFNI, self.EMA_filt)
         if self.save: 
-            pipeline.Data_EMA.append(ema_data_out)
+            pipeline.Data_EMA[:, pipeline.t] = ema_data_out.squeeze()
         
         pipeline.processed_tr = ema_data_out
     
@@ -116,12 +116,12 @@ class iGLMStep(PreprocStep):
             self.legendre_pols = None
 
         if self.save:
-            pipeline.Data_iGLM = []
+            pipeline.Data_iGLM = np.zeros((pipeline.Nv, pipeline.Nt))
             self.iGLM_Coeffs = np.zeros((pipeline.Nv, self.iGLM_num_regressors, 1))
 
     def run_discard_volumes(self, pipeline):
         if self.save:
-            pipeline.Data_iGLM.append(np.zeros((pipeline.Nv,1)))
+            pipeline.Data_iGLM[:, pipeline.t] = np.zeros((pipeline.Nv,))
             self.iGLM_Coeffs = np.append(self.iGLM_Coeffs, np.zeros((pipeline.Nv, self.iGLM_num_regressors,1)), axis=2)
             log.debug("mesasge")
             
@@ -142,7 +142,7 @@ class iGLMStep(PreprocStep):
         )
 
         if self.save:
-            pipeline.Data_iGLM.append(iGLM_data_out)
+            pipeline.Data_iGLM[:, pipeline.t] = iGLM_data_out.squeeze()
             self.iGLM_Coeffs = np.append(self.iGLM_Coeffs, Bn, axis=2) 
 
         pipeline.processed_tr = iGLM_data_out
@@ -169,11 +169,11 @@ class KalmanStep(PreprocStep):
         self.fNegatDerivSpike = np.zeros(pipeline.Nv)
 
         if self.save:
-            pipeline.Data_kalman = []
+            pipeline.Data_kalman = np.zeros((pipeline.Nv, pipeline.Nt))
     
     def run_discard_volumes(self, pipeline):
         if self.save:
-            pipeline.Data_kalman.append(np.zeros((pipeline.Nv,1)))
+            pipeline.Data_kalman[:, pipeline.t] = np.zeros((pipeline.Nv,))
 
     def run(self, pipeline):
         klm_data_out, self.S_x, self.S_P, self.fPositDerivSpike, self.fNegatDerivSpike = rt_kalman_vol(
@@ -190,7 +190,7 @@ class KalmanStep(PreprocStep):
         )
         
         if self.save:
-            pipeline.Data_kalman.append(klm_data_out)
+            pipeline.Data_kalman[:, pipeline.t] = klm_data_out.squeeze()
         
         pipeline.processed_tr = klm_data_out
 
@@ -201,16 +201,16 @@ class KalmanStep(PreprocStep):
 class SmoothStep(PreprocStep):
     def initialize_array(self, pipeline):
         if self.save:
-            pipeline.Data_smooth = []
+            pipeline.Data_smooth = np.zeros((pipeline.Nv, pipeline.Nt))
 
     def run_discard_volumes(self, pipeline):
         if self.save:
-            pipeline.Data_smooth.append(np.zeros((pipeline.Nv,1)))
+            pipeline.Data_smooth[:, pipeline.t] = np.zeros((pipeline.Nv,))
 
     def run(self, pipeline):
         smooth_out = rt_smooth_vol(pipeline.processed_tr, pipeline.mask_img, fwhm=pipeline.FWHM)
         if self.save:
-            pipeline.Data_smooth.append(smooth_out)
+            pipeline.Data_smooth[:, pipeline.t] = smooth_out.squeeze()
             
         pipeline.processed_tr = smooth_out
     
@@ -221,16 +221,16 @@ class SmoothStep(PreprocStep):
 class SnormStep(PreprocStep):
     def initialize_array(self, pipeline):
         if self.save:
-            pipeline.Data_norm = []
+            pipeline.Data_norm = np.zeros((pipeline.Nv, pipeline.Nt))
 
     def run_discard_volumes(self, pipeline):
         if self.save:
-            pipeline.Data_norm.append(np.zeros((pipeline.Nv,1)))
+            pipeline.Data_norm[:, pipeline.t] = np.zeros((pipeline.Nv,))
 
     def run(self, pipeline):
         norm_out = rt_snorm_vol(pipeline.processed_tr)
         if self.save:
-            pipeline.Data_norm.append(norm_out)
+            pipeline.Data_norm[:, pipeline.t] = norm_out.squeeze()
         
         pipeline.processed_tr = norm_out
     
