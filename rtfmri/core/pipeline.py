@@ -15,6 +15,9 @@ from utils.log import get_logger
 from utils.fMRI import unmask_fMRI_img
 from paths import OUTPUT_DIR
 
+import time
+
+
 log = get_logger()
 
 class Pipeline:
@@ -185,6 +188,7 @@ class Pipeline:
 
         for step in self.steps:
             step.initialize_array(self)
+            step.run_discard_volumes(self)
 
         return 1
     
@@ -196,6 +200,7 @@ class Pipeline:
             self.Data_FromAFNI = np.hstack((self.Data_FromAFNI[:,-1][:,np.newaxis], this_t_data[:, np.newaxis]))  # Only keep this one and previous
         log.debug(f'[t={self.t},n={self.n}] Discard - Data_FromAFNI.shape {self.Data_FromAFNI.shape}')
         self.Data_processed = np.append(self.Data_processed, np.zeros((self.Nv,1)), axis=1)
+
 
         for step in self.steps:
             step.run_discard_volumes(self)
@@ -232,8 +237,16 @@ class Pipeline:
             self.Data_FromAFNI = np.hstack((self.Data_FromAFNI[:,-1][:,np.newaxis],this_t_data[:, np.newaxis]))  # Only keep this one and previous
             log.debug('[t=%d,n=%d] Online - Input - Data_FromAFNI.shape %s' % (self.t, self.n, str(self.Data_FromAFNI.shape)))
 
+        start = time.perf_counter()
         for step in self.steps:
+            t0 = time.perf_counter()
             step.run(self)
+            t1 = time.perf_counter()
+            print(f"{step.__class__.__name__} took {t1 - t0:.6f} seconds")
+        end = time.perf_counter()
+
+        print(f"Full pipeline took {end - start:.6f} seconds")
+
         
         self.Data_processed = np.append(self.Data_processed, self.processed_tr, axis=1)
 
@@ -252,11 +265,11 @@ class Pipeline:
         # If running snapshot test, save the variable states
         if self.snapshot:
             var_dict = {
-                'Data_norm': self.Data_norm,
-                'Data_EMA': self.Data_EMA,
-                'Data_iGLM': self.Data_iGLM,
-                'Data_smooth': self.Data_smooth,
-                # 'Data_kalman': self.Data_kalman,
+                'Data_norm': np.concatenate(self.Data_norm, axis=1),
+                'Data_EMA': np.concatenate(self.Data_EMA, axis=1),
+                'Data_iGLM': np.concatenate(self.Data_iGLM, axis=1),
+                'Data_smooth': np.concatenate(self.Data_smooth, axis=1),
+                # 'Data_kalman': np.concatenate(self.Data_kalman, axis=1),
                 'Data_FromAFNI': self.Data_FromAFNI,
                 'Data_processed': self.Data_processed
             }
@@ -286,7 +299,7 @@ class Pipeline:
             out_labels.append('.orig.nii')
         
         for variable, file_suffix in zip(out_vars, out_labels):
-            unmask_fMRI_img(variable, self.mask_img, osp.join(self.out_dir,self.out_prefix+file_suffix))
+            unmask_fMRI_img(np.array(variable), self.mask_img, osp.join(self.out_dir,self.out_prefix+file_suffix))
         
         for step in self.steps:
             step.save_nifti(self)

@@ -119,7 +119,6 @@ class Experiment:
         """Finalize the experiment by saving all outputs and signaling completion."""
         if save:
             self.pipe.final_steps()
-        self.pipe.final_steps()
         self.mp_evt_end.set()
 
 
@@ -221,8 +220,3 @@ class ESAMExperiment(Experiment):
             self.last_hit = hit
             
         return 1
-
-    def end_run(self, save=True):
-        if save:
-            self.pipe.final_steps()
-        self.mp_evt_end.set()

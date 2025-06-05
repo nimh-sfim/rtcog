@@ -67,7 +67,7 @@ class PreprocStep:
     @staticmethod
     def prep_file(data, file_suffix, pipeline):
         out_path = osp.join(pipeline.out_dir, pipeline.out_prefix+file_suffix)
-        unmask_fMRI_img(data, pipeline.mask_img, out_path)
+        unmask_fMRI_img(np.concatenate(data, axis=1), pipeline.mask_img, out_path)
 
 class EMAStep(PreprocStep):
     def __init__(self, save, ema_th=0.98):
@@ -77,19 +77,16 @@ class EMAStep(PreprocStep):
 
     def initialize_array(self, pipeline):
         if self.save:
-            pipeline.Data_EMA = np.zeros((pipeline.Nv, 1))
-            log.debug(f'[t={pipeline.t},n={pipeline.n}] Init - Data_EMA.shape      {pipeline.Data_EMA.shape}') 
+            pipeline.Data_EMA = []
     
     def run_discard_volumes(self, pipeline):
         if self.save:
-            pipeline.Data_EMA = np.append(pipeline.Data_EMA, np.zeros((pipeline.Nv,1)), axis=1)
-            log.debug(f'[t={pipeline.t},n={pipeline.n}] Discard - EMA - Data_EMA.shape      {pipeline.Data_EMA.shape}')
+            pipeline.Data_EMA.append(np.zeros((pipeline.Nv, 1)))
 
     def run(self, pipeline):
         ema_data_out, self.EMA_filt = rt_EMA_vol(pipeline.n, self.EMA_th, pipeline.Data_FromAFNI, self.EMA_filt)
         if self.save: 
-            pipeline.Data_EMA = np.append(pipeline.Data_EMA, ema_data_out, axis=1)
-            log.debug(f'[t={pipeline.t},n={pipeline.n}] Online - EMA - Data_EMA.shape      {pipeline.Data_EMA.shape}')
+            pipeline.Data_EMA.append(ema_data_out)
         
         pipeline.processed_tr = ema_data_out
     
@@ -119,16 +116,14 @@ class iGLMStep(PreprocStep):
             self.legendre_pols = None
 
         if self.save:
-            pipeline.Data_iGLM = np.zeros((pipeline.Nv, 1))
+            pipeline.Data_iGLM = []
             self.iGLM_Coeffs = np.zeros((pipeline.Nv, self.iGLM_num_regressors, 1))
-            log.debug(f'[t={pipeline.t},n={pipeline.n}] Init - Data_iGLM.shape      {pipeline.Data_iGLM.shape}') 
 
     def run_discard_volumes(self, pipeline):
         if self.save:
-            pipeline.Data_iGLM = np.append(pipeline.Data_iGLM, np.zeros((pipeline.Nv,1)), axis=1)
+            pipeline.Data_iGLM.append(np.zeros((pipeline.Nv,1)))
             self.iGLM_Coeffs = np.append(self.iGLM_Coeffs, np.zeros((pipeline.Nv, self.iGLM_num_regressors,1)), axis=2)
-            log.debug(f'[t={pipeline.t},n={pipeline.n}] Discard - iGLM_Coeffs.shape   {self.iGLM_Coeffs.shape}')
-            log.debug(f'[t={pipeline.t},n={pipeline.n}] Discard - Data_iGLM.shape     {pipeline.Data_iGLM.shape}')
+            log.debug("mesasge")
             
     def run(self, pipeline): 
         try:
@@ -147,10 +142,8 @@ class iGLMStep(PreprocStep):
         )
 
         if self.save:
-            pipeline.Data_iGLM = np.append(pipeline.Data_iGLM, iGLM_data_out, axis=1)
+            pipeline.Data_iGLM.append(iGLM_data_out)
             self.iGLM_Coeffs = np.append(self.iGLM_Coeffs, Bn, axis=2) 
-            log.debug(f'[t={pipeline.t},n={pipeline.n}] Online - iGLM - Data_iGLM.shape     {pipeline.Data_iGLM.shape}')
-            log.debug(f'[t={pipeline.t},n={pipeline.n}] Online - iGLM - iGLM_Coeffs.shape   {self.iGLM_Coeffs.shape}')
 
         pipeline.processed_tr = iGLM_data_out
 
@@ -176,13 +169,11 @@ class KalmanStep(PreprocStep):
         self.fNegatDerivSpike = np.zeros(pipeline.Nv)
 
         if self.save:
-            pipeline.Data_kalman = np.zeros((pipeline.Nv, 1))
-            log.debug(f'[t={pipeline.t},n={pipeline.n}] Init - Data_kalman.shape   {pipeline.Data_kalman.shape}')
+            pipeline.Data_kalman = []
     
     def run_discard_volumes(self, pipeline):
         if self.save:
-            pipeline.Data_kalman = np.append(pipeline.Data_kalman, np.zeros((pipeline.Nv,1)), axis=1)
-            log.debug(f'[t={pipeline.t},n={pipeline.n}] Discard - Data_kalman.shape   {pipeline.Data_kalman.shape}')
+            pipeline.Data_kalman.append(np.zeros((pipeline.Nv,1)))
 
     def run(self, pipeline):
         klm_data_out, self.S_x, self.S_P, self.fPositDerivSpike, self.fNegatDerivSpike = rt_kalman_vol(
@@ -199,8 +190,7 @@ class KalmanStep(PreprocStep):
         )
         
         if self.save:
-            pipeline.Data_kalman = np.append(pipeline.Data_kalman, klm_data_out, axis=1)
-            log.debug(f'[t={pipeline.t},n={pipeline.n}] Online - Kalman - Data_kalman.shape     {pipeline.Data_kalman.shape}')
+            pipeline.Data_kalman.append(klm_data_out)
         
         pipeline.processed_tr = klm_data_out
 
@@ -211,19 +201,16 @@ class KalmanStep(PreprocStep):
 class SmoothStep(PreprocStep):
     def initialize_array(self, pipeline):
         if self.save:
-            pipeline.Data_smooth = np.zeros((pipeline.Nv, 1))
+            pipeline.Data_smooth = []
 
     def run_discard_volumes(self, pipeline):
         if self.save:
-            pipeline.Data_smooth = np.append(pipeline.Data_smooth, np.zeros((pipeline.Nv,1)), axis=1)
-            log.debug(f'[t={pipeline.t},n={pipeline.n}] Online - Discard - Data_smooth.shape   {pipeline.Data_smooth.shape}')
+            pipeline.Data_smooth.append(np.zeros((pipeline.Nv,1)))
 
     def run(self, pipeline):
         smooth_out = rt_smooth_vol(pipeline.processed_tr, pipeline.mask_img, fwhm=pipeline.FWHM)
         if self.save:
-            pipeline.Data_smooth = np.append(pipeline.Data_smooth, smooth_out, axis=1)
-            log.debug(f'[t={pipeline.t},n={pipeline.n}] Online - Smooth - Data_smooth.shape   {pipeline.Data_smooth.shape}')
-            log.debug(f'[t={pipeline.t},n={pipeline.n}] Online - Smooth - smooth_out.shape      {smooth_out.shape}')
+            pipeline.Data_smooth.append(smooth_out)
             
         pipeline.processed_tr = smooth_out
     
@@ -234,19 +221,16 @@ class SmoothStep(PreprocStep):
 class SnormStep(PreprocStep):
     def initialize_array(self, pipeline):
         if self.save:
-            pipeline.Data_norm = np.zeros((pipeline.Nv, 1))
-            log.debug(f'[t={pipeline.t},n={pipeline.n}] Init - Data_norm.shape     {pipeline.Data_norm.shape}')
+            pipeline.Data_norm = []
 
     def run_discard_volumes(self, pipeline):
         if self.save:
-            pipeline.Data_norm = np.append(pipeline.Data_norm, np.zeros((pipeline.Nv,1)), axis=1)
-            log.debug(f'[t={pipeline.t},n={pipeline.n}] Discard - Data_norm.shape     {pipeline.Data_norm.shape}')
+            pipeline.Data_norm.append(np.zeros((pipeline.Nv,1)))
 
     def run(self, pipeline):
         norm_out = rt_snorm_vol(pipeline.processed_tr)
         if self.save:
-            pipeline.Data_norm = np.append(pipeline.Data_norm, norm_out, axis=1)
-            log.debug(f'[t={pipeline.t},n={pipeline.n}] Online - Snorm - Data_norm.shape   {pipeline.Data_norm.shape}')
+            pipeline.Data_norm.append(norm_out)
         
         pipeline.processed_tr = norm_out
     
