@@ -29,12 +29,13 @@ class OfflineMask:
         self.templates_path = opts.templates_path
         self.data_path = opts.data_path
         self.mask_path = opts.mask_path
-        
         self.template_labels_path = opts.template_labels_path
 
-        self.out_path = osp.join(opts.out_dir, opts.prefix)
-
         self.template_thr = opts.template_thr
+        self.template_type = opts.template_type
+
+        self.out_path = osp.join(opts.out_dir, opts.prefix)
+        self.save_txt = opts.save_txt
         
     def load_datasets(self):
         try:
@@ -57,7 +58,11 @@ class OfflineMask:
 
     def _threshold(self, template):
         """Select voxels for a template above desired threshold and apply that mask to the data."""
-        composite_mask_vect = (template > int(self.template_thr)).astype(bool)
+        if self.template_type == 'normal':
+            composite_mask_vect = (template > int(self.template_thr)).astype(bool)
+        elif self.template_type == 'binary':
+            composite_mask_vect = template.astype(bool)
+            
         composite_mask_Nv = composite_mask_vect.sum()
 
         thresholded_template = template[composite_mask_vect]
@@ -84,12 +89,20 @@ class OfflineMask:
             
             self.act_traces[label] = act_trace
             masked_templates[label] = thr_template
-            mask_vectors[label] = (template > int(self.template_thr)).astype(bool).flatten(order='F')
+            if self.template_type =='normal':
+                mask_vectors[label] = (template > int(self.template_thr)).astype(bool).flatten(order='F')
+            elif self.template_type == 'binary':
+                mask_vectors[label] = template.astype(bool).flatten(order='F')
             voxel_counts[label] = Nvoxels_in_mask
 
         # Save activation traces
         trace_out = self.out_path + '.act_traces.npz'
         np.savez(trace_out, **self.act_traces)
+
+        if self.save_txt: # Save one txt file per trace if desired
+            for template, arr in self.act_traces.items():
+                with open(f'{template}.act_trace.txt', 'w') as f:
+                    np.savetxt(f, arr, delimiter=',')
 
         # Save thresholded template info for online use
         template_out = self.out_path + '.template_data.npz'
@@ -127,18 +140,20 @@ class OfflineMask:
         log.info(f'Saved dynamic figure to: {html_out}')
 
 def process_options():
-    parser = argparse.ArgumentParser(description="Train SVRs for spatial template matching")
+    parser = argparse.ArgumentParser(description="Run mask method offline for spatial template matching")
     parser_inopts = parser.add_argument_group('Input Options','Inputs to this program')
     parser_inopts.add_argument("-d","--data", action="store", type=file_exists, dest="data_path", default=None, help="path to training dataset", required=True)
     parser_inopts.add_argument("-t", "--templates_path", help="Path to templates file", dest="templates_path", action="store", type=file_exists, default=None, required=True)
     parser_inopts.add_argument("-l", "--template_labels_path", help="Path to text file containing comma-separated template labels in order", dest="template_labels_path", action="store", type=file_exists, default=None, required=True)
     parser_inopts.add_argument("-m","--mask", action="store", type=file_exists, dest="mask_path", default=None, help="path to mask", required=True)
+    parser_inopts.add_argument("--template_type", action="store", type=str, choices=['normal', 'binary'], dest="template_type", default="binary", help="the type of template being used [Default: %(default)s]")
     parser_inopts.add_argument("--discard", action="store", type=int, dest="nvols_discard", default=100,  help="number of volumes to discard")
     parser_inopts.add_argument("--thr", action="store", type=float, dest="template_thr", default=10,  help="threshold to use for the templates [Default: %(default)s]")
     parser_inopts.add_argument("--debug", action="store_true", dest="debug", default=False,  help="Enable debugging [Default: False]")
     parser_outopts = parser.add_argument_group('Output Options','Were to save results')
     parser_outopts.add_argument("-o","--out_dir",  action="store", type=str, dest="out_dir", default='./', help="output directory [Default: %(default)s]")
     parser_outopts.add_argument("-p","--prefix", action="store", type=str, dest="prefix", default="mask_method", help="prefix for output file [Default: %(default)s]")
+    parser_outopts.add_argument("--save_txt", action="store_true", dest="save_txt", default=False, help="save txt files for each array [Default: False]")
     return parser.parse_args()  
 
 if __name__ == "__main__":
