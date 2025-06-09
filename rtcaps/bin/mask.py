@@ -33,6 +33,8 @@ class OfflineMask:
 
         self.template_thr = opts.template_thr
         self.template_type = opts.template_type
+        
+        self.nvols_discard = opts.nvols_discard
 
         self.out_path = osp.join(opts.out_dir, opts.prefix)
         self.save_txt = opts.save_txt
@@ -53,7 +55,8 @@ class OfflineMask:
         
         masked_template_array = mask_fMRI_img(self.templates_img, mask_img)
         self.templates_masked = [masked_template_array[:, i] for i in range(masked_template_array.shape[1])]
-        self.data_masked = mask_fMRI_img(self.data_img, mask_img)
+        full_data_masked = mask_fMRI_img(self.data_img, mask_img)
+        self.data_masked = full_data_masked[:, self.nvols_discard:]
         log.debug(f'Masked data dimensions: {self.data_masked.shape}')
 
     def _threshold(self, label, template):
@@ -69,27 +72,30 @@ class OfflineMask:
 
         thresholded_template = template[composite_mask_vect]
 
-        data_vect = self.data_masked
         log.debug(f"template shape: {template.shape}")
-        log.debug(f"data_vect shape: {self.data_masked.shape}")
+        log.debug(f"data_masked.shape: {self.data_masked.shape}")
         log.debug(f"composite_mask_vect shape: {composite_mask_vect.shape}")
-        thresholded_data = data_vect[composite_mask_vect, :]
+        thresholded_data = self.data_masked[composite_mask_vect, :]
 
         return thresholded_template, thresholded_data, composite_mask_Nv
 
     def get_masked_traces(self):
         """Compute and save masked activation traces and thresholded template data."""
+        full_timepoints = self.data_masked.shape[1] + self.nvols_discard
         self.act_traces = {}
 
         masked_templates = {}
         voxel_counts = {}
         self.mask_vectors = {}
-
+        
         for label, template in zip(self.template_labels, self.templates_masked):
             thr_template, thr_data, Nvoxels_in_mask = self._threshold(label, template)
             act_trace = np.dot(thr_template, thr_data) / Nvoxels_in_mask
             
-            self.act_traces[label] = act_trace
+            final = np.zeros(full_timepoints)
+            final[self.nvols_discard:] = act_trace
+
+            self.act_traces[label] = final
             masked_templates[label] = thr_template
             voxel_counts[label] = Nvoxels_in_mask
 
