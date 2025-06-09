@@ -48,20 +48,22 @@ class OfflineMask:
 
         log.info(f"Processing templates: {', '.join(self.template_labels)}")
         self.data_img = load_fMRI_file(self.data_path)
-        self.mask_img = load_fMRI_file(self.mask_path)
+        mask_img = load_fMRI_file(self.mask_path)
         self.templates_img = load_fMRI_file(self.templates_path)
         
-        masked_template_array = mask_fMRI_img(self.templates_img, self.mask_img)
+        masked_template_array = mask_fMRI_img(self.templates_img, mask_img)
         self.templates_masked = [masked_template_array[:, i] for i in range(masked_template_array.shape[1])]
-        self.data_masked = mask_fMRI_img(self.data_img, self.mask_img)
+        self.data_masked = mask_fMRI_img(self.data_img, mask_img)
         log.debug(f'Masked data dimensions: {self.data_masked.shape}')
 
-    def _threshold(self, template):
+    def _threshold(self, label, template):
         """Select voxels for a template above desired threshold and apply that mask to the data."""
         if self.template_type == 'normal':
             composite_mask_vect = (template > int(self.template_thr)).astype(bool)
         elif self.template_type == 'binary':
             composite_mask_vect = template.astype(bool)
+        
+        self.mask_vectors[label] = composite_mask_vect
             
         composite_mask_Nv = composite_mask_vect.sum()
 
@@ -80,19 +82,15 @@ class OfflineMask:
         self.act_traces = {}
 
         masked_templates = {}
-        mask_vectors = {}
         voxel_counts = {}
+        self.mask_vectors = {}
 
         for label, template in zip(self.template_labels, self.templates_masked):
-            thr_template, thr_data, Nvoxels_in_mask = self._threshold(template)
+            thr_template, thr_data, Nvoxels_in_mask = self._threshold(label, template)
             act_trace = np.dot(thr_template, thr_data) / Nvoxels_in_mask
             
             self.act_traces[label] = act_trace
             masked_templates[label] = thr_template
-            if self.template_type =='normal':
-                mask_vectors[label] = (template > int(self.template_thr)).astype(bool).flatten(order='F')
-            elif self.template_type == 'binary':
-                mask_vectors[label] = template.astype(bool).flatten(order='F')
             voxel_counts[label] = Nvoxels_in_mask
 
         # Save activation traces
@@ -110,7 +108,7 @@ class OfflineMask:
             template_out,
             labels=np.array(self.template_labels),
             masked_templates=masked_templates,
-            masks=mask_vectors,
+            masks=self.mask_vectors,
             voxel_counts=voxel_counts
         )
 
