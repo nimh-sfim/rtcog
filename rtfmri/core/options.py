@@ -3,7 +3,6 @@ import sys
 import argparse
 import yaml
 
-# TODO: allow yaml to define step order, but have CLI override do_operations
 class Options:
      """
      Configuration object for the real-time fMRI pipeline.
@@ -131,12 +130,12 @@ class Options:
      
      @classmethod
      def from_cli(cls, argv=None):
-          """Provide just a yaml file with --config/-c, with option to override some options via CLI arguments."""
+          """Provide a yaml file with --config/-c, with option to override some options via CLI arguments."""
           config = cls.parse_cli_args(argv)
           return cls(config) 
      
-     def __repr__(self):
-          return f"Options: {self.__dict__}"
+     def __str__(self):
+          return f"Options:\n{yaml.dump(self.__dict__, sort_keys=False)}"
 
      def save_config(self):
           out_path = osp.join(self.out_dir, f'{self.out_prefix}_Options.yaml')
