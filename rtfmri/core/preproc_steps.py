@@ -153,7 +153,6 @@ class iGLMStep(PreprocStep):
             for i, lab in enumerate(self.nuisance_labels):
                 data = self.iGLM_Coeffs[:,i,:]
                 unmask_fMRI_img(data, pipeline.mask_img, osp.join(pipeline.out_dir, pipeline.out_prefix+'.pp_iGLM_'+lab+'.nii'))
-
 class KalmanStep(PreprocStep):
     def __init__(self, save):
         super().__init__(save)
@@ -161,8 +160,9 @@ class KalmanStep(PreprocStep):
         self.S_P = None
         self.fPositDerivSpike = None
         self.fNegatDerivSpike = None
-
+        
     def initialize_array(self, pipeline):
+        self.pool = pipeline.pool
         self.S_x = np.zeros(pipeline.Nv)
         self.S_P = np.zeros(pipeline.Nv) 
         self.fPositDerivSpike = np.zeros(pipeline.Nv)
@@ -176,7 +176,8 @@ class KalmanStep(PreprocStep):
             pipeline.Data_kalman[:, pipeline.t] = np.zeros((pipeline.Nv,))
 
     def run(self, pipeline):
-        klm_data_out, self.S_x, self.S_P, self.fPositDerivSpike, self.fNegatDerivSpike = rt_kalman_vol(
+        t = pipeline.t
+        klm_data_out, S_x_new, S_P_new, fPos_new, fNeg_new = rt_kalman_vol(
             pipeline.n,
             pipeline.t,
             pipeline.processed_tr,
@@ -186,12 +187,17 @@ class KalmanStep(PreprocStep):
             self.fPositDerivSpike,
             self.fNegatDerivSpike,
             pipeline.n_cores,
-            pipeline.pool,
+            self.pool,
         )
-        
+
+        self.S_x[:] = S_x_new.ravel()
+        self.S_P[:] = S_P_new.ravel()
+        self.fPositDerivSpike[:] = fPos_new.ravel()
+        self.fNegatDerivSpike[:] = fNeg_new.ravel()
+
         if self.save:
-            pipeline.Data_kalman[:, pipeline.t] = klm_data_out.squeeze()
-        
+            pipeline.Data_kalman[:, t] = klm_data_out.squeeze()
+
         return klm_data_out
 
     def save_nifti(self, pipeline):

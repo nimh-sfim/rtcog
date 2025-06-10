@@ -99,6 +99,7 @@ class Pipeline:
         self.step_opts = options.steps
 
         self.build_steps()
+        self.run_funcs = [step.run for step in self.steps]
 
         self.FWHM = options.FWHM # FWHM for Spatial Smoothing in [mm]
         
@@ -238,11 +239,11 @@ class Pipeline:
             log.debug('[t=%d,n=%d] Online - Input - Data_FromAFNI.shape %s' % (self.t, self.n, str(self.Data_FromAFNI.shape)))
 
         start = time.perf_counter()
-        for step in self.steps:
+        for func in self.run_funcs:
             t0 = time.perf_counter()
-            self.processed_tr[:] = step.run(self)
+            self.processed_tr[:] = func(self)
             t1 = time.perf_counter()
-            print(f"{step.__class__.__name__} took {t1 - t0:.6f} seconds")
+            print(f"{func.__name__} took {t1 - t0:.6f} seconds")
         end = time.perf_counter()
 
         print(f"Full pipeline took {end - start:.6f} seconds")
