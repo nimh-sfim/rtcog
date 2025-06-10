@@ -176,9 +176,29 @@ Here is an example of the static training report
 
 ![Sample of Traning SVR Static Report](../Documentation/Images/training_svr.png)
 
+Instead of training SVRs, you can also use the mask method for spatial matching. The program expects a binarized templates. If you pass in `--template_type normal`, the program will do the thresholding for you. You can adjust the threshold with `--thr`.
+
+```bash
+python ../../rtcaps/bin/mask.py \
+        --data online_preproc.pp_Zscore.nii \
+        --mask GMribbon_R4Feed.nii \
+        --templates_path ROI_Data.nii \
+        --template_labels_path ROI_Defs.txt \
+        --out_dir ./ \
+        --prefix mask_method
+```
+This will generate the following additional files in the __Laptop__ folder:
+
+* ```mask_method.template_data.npz```: template data (needed for the rest of the experimental runs, to be passed in with `--match_path` argument)
+* ```mask_method.act_traces.npz```: The activity traces from this method
+* ```mask_method.traces.png```: static summary of the activity traces
+* ```mask_method.traces.html```: dynamic summary of the activity traces
+
+Using the output of this method, decide on a threshold to use in the experimental run (`--hit_thr`)
+
 <u>11. Start rtCAPs to deal with a real Experience Sampling Run</u>
 
-For that, on the __Laptop__ terminal run the following:
+For that, on the __Laptop__ terminal run the following for SVR mode:
 
 ```bash
 python ../../rtcaps/bin/rtcaps_matcher.py
@@ -187,8 +207,22 @@ python ../../rtcaps/bin/rtcaps_matcher.py
        --out_dir ./ \
        --out_prefix esam \
        -e esam \
-       --svr_path training_svr.pkl \
-       --svr_win_activate
+       --match_method svr \
+       --match_path training_svr.pkl \
+       --match_win_activate
+```
+Or the following for mask method mode:
+```bash
+python ../../rtcaps/bin/rtcaps_matcher.py
+       --nvols 1200 \
+       --mask GMribbon_R4Feed.nii \
+       --out_dir ./ \
+       --out_prefix esam \
+       -e esam \
+       --match_method mask_method \
+       --match_path mask_method.template_data.npz.npz \
+       --hit_thr 0.7 # edit to your liking
+       --match_win_activate
 ```
 ***
 ***
