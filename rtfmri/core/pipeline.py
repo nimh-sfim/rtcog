@@ -240,7 +240,7 @@ class Pipeline:
         start = time.perf_counter()
         for step in self.steps:
             t0 = time.perf_counter()
-            step.run(self)
+            self.processed_tr[:] = step.run(self)
             t1 = time.perf_counter()
             print(f"{step.__class__.__name__} took {t1 - t0:.6f} seconds")
         end = time.perf_counter()

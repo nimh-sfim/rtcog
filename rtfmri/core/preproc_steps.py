@@ -16,7 +16,7 @@ class PreprocStep:
     Each subclass must implement a `run(pipeline)` method, which:
       - Reads `pipeline.processed_tr` (a numpy array of shape (N_voxels, 1))
       - Performs its step-specific transformation
-      - Updates `pipeline.processed_tr` with a new numpy array of the same shape
+      - Returns a numpy array of the same shape
       
     Each subclass can also implement `initialize_array(pipeline)`, `run_discard(pipeline)`,
     and `save_nifti(pipeline)` if you want to save its nifti file at the end of the run.
@@ -88,7 +88,7 @@ class EMAStep(PreprocStep):
         if self.save: 
             pipeline.Data_EMA[:, pipeline.t] = ema_data_out.squeeze()
         
-        pipeline.processed_tr = ema_data_out
+        return ema_data_out
     
     def save_nifti(self, pipeline):
         if self.save:
@@ -145,7 +145,7 @@ class iGLMStep(PreprocStep):
             pipeline.Data_iGLM[:, pipeline.t] = iGLM_data_out.squeeze()
             self.iGLM_Coeffs = np.append(self.iGLM_Coeffs, Bn, axis=2) 
 
-        pipeline.processed_tr = iGLM_data_out
+        return iGLM_data_out
 
     def save_nifti(self, pipeline):
         if self.save:
@@ -192,7 +192,7 @@ class KalmanStep(PreprocStep):
         if self.save:
             pipeline.Data_kalman[:, pipeline.t] = klm_data_out.squeeze()
         
-        pipeline.processed_tr = klm_data_out
+        return klm_data_out
 
     def save_nifti(self, pipeline):
         if self.save:
@@ -212,7 +212,7 @@ class SmoothStep(PreprocStep):
         if self.save:
             pipeline.Data_smooth[:, pipeline.t] = smooth_out.squeeze()
             
-        pipeline.processed_tr = smooth_out
+        return smooth_out
     
     def save_nifti(self, pipeline):
         if self.save:
@@ -232,7 +232,7 @@ class SnormStep(PreprocStep):
         if self.save:
             pipeline.Data_norm[:, pipeline.t] = norm_out.squeeze()
         
-        pipeline.processed_tr = norm_out
+        return norm_out
     
     def save_nifti(self, pipeline):
         if self.save:
