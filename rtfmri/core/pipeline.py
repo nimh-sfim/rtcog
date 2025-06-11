@@ -188,7 +188,7 @@ class Pipeline:
             log.debug(f'[t={self.t},n={self.n}] Init - Data_FromAFNI.shape {self.Data_FromAFNI.shape}')
 
         for step in self.steps:
-            step.initialize_array(self)
+            step.start_step(self)
             step.run_discard_volumes(self)
 
         return 1
@@ -238,18 +238,15 @@ class Pipeline:
             self.Data_FromAFNI = np.hstack((self.Data_FromAFNI[:,-1][:,np.newaxis],this_t_data[:, np.newaxis]))  # Only keep this one and previous
             log.debug('[t=%d,n=%d] Online - Input - Data_FromAFNI.shape %s' % (self.t, self.n, str(self.Data_FromAFNI.shape)))
 
-        start = time.perf_counter()
         for func in self.run_funcs:
-            t0 = time.perf_counter()
             self.processed_tr[:] = func(self)
-            t1 = time.perf_counter()
-            print(f"{func.__name__} took {t1 - t0:.6f} seconds")
-        end = time.perf_counter()
 
-        print(f"Full pipeline took {end - start:.6f} seconds")
 
         
+        start = time.perf_counter()
         self.Data_processed = np.append(self.Data_processed, self.processed_tr, axis=1)
+        end = time.perf_counter()
+        print(f"Append took {end - start:.6f} seconds")
 
         return self.processed_tr
 
@@ -278,6 +275,7 @@ class Pipeline:
             snap_path = osp.join(OUTPUT_DIR, f'snapshots.npz')
             np.savez(snap_path, **var_dict) 
             log.info(f'Snapshot saved to OUTPUT_DIR at {snap_path}')
+        
         
     def save_motion_estimates(self):
         self.motion_estimates = [item for sublist in self.motion_estimates for item in sublist]

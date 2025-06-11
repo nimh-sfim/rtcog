@@ -18,8 +18,11 @@ class PreprocStep:
       - Performs its step-specific transformation
       - Returns a numpy array of the same shape
       
-    Each subclass can also implement `initialize_array(pipeline)`, `run_discard(pipeline)`,
-    and `save_nifti(pipeline)` if you want to save its nifti file at the end of the run.
+    Each subclass can also implement `start_step(pipeline)` to initlialize any variables 
+    during the first TR that require access to pipeline's attributes.
+    
+    You can also implement `run_discard(pipeline)` and `save_nifti(pipeline)` if you want to
+    save its nifti file at the end of the run.
 
     Limitations:
       - Input/output data shape must be (N_voxels, 1).
@@ -48,13 +51,13 @@ class PreprocStep:
     def get_class(cls, name):
         return cls.registry.get(name.lower())
 
-    def initialize_array(self, pipeline):
-        """Optional: Handle discarded volumes (e.g., append zero columns)."""
+    def start_step(self, pipeline):
+        """Optional: Define variables needed before processing begins (e.g., for saving data)."""
         # NOTE: can use setattr to define variable names dynamically to make this more easily subclassed, but might be too confusing?
         pass
 
     def run_discard_volumes(self, pipeline):
-        """Optional: Define arrays needed before processing begins (e.g., for saving data)."""
+        """Optional: Handle discarded volumes (e.g., append zeros to arrays)."""
         pass
     
     def run(self, pipeline):
@@ -69,13 +72,14 @@ class PreprocStep:
         out_path = osp.join(pipeline.out_dir, pipeline.out_prefix+file_suffix)
         unmask_fMRI_img(data, pipeline.mask_img, out_path)
 
+
 class EMAStep(PreprocStep):
     def __init__(self, save, ema_th=0.98):
         super().__init__(save)
         self.EMA_th = ema_th
         self.EMA_filt = None
 
-    def initialize_array(self, pipeline):
+    def start_step(self, pipeline):
         if self.save:
             pipeline.Data_EMA = np.zeros((pipeline.Nv, pipeline.Nt))
     
@@ -94,6 +98,7 @@ class EMAStep(PreprocStep):
         if self.save:
             self.prep_file(pipeline.Data_EMA, '.pp_EMA.nii', pipeline)
     
+
 class iGLMStep(PreprocStep):
     def __init__(self, save):
         super().__init__(save)
@@ -102,7 +107,7 @@ class iGLMStep(PreprocStep):
         if self.save:
             self.iGLM_Coeffs = None
         
-    def initialize_array(self, pipeline):
+    def start_step(self, pipeline):
         if pipeline.iGLM_motion:
             self.iGLM_num_regressors = pipeline.iGLM_polort + 6
             self.nuisance_labels = ['Polort'+str(i) for i in np.arange(pipeline.iGLM_polort)] + ['roll','pitch','yaw','dS','dL','dP']
@@ -117,13 +122,12 @@ class iGLMStep(PreprocStep):
 
         if self.save:
             pipeline.Data_iGLM = np.zeros((pipeline.Nv, pipeline.Nt))
-            self.iGLM_Coeffs = np.zeros((pipeline.Nv, self.iGLM_num_regressors, 1))
+            self.iGLM_Coeffs = np.zeros((pipeline.Nv, self.iGLM_num_regressors, pipeline.Nt))
 
     def run_discard_volumes(self, pipeline):
         if self.save:
             pipeline.Data_iGLM[:, pipeline.t] = np.zeros((pipeline.Nv,))
-            self.iGLM_Coeffs = np.append(self.iGLM_Coeffs, np.zeros((pipeline.Nv, self.iGLM_num_regressors,1)), axis=2)
-            log.debug("mesasge")
+            self.iGLM_Coeffs[:, :, pipeline.t] = 0
             
     def run(self, pipeline): 
         try:
@@ -143,7 +147,7 @@ class iGLMStep(PreprocStep):
 
         if self.save:
             pipeline.Data_iGLM[:, pipeline.t] = iGLM_data_out.squeeze()
-            self.iGLM_Coeffs = np.append(self.iGLM_Coeffs, Bn, axis=2) 
+            self.iGLM_Coeffs[:, :, pipeline.t] = np.squeeze(Bn, axis=2)
 
         return iGLM_data_out
 
@@ -153,6 +157,8 @@ class iGLMStep(PreprocStep):
             for i, lab in enumerate(self.nuisance_labels):
                 data = self.iGLM_Coeffs[:,i,:]
                 unmask_fMRI_img(data, pipeline.mask_img, osp.join(pipeline.out_dir, pipeline.out_prefix+'.pp_iGLM_'+lab+'.nii'))
+
+
 class KalmanStep(PreprocStep):
     def __init__(self, save):
         super().__init__(save)
@@ -161,8 +167,7 @@ class KalmanStep(PreprocStep):
         self.fPositDerivSpike = None
         self.fNegatDerivSpike = None
         
-    def initialize_array(self, pipeline):
-        self.pool = pipeline.pool
+    def start_step(self, pipeline):
         self.S_x = np.zeros(pipeline.Nv)
         self.S_P = np.zeros(pipeline.Nv) 
         self.fPositDerivSpike = np.zeros(pipeline.Nv)
@@ -176,7 +181,6 @@ class KalmanStep(PreprocStep):
             pipeline.Data_kalman[:, pipeline.t] = np.zeros((pipeline.Nv,))
 
     def run(self, pipeline):
-        t = pipeline.t
         klm_data_out, S_x_new, S_P_new, fPos_new, fNeg_new = rt_kalman_vol(
             pipeline.n,
             pipeline.t,
@@ -187,7 +191,7 @@ class KalmanStep(PreprocStep):
             self.fPositDerivSpike,
             self.fNegatDerivSpike,
             pipeline.n_cores,
-            self.pool,
+            pipeline.pool,
         )
 
         self.S_x[:] = S_x_new.ravel()
@@ -196,7 +200,7 @@ class KalmanStep(PreprocStep):
         self.fNegatDerivSpike[:] = fNeg_new.ravel()
 
         if self.save:
-            pipeline.Data_kalman[:, t] = klm_data_out.squeeze()
+            pipeline.Data_kalman[:, pipeline.t] = klm_data_out.squeeze()
 
         return klm_data_out
 
@@ -204,8 +208,9 @@ class KalmanStep(PreprocStep):
         if self.save:
             self.prep_file(pipeline.Data_kalman, '.pp_LPfilter.nii', pipeline)
 
+
 class SmoothStep(PreprocStep):
-    def initialize_array(self, pipeline):
+    def start_step(self, pipeline):
         if self.save:
             pipeline.Data_smooth = np.zeros((pipeline.Nv, pipeline.Nt))
 
@@ -224,8 +229,9 @@ class SmoothStep(PreprocStep):
         if self.save:
             self.prep_file(pipeline.Data_smooth, '.pp_Smooth.nii', pipeline)
 
+
 class SnormStep(PreprocStep):
-    def initialize_array(self, pipeline):
+    def start_step(self, pipeline):
         if self.save:
             pipeline.Data_norm = np.zeros((pipeline.Nv, pipeline.Nt))
 
