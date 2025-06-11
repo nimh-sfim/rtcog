@@ -9,11 +9,15 @@ sys.path.insert(0, osp.abspath(osp.join(osp.dirname(__file__), '../../../')))
 
 from preproc_steps import PreprocStep
 from preproc_steps import KALMAN, SMOOTH
+from core.exceptions import VolumeOverflowError
 from utils.core import welford
-from utils.rt_functions import kalman_filter_mv, gen_polort_regressors
+from utils.rt_functions import kalman_filter_mv
 from utils.log import get_logger
 from utils.fMRI import unmask_fMRI_img
 from paths import OUTPUT_DIR
+
+import time
+
 
 log = get_logger()
 
@@ -96,6 +100,7 @@ class Pipeline:
         self.step_opts = options.steps
 
         self.build_steps()
+        self.run_funcs = [step.run for step in self.steps]
 
         self.FWHM = options.FWHM # FWHM for Spatial Smoothing in [mm]
         
@@ -177,25 +182,25 @@ class Pipeline:
             if self.mask_Nv != self.Nv:
                 log.error(f'Discrepancy across masks [data Nv = {self.Nv}, mask Nv = {self.mask_Nv}]')
                 sys.exit(-1)
-        self.Data_FromAFNI = np.array(this_t_data[:,np.newaxis])
-        self.Data_processed = np.zeros((self.Nv, 1)) # Final output
-        
-        if self.save_orig:
-            log.debug(f'[t={self.t},n={self.n}] Init - Data_FromAFNI.shape {self.Data_FromAFNI.shape}')
 
+        self.Data_FromAFNI = np.zeros((self.Nv, self.Nt))
+        self.Data_FromAFNI[:, self.t] = this_t_data
+        log.debug(f'[t={self.t},n={self.n}] Init - Data_FromAFNI.shape {self.Data_FromAFNI.shape}')
+    
+        self.Data_processed = np.zeros((self.Nv, self.Nt)) # Final output
+        
         for step in self.steps:
-            step.initialize_array(self)
+            step.start_step(self)
+            step.run_discard_volumes(self)
 
         return 1
     
     def process_discard(self, this_t_data):
         """Append a bunch of zeros for volumes we will be discarding"""
-        if self.save_orig: 
-            self.Data_FromAFNI = np.append(self.Data_FromAFNI, this_t_data[:, np.newaxis], axis=1)
-        else:
-            self.Data_FromAFNI = np.hstack((self.Data_FromAFNI[:,-1][:,np.newaxis], this_t_data[:, np.newaxis]))  # Only keep this one and previous
+        self.Data_FromAFNI[:, self.t] = this_t_data
+            
         log.debug(f'[t={self.t},n={self.n}] Discard - Data_FromAFNI.shape {self.Data_FromAFNI.shape}')
-        self.Data_processed = np.append(self.Data_processed, np.zeros((self.Nv,1)), axis=1)
+        self.Data_processed[:, self.t] = 0
 
         for step in self.steps:
             step.run_discard_volumes(self)
@@ -226,16 +231,15 @@ class Pipeline:
         
         self.run_welford(this_t_data)
         
-        if self.save_orig:
-            self.Data_FromAFNI = np.append(self.Data_FromAFNI,this_t_data[:, np.newaxis], axis=1)
-        else:
-            self.Data_FromAFNI = np.hstack((self.Data_FromAFNI[:,-1][:,np.newaxis],this_t_data[:, np.newaxis]))  # Only keep this one and previous
-            log.debug('[t=%d,n=%d] Online - Input - Data_FromAFNI.shape %s' % (self.t, self.n, str(self.Data_FromAFNI.shape)))
+        try:
+            self.Data_FromAFNI[:, self.t] = this_t_data
+        except IndexError:
+            raise VolumeOverflowError()
 
-        for step in self.steps:
-            step.run(self)
+        for func in self.run_funcs:
+            self.processed_tr[:] = func(self)
         
-        self.Data_processed = np.append(self.Data_processed, self.processed_tr, axis=1)
+        self.Data_processed[:, self.t] = self.processed_tr[:, 0]
 
         return self.processed_tr
 
@@ -256,7 +260,7 @@ class Pipeline:
                 'Data_EMA': self.Data_EMA,
                 'Data_iGLM': self.Data_iGLM,
                 'Data_smooth': self.Data_smooth,
-                # 'Data_kalman': self.Data_kalman,
+                # 'Data_kalman': np.concatenate(self.Data_kalman, axis=1),
                 'Data_FromAFNI': self.Data_FromAFNI,
                 'Data_processed': self.Data_processed
             }
@@ -286,7 +290,7 @@ class Pipeline:
             out_labels.append('.orig.nii')
         
         for variable, file_suffix in zip(out_vars, out_labels):
-            unmask_fMRI_img(variable, self.mask_img, osp.join(self.out_dir,self.out_prefix+file_suffix))
+            unmask_fMRI_img(np.array(variable), self.mask_img, osp.join(self.out_dir,self.out_prefix+file_suffix))
         
         for step in self.steps:
             step.save_nifti(self)

@@ -3,7 +3,6 @@ import sys
 import argparse
 import yaml
 
-# TODO: allow yaml to define step order, but have CLI override do_operations
 class Options:
      """
      Configuration object for the real-time fMRI pipeline.
@@ -87,18 +86,9 @@ class Options:
           parser_exp.add_argument("--screen", help="Monitor to use", action="store", dest="screen",type=int)
           parser_exp.add_argument("--q_path", help="The path to the questions json file containing the question stimuli. If not a full path, it will look for the file in RESOURCES_DIR", type=str, dest='q_path', action="store")
 
-          # parser_dec = parser.add_argument_group('Matching Options')
-          # parser_dec.add_argument("--matcher_type",  help="The matching algorithm to use.", dest="matcher_type", action="store", type=str)
-          # parser_dec.add_argument("--match_start", help="Volume when matching should start. When we think iGLM is sufficient_stable", dest="match_start", action="store", type=int)
-          # parser_dec.add_argument("--svr_path", help="Path to pre-trained SVR models", dest="svr_path", action="store", type=Options.file_exists)
-          # parser_dec.add_argument("--zscore_thr", help="Z-score threshold for deciding hits", dest="zscore_thr", action="store", type=float)
-          # parser_dec.add_argument("--nconsec_vols", help="Number of consecutive vols over threshold required for a hit", dest="nconsec_vols", action="store", type=int)
-          # parser_dec.add_argument("--do_win", help="Activate windowing of individual volumes prior to hit estimation", dest="hit_dowin", action="store_true", default=None)
-          # parser_dec.add_argument("--svr_win_wl", help='Number of volumes for SVR windowing step', dest='hit_wl', type=int, action='store')
-          # parser_dec.add_argument("--svr_mot_activate", help="Consider a hit if excessive motion", dest="hit_domot", action="store_true", default=None)
-          # parser_dec.add_argument("--svr_mot_th", help="Framewise Displacement Treshold for motion",  action="store", type=float, dest="svr_mot_th")
-          # parser_dec.add_argument("--hit_method", help="Method for deciding hits", type=str, choices=["method01"], action="store", dest="hit_method")
-          # parser_dec.add_argument("--svr_vols_noqa", help="Min. number of volumes to wait since end of last QA before declaing a new hit.", type=int, dest='vols_noqa', action="store")
+          parser_dec = parser.add_argument_group('Matching Options')
+          parser_dec.add_argument("--match_path", help="Path to inputs required for matching method", dest="match_path", action="store", type=Options.file_exists, default=None)
+          parser_dec.add_argument("--hit_thr", help="Threshold for deciding hits [%(default)s]", dest="hit_thr", action="store", type=float, default=None)
 
           parser_dec = parser.add_argument_group('Testing Options')
           parser_dec.add_argument("--snapshot", help="Run snapshot test", dest="snapshot", action="store_true", default=None)
@@ -111,6 +101,8 @@ class Options:
                     config[k] = v
           
           required_args = ['exp_type', 'mask_path', 'nvols', 'out_dir', 'out_prefix']
+          if config['exp_type'] == 'esam':
+               required_args.extend(['match_path', 'hit_thr'])
 
           missing = []
           for arg in required_args:
@@ -131,12 +123,12 @@ class Options:
      
      @classmethod
      def from_cli(cls, argv=None):
-          """Provide just a yaml file with --config/-c, with option to override some options via CLI arguments."""
+          """Provide a yaml file with --config/-c, with option to override some options via CLI arguments."""
           config = cls.parse_cli_args(argv)
           return cls(config) 
      
-     def __repr__(self):
-          return f"Options: {self.__dict__}"
+     def __str__(self):
+          return f"Options:\n{yaml.dump(self.__dict__, sort_keys=False)}"
 
      def save_config(self):
           out_path = osp.join(self.out_dir, f'{self.out_prefix}_Options.yaml')

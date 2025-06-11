@@ -16,10 +16,13 @@ class PreprocStep:
     Each subclass must implement a `run(pipeline)` method, which:
       - Reads `pipeline.processed_tr` (a numpy array of shape (N_voxels, 1))
       - Performs its step-specific transformation
-      - Updates `pipeline.processed_tr` with a new numpy array of the same shape
+      - Returns a numpy array of the same shape
       
-    Each subclass can also implement `initialize_array(pipeline)`, `run_discard(pipeline)`,
-    and `save_nifti(pipeline)` if you want to save its nifti file at the end of the run.
+    Each subclass can also implement `start_step(pipeline)` to initlialize any variables 
+    during the first TR that require access to pipeline's attributes.
+    
+    You can also implement `run_discard(pipeline)` and `save_nifti(pipeline)` if you want to
+    save its nifti file at the end of the run.
 
     Limitations:
       - Input/output data shape must be (N_voxels, 1).
@@ -48,13 +51,13 @@ class PreprocStep:
     def get_class(cls, name):
         return cls.registry.get(name.lower())
 
-    def initialize_array(self, pipeline):
-        """Optional: Handle discarded volumes (e.g., append zero columns)."""
+    def start_step(self, pipeline):
+        """Optional: Define variables needed before processing begins (e.g., for saving data)."""
         # NOTE: can use setattr to define variable names dynamically to make this more easily subclassed, but might be too confusing?
         pass
 
     def run_discard_volumes(self, pipeline):
-        """Optional: Define arrays needed before processing begins (e.g., for saving data)."""
+        """Optional: Handle discarded volumes (e.g., append zeros to arrays)."""
         pass
     
     def run(self, pipeline):
@@ -69,34 +72,34 @@ class PreprocStep:
         out_path = osp.join(pipeline.out_dir, pipeline.out_prefix+file_suffix)
         unmask_fMRI_img(data, pipeline.mask_img, out_path)
 
+
 class EMAStep(PreprocStep):
     def __init__(self, save, ema_th=0.98):
         super().__init__(save)
         self.EMA_th = ema_th
         self.EMA_filt = None
 
-    def initialize_array(self, pipeline):
+    def start_step(self, pipeline):
         if self.save:
-            pipeline.Data_EMA = np.zeros((pipeline.Nv, 1))
-            log.debug(f'[t={pipeline.t},n={pipeline.n}] Init - Data_EMA.shape      {pipeline.Data_EMA.shape}') 
+            pipeline.Data_EMA = np.zeros((pipeline.Nv, pipeline.Nt))
     
     def run_discard_volumes(self, pipeline):
         if self.save:
-            pipeline.Data_EMA = np.append(pipeline.Data_EMA, np.zeros((pipeline.Nv,1)), axis=1)
-            log.debug(f'[t={pipeline.t},n={pipeline.n}] Discard - EMA - Data_EMA.shape      {pipeline.Data_EMA.shape}')
+            pipeline.Data_EMA[:, pipeline.t] = np.zeros((pipeline.Nv,))
 
     def run(self, pipeline):
-        ema_data_out, self.EMA_filt = rt_EMA_vol(pipeline.n, self.EMA_th, pipeline.Data_FromAFNI, self.EMA_filt)
+        Data_FromAFNI = pipeline.Data_FromAFNI[:, :pipeline.t + 1]
+        ema_data_out, self.EMA_filt = rt_EMA_vol(pipeline.n, self.EMA_th, Data_FromAFNI, self.EMA_filt)
         if self.save: 
-            pipeline.Data_EMA = np.append(pipeline.Data_EMA, ema_data_out, axis=1)
-            log.debug(f'[t={pipeline.t},n={pipeline.n}] Online - EMA - Data_EMA.shape      {pipeline.Data_EMA.shape}')
+            pipeline.Data_EMA[:, pipeline.t] = ema_data_out.squeeze()
         
-        pipeline.processed_tr = ema_data_out
+        return ema_data_out
     
     def save_nifti(self, pipeline):
         if self.save:
             self.prep_file(pipeline.Data_EMA, '.pp_EMA.nii', pipeline)
     
+
 class iGLMStep(PreprocStep):
     def __init__(self, save):
         super().__init__(save)
@@ -105,7 +108,7 @@ class iGLMStep(PreprocStep):
         if self.save:
             self.iGLM_Coeffs = None
         
-    def initialize_array(self, pipeline):
+    def start_step(self, pipeline):
         if pipeline.iGLM_motion:
             self.iGLM_num_regressors = pipeline.iGLM_polort + 6
             self.nuisance_labels = ['Polort'+str(i) for i in np.arange(pipeline.iGLM_polort)] + ['roll','pitch','yaw','dS','dL','dP']
@@ -119,16 +122,13 @@ class iGLMStep(PreprocStep):
             self.legendre_pols = None
 
         if self.save:
-            pipeline.Data_iGLM = np.zeros((pipeline.Nv, 1))
-            self.iGLM_Coeffs = np.zeros((pipeline.Nv, self.iGLM_num_regressors, 1))
-            log.debug(f'[t={pipeline.t},n={pipeline.n}] Init - Data_iGLM.shape      {pipeline.Data_iGLM.shape}') 
+            pipeline.Data_iGLM = np.zeros((pipeline.Nv, pipeline.Nt))
+            self.iGLM_Coeffs = np.zeros((pipeline.Nv, self.iGLM_num_regressors, pipeline.Nt))
 
     def run_discard_volumes(self, pipeline):
         if self.save:
-            pipeline.Data_iGLM = np.append(pipeline.Data_iGLM, np.zeros((pipeline.Nv,1)), axis=1)
-            self.iGLM_Coeffs = np.append(self.iGLM_Coeffs, np.zeros((pipeline.Nv, self.iGLM_num_regressors,1)), axis=2)
-            log.debug(f'[t={pipeline.t},n={pipeline.n}] Discard - iGLM_Coeffs.shape   {self.iGLM_Coeffs.shape}')
-            log.debug(f'[t={pipeline.t},n={pipeline.n}] Discard - Data_iGLM.shape     {pipeline.Data_iGLM.shape}')
+            pipeline.Data_iGLM[:, pipeline.t] = np.zeros((pipeline.Nv,))
+            self.iGLM_Coeffs[:, :, pipeline.t] = 0
             
     def run(self, pipeline): 
         try:
@@ -147,12 +147,10 @@ class iGLMStep(PreprocStep):
         )
 
         if self.save:
-            pipeline.Data_iGLM = np.append(pipeline.Data_iGLM, iGLM_data_out, axis=1)
-            self.iGLM_Coeffs = np.append(self.iGLM_Coeffs, Bn, axis=2) 
-            log.debug(f'[t={pipeline.t},n={pipeline.n}] Online - iGLM - Data_iGLM.shape     {pipeline.Data_iGLM.shape}')
-            log.debug(f'[t={pipeline.t},n={pipeline.n}] Online - iGLM - iGLM_Coeffs.shape   {self.iGLM_Coeffs.shape}')
+            pipeline.Data_iGLM[:, pipeline.t] = iGLM_data_out.squeeze()
+            self.iGLM_Coeffs[:, :, pipeline.t] = np.squeeze(Bn, axis=2)
 
-        pipeline.processed_tr = iGLM_data_out
+        return iGLM_data_out
 
     def save_nifti(self, pipeline):
         if self.save:
@@ -161,6 +159,7 @@ class iGLMStep(PreprocStep):
                 data = self.iGLM_Coeffs[:,i,:]
                 unmask_fMRI_img(data, pipeline.mask_img, osp.join(pipeline.out_dir, pipeline.out_prefix+'.pp_iGLM_'+lab+'.nii'))
 
+
 class KalmanStep(PreprocStep):
     def __init__(self, save):
         super().__init__(save)
@@ -168,24 +167,22 @@ class KalmanStep(PreprocStep):
         self.S_P = None
         self.fPositDerivSpike = None
         self.fNegatDerivSpike = None
-
-    def initialize_array(self, pipeline):
+        
+    def start_step(self, pipeline):
         self.S_x = np.zeros(pipeline.Nv)
         self.S_P = np.zeros(pipeline.Nv) 
         self.fPositDerivSpike = np.zeros(pipeline.Nv)
         self.fNegatDerivSpike = np.zeros(pipeline.Nv)
 
         if self.save:
-            pipeline.Data_kalman = np.zeros((pipeline.Nv, 1))
-            log.debug(f'[t={pipeline.t},n={pipeline.n}] Init - Data_kalman.shape   {pipeline.Data_kalman.shape}')
+            pipeline.Data_kalman = np.zeros((pipeline.Nv, pipeline.Nt))
     
     def run_discard_volumes(self, pipeline):
         if self.save:
-            pipeline.Data_kalman = np.append(pipeline.Data_kalman, np.zeros((pipeline.Nv,1)), axis=1)
-            log.debug(f'[t={pipeline.t},n={pipeline.n}] Discard - Data_kalman.shape   {pipeline.Data_kalman.shape}')
+            pipeline.Data_kalman[:, pipeline.t] = np.zeros((pipeline.Nv,))
 
     def run(self, pipeline):
-        klm_data_out, self.S_x, self.S_P, self.fPositDerivSpike, self.fNegatDerivSpike = rt_kalman_vol(
+        klm_data_out, S_x_new, S_P_new, fPos_new, fNeg_new = rt_kalman_vol(
             pipeline.n,
             pipeline.t,
             pipeline.processed_tr,
@@ -197,58 +194,58 @@ class KalmanStep(PreprocStep):
             pipeline.n_cores,
             pipeline.pool,
         )
-        
+
+        self.S_x[:] = S_x_new.ravel()
+        self.S_P[:] = S_P_new.ravel()
+        self.fPositDerivSpike[:] = fPos_new.ravel()
+        self.fNegatDerivSpike[:] = fNeg_new.ravel()
+
         if self.save:
-            pipeline.Data_kalman = np.append(pipeline.Data_kalman, klm_data_out, axis=1)
-            log.debug(f'[t={pipeline.t},n={pipeline.n}] Online - Kalman - Data_kalman.shape     {pipeline.Data_kalman.shape}')
-        
-        pipeline.processed_tr = klm_data_out
+            pipeline.Data_kalman[:, pipeline.t] = klm_data_out.squeeze()
+
+        return klm_data_out
 
     def save_nifti(self, pipeline):
         if self.save:
             self.prep_file(pipeline.Data_kalman, '.pp_LPfilter.nii', pipeline)
 
+
 class SmoothStep(PreprocStep):
-    def initialize_array(self, pipeline):
+    def start_step(self, pipeline):
         if self.save:
-            pipeline.Data_smooth = np.zeros((pipeline.Nv, 1))
+            pipeline.Data_smooth = np.zeros((pipeline.Nv, pipeline.Nt))
 
     def run_discard_volumes(self, pipeline):
         if self.save:
-            pipeline.Data_smooth = np.append(pipeline.Data_smooth, np.zeros((pipeline.Nv,1)), axis=1)
-            log.debug(f'[t={pipeline.t},n={pipeline.n}] Online - Discard - Data_smooth.shape   {pipeline.Data_smooth.shape}')
+            pipeline.Data_smooth[:, pipeline.t] = np.zeros((pipeline.Nv,))
 
     def run(self, pipeline):
         smooth_out = rt_smooth_vol(pipeline.processed_tr, pipeline.mask_img, fwhm=pipeline.FWHM)
         if self.save:
-            pipeline.Data_smooth = np.append(pipeline.Data_smooth, smooth_out, axis=1)
-            log.debug(f'[t={pipeline.t},n={pipeline.n}] Online - Smooth - Data_smooth.shape   {pipeline.Data_smooth.shape}')
-            log.debug(f'[t={pipeline.t},n={pipeline.n}] Online - Smooth - smooth_out.shape      {smooth_out.shape}')
+            pipeline.Data_smooth[:, pipeline.t] = smooth_out.squeeze()
             
-        pipeline.processed_tr = smooth_out
+        return smooth_out
     
     def save_nifti(self, pipeline):
         if self.save:
             self.prep_file(pipeline.Data_smooth, '.pp_Smooth.nii', pipeline)
 
+
 class SnormStep(PreprocStep):
-    def initialize_array(self, pipeline):
+    def start_step(self, pipeline):
         if self.save:
-            pipeline.Data_norm = np.zeros((pipeline.Nv, 1))
-            log.debug(f'[t={pipeline.t},n={pipeline.n}] Init - Data_norm.shape     {pipeline.Data_norm.shape}')
+            pipeline.Data_norm = np.zeros((pipeline.Nv, pipeline.Nt))
 
     def run_discard_volumes(self, pipeline):
         if self.save:
-            pipeline.Data_norm = np.append(pipeline.Data_norm, np.zeros((pipeline.Nv,1)), axis=1)
-            log.debug(f'[t={pipeline.t},n={pipeline.n}] Discard - Data_norm.shape     {pipeline.Data_norm.shape}')
+            pipeline.Data_norm[:, pipeline.t] = np.zeros((pipeline.Nv,))
 
     def run(self, pipeline):
         norm_out = rt_snorm_vol(pipeline.processed_tr)
         if self.save:
-            pipeline.Data_norm = np.append(pipeline.Data_norm, norm_out, axis=1)
-            log.debug(f'[t={pipeline.t},n={pipeline.n}] Online - Snorm - Data_norm.shape   {pipeline.Data_norm.shape}')
+            pipeline.Data_norm[:, pipeline.t] = norm_out.squeeze()
         
-        pipeline.processed_tr = norm_out
+        return norm_out
     
     def save_nifti(self, pipeline):
         if self.save:
