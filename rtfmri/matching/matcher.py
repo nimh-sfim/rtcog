@@ -1,5 +1,7 @@
 import sys
+import os.path as osp
 import pickle
+
 import numpy as np
 
 sys.path.append('..')
@@ -11,8 +13,9 @@ log = get_logger()
 
 class Matcher:
     """Base class for matching processed TR data to given templates"""
-    def __init__(self, match_opts, match_path):
+    def __init__(self, match_opts, match_path, Nt):
         self.match_start = match_opts.match_start # First volume to do decoding on
+        self.Nt = Nt
         self.scores = None
         self.Ntemplates = None
         self.func = None
@@ -22,6 +25,7 @@ class Matcher:
 
         if self.do_win:
             self.hit_win_weights = create_win(self.hit_wl)
+
     
     def _do_windowing(self, t, tr_data): 
         # TODO: fix bug (need to save last few TRs in buffer)
@@ -35,20 +39,17 @@ class Matcher:
         if self.do_win:
             tr_data = self._do_windowing(t, tr_data)
         
-        if t < self.match_start: # Wait until after iGLM is stable to perform matching
-            self.scores = np.append(self.scores, np.zeros((self.Ntemplates,1)), axis=1)
-        else:
+        if t >= self.match_start: # Wait until after iGLM is stable to perform matching
             this_t_scores = self.func(np.squeeze(tr_data), self.input, self.template_labels)
-            self.scores   = np.append(self.scores, this_t_scores, axis=1)
+            self.scores[:, t] = this_t_scores.ravel()
         log.debug(f'[t={t},n={n}] Online - Matching - scores.shape   {self.scores.shape}')
         
         return self.scores
 
-
 class SVRMatcher(Matcher):
     """Match to templates using pretrained SVR model"""
-    def __init__(self, match_opts, match_path):
-        super().__init__(match_opts, match_path)
+    def __init__(self, match_opts, match_path, Nt):
+        super().__init__(match_opts, match_path, Nt)
 
         if match_path is None:
             self.log.error('SVR Model not provided. Program will exit.')
@@ -69,12 +70,12 @@ class SVRMatcher(Matcher):
         self.template_labels = list(self.input.keys())
         log.info(f'List of templates to be tested: {self.template_labels}')
         
-        self.scores = np.zeros((self.Ntemplates, 1))
+        self.scores = np.zeros((self.Ntemplates, self.Nt))
 
 class MaskMatcher(Matcher):
     """Match to templates using pretrained Mask Method"""
-    def __init__(self, match_opts, match_path):
-        super().__init__(match_opts, match_path)
+    def __init__(self, match_opts, match_path, Nt):
+        super().__init__(match_opts, match_path, Nt)
 
         if match_path is None:
             self.log.error('Template info for match method not provided. Program will exit.')
@@ -94,4 +95,4 @@ class MaskMatcher(Matcher):
         self.Ntemplates = len(self.template_labels)
         log.info(f'List of templates to be tested: {self.template_labels}')
         
-        self.scores = np.zeros((self.Ntemplates, 1))
+        self.scores = np.zeros((self.Ntemplates, self.Nt))

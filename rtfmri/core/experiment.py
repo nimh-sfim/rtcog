@@ -4,6 +4,8 @@ from types import SimpleNamespace
 
 import numpy as np
 import pandas as pd
+import holoviews as hv
+import hvplot.pandas
 
 from core.pipeline import Pipeline
 from matching.matcher import SVRMatcher, MaskMatcher
@@ -176,17 +178,22 @@ class ESAMExperiment(Experiment):
         matching_opts = SimpleNamespace(**options.matching)
         hit_opts = SimpleNamespace(**options.hits)
 
+        self.hit_thr = options.hit_thr
+
         self.vols_noqa = matching_opts.vols_noqa
+        self.match_method = matching_opts.match_method
         
         # TODO: add in other matcher options as I make them
-        if matching_opts.match_method == "svr":
-            self.matcher = SVRMatcher(matching_opts, options.match_path)
-        elif matching_opts.match_method == 'mask_method':
-            self.matcher = MaskMatcher(matching_opts, options.match_path)
+        if self.match_method == "svr":
+            self.matcher = SVRMatcher(matching_opts, options.match_path, self.Nt)
+        elif self.match_method == 'mask_method':
+            self.matcher = MaskMatcher(matching_opts, options.match_path, self.Nt)
 
-        self.hits = np.zeros((self.matcher.Ntemplates, 1))
-        self.hit_detector = HitDetector(hit_opts, options.hit_thr)
+        self.hits = np.zeros((self.matcher.Ntemplates, self.Nt))
+        self.hit_detector = HitDetector(hit_opts, self.hit_thr)
         self.last_hit = None
+
+        self.outhtml = osp.join(self.out_dir, self.out_prefix+'.dyn_report')
         
         
     def compute_TR_data(self, motion, extra):
@@ -212,13 +219,90 @@ class ESAMExperiment(Experiment):
         else:
             hit = self.hit_detector.detect(self.t, template_labels, scores)
         
-        self.hits = np.append(self.hits, np.zeros((self.matcher.Ntemplates,1)), axis=1)
-
         if hit:
             self.log.info(f'[t={self.t},n={self.n}] =============================================  CAP hit [{hit}]')
             self.qa_onsets.append(self.t)
-            self.hits[template_labels.index(hit),self.t] = 1
+            self.hits[template_labels.index(hit), self.t] = 1
             self.mp_evt_hit.set()
             self.last_hit = hit
             
         return 1
+
+    def write_hit_arrays(self):
+        match_scores_path = osp.join(self.out_dir,self.out_prefix+f'.{self.match_method}_scores')
+        np.save(match_scores_path, self.matcher.scores)
+        self.log.info(f"Saved match scores to {match_scores_path + '.npy'}")
+
+        hits_path = osp.join(self.out_dir,self.out_prefix+'.hits')
+        np.save(hits_path, self.hits)
+        self.log.info('Saved hits info to %s' % hits_path)
+    
+    def write_dynamic_report(self):
+        match_Scores_DF = pd.DataFrame(self.matcher.scores.T, columns=self.matcher.template_labels)
+        match_Scores_DF['TR'] = match_Scores_DF.index
+        match_scores_curve     = match_Scores_DF.hvplot(legend='top', label='match Scores', x='TR').opts(width=1500)
+        Threshold_line      = hv.HLine(self.hit_thr).opts(color='black', line_dash='dashed', line_width=1)
+        Hits_ToPlot = self.hits.T * self.matcher.scores.T
+        Hits_ToPlot[Hits_ToPlot==0.0] = None
+        Hits_DF = pd.DataFrame(Hits_ToPlot, columns=self.matcher.template_labels)
+        Hits_DF['TR'] = Hits_DF.index
+        Hits_Marks  = Hits_DF.hvplot(
+            legend='top', label='match Scores', 
+            x='TR', kind='scatter', marker='circle', 
+            alpha=0.5, s=100).opts(width=1500)
+
+        qa_boxes = []
+        for (on,off) in zip(self.qa_onsets,self.qa_offsets):
+            qa_boxes.append(hv.Box(x=on+((off-on)/2),y=0,spec=(off-on,10)))
+        QA_periods = hv.Polygons(qa_boxes).opts(alpha=.2, color='blue', line_color=None)
+        wait_boxes = []
+        for off in self.qa_offsets:
+            wait_boxes.append(hv.Box(x=off+(self.vols_noqa/2),y=0,spec=(self.vols_noqa,10)))
+        WAIT_periods = hv.Polygons(wait_boxes).opts(alpha=.2, color='cyan', line_color=None)
+        plot_layout = (match_scores_curve * Threshold_line * Hits_Marks * QA_periods * WAIT_periods).opts(title=f'Experimental Run Results:{self.out_prefix}, {self.match_method}')
+        renderer    = hv.renderer('bokeh')
+        renderer.save(plot_layout, self.outhtml)
+        self.log.info('Dynamic Report written to disk: [%s.html]' % self.outhtml)
+        self.log.info('qa_onsets:  %s' % str(self.qa_onsets))
+        self.log.info('qa_offsets: %s' % str(self.qa_offsets))
+    
+    def write_hit_maps(self):
+        # Write out the maps associated with the hits
+        if self.exp_type == "esam" or self.exp_type == "esam_test":
+            Hits_DF = pd.DataFrame(self.hits.T, columns=self.matcher.template_labels)
+            for template in self.matcher.template_labels:
+                this_template_hits = Hits_DF[template].sum()
+                if this_template_hits > 0: # There were hits for this particular template
+                    hit_ID = 1
+                    for vol in Hits_DF[Hits_DF[template]==True].index:
+                        if self.matcher.do_win == True:
+                            this_template_vols = vol-np.arange(self.matcher.hit_wl+self.hit_detector.nconsec_vols-1)
+                        else:
+                            this_template_vols = vol-np.arange(self.hit_detector.nconsec_vols)
+                        out_file = osp.join(self.out_dir, self.out_prefix + '.Hit_'+template+'_'+str(hit_ID).zfill(2)+'.nii')
+                        self.log.info(' - final_steps - [%s-%d]. Contributing Vols: %s | File: %s' % (template, hit_ID,str(this_template_vols), out_file ))
+                        this_template_InMask  = self.pipe.Data_norm[:,this_template_vols].mean(axis=1)
+                        self.log.debug(' - final_steps - this_template_InMask.shape %s' % str(this_template_InMask.shape))
+                        unmask_fMRI_img(this_template_InMask, self.mask_img, out_file)
+                        hit_ID += 1
+    
+    def write_qa(self):
+        # Write out QA_Onsers and QA_Offsets
+        with open(self.qa_onsets_path,'w') as file:
+            for onset in self.qa_onsets:
+                file.write("%i\n" % onset)
+        with open(self.qa_offsets_path,'w') as file:
+            for offset in self.qa_offsets:
+                file.write("%i\n" % offset)
+
+    def end_run(self, save=True):
+        """Finalize the experiment by saving all outputs and signaling completion."""
+        if save:
+            self.pipe.final_steps()
+
+        self.write_hit_arrays()
+        self.write_dynamic_report()
+        self.write_hit_maps()
+        self.write_qa()
+
+        self.mp_evt_end.set()
