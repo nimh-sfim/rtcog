@@ -20,7 +20,7 @@ from config                       import RESOURCES_DIR
 from rtcap_lib.receiver_interface import CustomReceiverInterface
 from rtcap_lib.core               import welford
 from rtcap_lib.rt_functions       import rt_EMA_vol, rt_regress_vol, rt_kalman_vol, kalman_filter_mv
-from rtcap_lib.rt_functions       import rt_smooth_vol, rt_snorm_vol, rt_svrscore_vol
+from rtcap_lib.rt_functions       import rt_smooth_vol, rt_snorm_vol, rt_svrscore_vol, rt_maskscore_vol
 from rtcap_lib.rt_functions       import gen_polort_regressors
 from rtcap_lib.fMRI               import load_fMRI_file, unmask_fMRI_img
 from rtcap_lib.svr_methods        import is_hit_rt01
@@ -92,6 +92,12 @@ class Experiment:
         self.save_orig     = options.save_orig
         self.save_all      = options.save_all
         
+        self.match_method = options.match_method
+        if self.match_method == 'svr':
+            self.rt_score_func = rt_svrscore_vol
+        elif self.match_method == 'mask_method':
+            self.rt_score_func = rt_maskscore_vol
+
         if self.save_all:
             self.save_orig   = True
             self.save_ema    = True
@@ -240,9 +246,9 @@ class Experiment:
             log.info('Number of Voxels Nv=%d' % self.Nv)
             if self.exp_type == "esam" or self.exp_type == "esam_test":
                 # These two variables are only needed if this is an experimental
-                log.debug('[t=%d,n=%d] Initializing hits and svrscores' % (self.t, self.n))
+                log.debug('[t=%d,n=%d] Initializing hits and match_scores' % (self.t, self.n))
                 self.hits             = np.zeros((self.Ntemplates, 1))
-                self.svrscores        = np.zeros((self.Ntemplates, 1))
+                self.match_scores        = np.zeros((self.Ntemplates, 1))
 
             self.welford_M   = np.zeros(self.Nv)
             self.welford_S   = np.zeros(self.Nv)
@@ -291,9 +297,9 @@ class Experiment:
             if self.exp_type == "esam" or self.exp_type == "esam_test":
                 # These two variables are only needed if this is an experimental
                 self.hits      = np.append(self.hits,      np.zeros((self.Ntemplates,1)),  axis=1)
-                self.svrscores = np.append(self.svrscores, np.zeros((self.Ntemplates,1)), axis=1)
+                self.match_scores = np.append(self.match_scores, np.zeros((self.Ntemplates,1)), axis=1)
                 log.debug('[t=%d,n=%d] Discard - hits.shape      %s' % (self.t, self.n, str(self.hits.shape)))
-                log.debug('[t=%d,n=%d] Discard - svrscores.shape %s' % (self.t, self.n, str(self.svrscores.shape)))
+                log.debug('[t=%d,n=%d] Discard - match_scores.shape %s' % (self.t, self.n, str(self.match_scores.shape)))
             
             log.debug(f'Discard volume, self.Data_FromAFNI[:10]: {self.Data_FromAFNI[:10]}')
             return 1
@@ -385,16 +391,16 @@ class Experiment:
             else:
                 out_data_windowed = norm_out
                 #self.Data_wind    = np.append(self.Data_wind, norm_out, axis =1)
-            log.debug('[t=%d,n=%d] Online - SVRs - out_data_windowed.shape   %s' % (self.t, self.n, str(out_data_windowed.shape)))
+            log.debug('[t=%d,n=%d] Online - Matching - out_data_windowed.shape   %s' % (self.t, self.n, str(out_data_windowed.shape)))
 
-            # Compute SVR scores (if needed)
+            # Compute match scores (if needed)
             # ==============================
             if self.t < self.dec_start_vol:   # We don't want to start decoding before iGLM is stable.
-                self.svrscores = np.append(self.svrscores, np.zeros((self.Ntemplates,1)), axis=1)
+                self.match_scores = np.append(self.match_scores, np.zeros((self.Ntemplates,1)), axis=1)
             else:
-                this_t_svrscores = rt_svrscore_vol(np.squeeze(out_data_windowed), self.SVRs, self.template_labels)
-                self.svrscores   = np.append(self.svrscores, this_t_svrscores, axis=1)
-            log.debug('[t=%d,n=%d] Online - SVRs - svrscores.shape   %s' % (self.t, self.n, str(self.svrscores.shape)))
+                this_t_match_scores = self.rt_score_func(np.squeeze(out_data_windowed), self.match_inputs, self.template_labels)
+                self.match_scores   = np.append(self.match_scores, this_t_match_scores, axis=1)
+            log.debug('[t=%d,n=%d] Online - Matching - match_scores.shape   %s' % (self.t, self.n, str(self.match_scores.shape)))
 
             # Compute Hits (if needed)
             # ========================
@@ -414,8 +420,8 @@ class Experiment:
                 hit = self.hit_method_func(
                     self.t,
                     self.template_labels,
-                    self.svrscores,
-                    self.hit_zth,
+                    self.match_scores,
+                    self.hit_thr,
                     self.nconsec_vols
                 )
             
@@ -473,9 +479,9 @@ class Experiment:
                 unmask_fMRI_img(data, self.mask_img, osp.join(self.out_dir,self.out_prefix+'.pp_iGLM_'+lab+'.nii'))    
 
         if self.exp_type == "esam" or self.exp_type == "esam_test":
-            svrscores_path = osp.join(self.out_dir,self.out_prefix+'.svrscores')
-            np.save(svrscores_path,self.svrscores)
-            log.info('Saved svrscores to %s' % svrscores_path)
+            match_scores_path = osp.join(self.out_dir,self.out_prefix+f'.{self.match_method}_scores')
+            np.save(match_scores_path,self.match_scores)
+            log.info('Saved match_scores to %s' % match_scores_path)
             hits_path = osp.join(self.out_dir,self.out_prefix+'.hits')
             np.save(hits_path, self.hits)
             log.info('Saved hits info to %s' % hits_path)
@@ -483,15 +489,15 @@ class Experiment:
 
         # Write out the dynamic report for this run
         if self.exp_type == "esam" or self.exp_type == "esam_test":
-            SVR_Scores_DF       = pd.DataFrame(self.svrscores.T, columns=self.template_labels)
-            SVR_Scores_DF['TR'] = SVR_Scores_DF.index
-            SVRscores_curve     = SVR_Scores_DF.hvplot(legend='top', label='SVR Scores', x='TR').opts(width=1500)
-            Threshold_line      = hv.HLine(self.hit_zth).opts(color='black', line_dash='dashed', line_width=1)
-            Hits_ToPlot         = self.hits.T * self.svrscores.T
+            match_Scores_DF       = pd.DataFrame(self.match_scores.T, columns=self.template_labels)
+            match_Scores_DF['TR'] = match_Scores_DF.index
+            match_scores_curve     = match_Scores_DF.hvplot(legend='top', label='match Scores', x='TR').opts(width=1500)
+            Threshold_line      = hv.HLine(self.hit_thr).opts(color='black', line_dash='dashed', line_width=1)
+            Hits_ToPlot         = self.hits.T * self.match_scores.T
             Hits_ToPlot[Hits_ToPlot==0.0] = None
             Hits_DF             = pd.DataFrame(Hits_ToPlot, columns=self.template_labels)
             Hits_DF['TR']       = Hits_DF.index
-            Hits_Marks          = Hits_DF.hvplot(legend='top', label='SVR Scores', 
+            Hits_Marks          = Hits_DF.hvplot(legend='top', label='match Scores', 
                                              x='TR', kind='scatter', marker='circle', 
                                              alpha=0.5, s=100).opts(width=1500)
             qa_boxes = []
@@ -502,7 +508,7 @@ class Experiment:
             for off in self.qa_offsets:
                 wait_boxes.append(hv.Box(x=off+(self.vols_noqa/2),y=0,spec=(self.vols_noqa,10)))
             WAIT_periods = hv.Polygons(wait_boxes).opts(alpha=.2, color='cyan', line_color=None)
-            plot_layout = (SVRscores_curve * Threshold_line * Hits_Marks * QA_periods * WAIT_periods).opts(title='Experimental Run Results:'+self.out_prefix)
+            plot_layout = (match_scores_curve * Threshold_line * Hits_Marks * QA_periods * WAIT_periods).opts(title=f'Experimental Run Results:{self.out_prefix}, {self.match_method}')
             renderer    = hv.renderer('bokeh')
             renderer.save(plot_layout, self.outhtml)
             log.info(' - final_steps - Dynamic Report written to disk: [%s.html]' % self.outhtml)
@@ -557,37 +563,48 @@ class Experiment:
 
     def setup_esam_run(self, options):
         # load SVR model
-        if options.svr_path is None:
-            log.error('SVR Model not provided. Program will exit.')
+        if options.match_path is None:
+            log.error('Match file not provided. Program will exit.')
             self.mp_evt_end.set()
             sys.exit(-1)
-        self.svr_path = options.svr_path
-        try:
-            SVRs_pickle_in = open(self.svr_path, "rb")
-            self.SVRs = pickle.load(SVRs_pickle_in)
-        except OSError as ose:
-            log.error('SVR Model File opening threw OSError Exception.')
-            log.error(traceback.format_exc(ose))
-            self.mp_evt_end.set()
-            sys.exit(-1)
-        except Exception as e:
-            log.error('SVR Model File opening threw generic Exception.')
-            log.error(traceback.format_exc(e))
-            self.mp_evt_end.set()
-            sys.exit(-1)
+        self.match_path = options.match_path
+        if self.match_method == 'svr':
+            try:
+                SVRs_pickle_in = open(self.match_path, "rb")
+                self.match_inputs = pickle.load(SVRs_pickle_in)
+            except OSError as ose:
+                log.error('SVR Model File opening threw OSError Exception.')
+                log.error(traceback.format_exc(ose))
+                self.mp_evt_end.set()
+                sys.exit(-1)
+            except Exception as e:
+                log.error('SVR Model File opening threw generic Exception.')
+                log.error(traceback.format_exc(e))
+                self.mp_evt_end.set()
+                sys.exit(-1)
 
-        self.Ntemplates = len(self.SVRs.keys())
-        self.template_labels = list(self.SVRs.keys())
-        log.info('- setup_esam_run - List of CAPs to be tested: %s' % str(self.template_labels))
+            self.Ntemplates = len(self.match_inputs.keys())
+            self.template_labels = list(self.match_inputs.keys())
+
+        elif self.match_method == 'mask_method':
+            try:
+                self.match_inputs = np.load(self.match_path, allow_pickle=True)
+            except Exception as e:
+                log.error(f'Error loading mask method file: {e}')
+            
+            self.template_labels = list(self.match_inputs["labels"])
+            self.Ntemplates = len(self.template_labels)
+
+        log.info('- setup_esam_run - List of templates to be tested: %s' % str(self.template_labels))
 
         # Decoder-related initializations
         self.dec_start_vol = options.dec_start_vol # First volume to do decoding on.
         self.hit_method    = options.hit_method
-        self.hit_zth       = options.hit_zth
+        self.hit_thr       = options.hit_thr
         self.nconsec_vols  = options.nconsec_vols
         self.hit_dowin     = options.hit_dowin
         self.hit_domot     = options.hit_domot
-        self.hit_mot_th    = options.svr_mot_th
+        self.hit_mot_th    = options.match_mot_th
         self.hit_wl        = options.hit_wl
         if self.hit_dowin:
             self.hit_win_weights = create_win(self.hit_wl)
@@ -712,17 +729,18 @@ def processExperimentOptions (self, options=None):
     parser_exp.add_argument("--no_proc_chair", help="Hide crosshair during preprocessing run [%(default)s]", default=False,  action="store_true", dest='no_proc_chair')
     parser_exp.add_argument("--fscreen", help="Use full screen for Experiment [%(default)s]", default=False, action="store_true", dest="fullscreen")
     parser_exp.add_argument("--screen", help="Monitor to use [%(default)s]", default=1, action="store", dest="screen",type=int)
-    parser_dec = parser.add_argument_group('SVR/Decoding Options')
-    parser_dec.add_argument("--svr_start",  help="Volume when decoding should start. When we think iGLM is sufficient_stable [%(default)s]", default=100, dest="dec_start_vol", action="store", type=int)
-    parser_dec.add_argument("--svr_path",   help="Path to pre-trained SVR models [%(default)s]", dest="svr_path", action="store", type=file_exists, default=None)
-    parser_dec.add_argument("--svr_zth",    help="Z-score threshold for deciding hits [%(default)s]", dest="hit_zth", action="store", type=float, default=1.75)
-    parser_dec.add_argument("--svr_consec_vols",   help="Number of consecutive vols over threshold required for a hit [%(default)s]", dest="nconsec_vols", action="store", type=int, default=2)
-    parser_dec.add_argument("--svr_win_activate", help="Activate windowing of individual volumes prior to hit estimation [%(default)s]", dest="hit_dowin", action="store_true", default=False)
-    parser_dec.add_argument("--svr_win_wl", help='Number of volumes for SVR windowing step [%(default)s]', dest='hit_wl', default=4, type=int, action='store')
-    parser_dec.add_argument("--svr_mot_activate", help="Consider a hit if excessive motion [%(default)s]", dest="hit_domot", action="store_true", default=False )
-    parser_dec.add_argument("--svr_mot_th", help="Framewise Displacement Treshold for motion [%(default)s]",  action="store", type=float, dest="svr_mot_th", default=1.2)
-    parser_dec.add_argument("--svr_hit_mehod", help="Method for deciding hits [%(default)s]", type=str, choices=["method01"], default="method01", action="store", dest="hit_method")
-    parser_dec.add_argument("--svr_vols_noqa", help="Min. number of volumes to wait since end of last QA before declaing a new hit. [%(default)s]", type=int, dest='vols_noqa', default=45, action="store"),
+    parser_dec = parser.add_argument_group('Matching/Decoding Options')
+    parser_dec.add_argument("--match_method",  help="Which method to use [%(default)s]", default="svr", dest="match_method", choices=['svr', 'mask_method'], action="store", type=str)
+    parser_dec.add_argument("--match_start",  help="Volume when decoding should start. When we think iGLM is sufficient_stable [%(default)s]", default=100, dest="dec_start_vol", action="store", type=int)
+    parser_dec.add_argument("--match_path",   help="Path to inputs required for matching method", dest="match_path", action="store", type=file_exists, default=None)
+    parser_dec.add_argument("--hit_thr",    help="Threshold for deciding hits [%(default)s]", dest="hit_thr", action="store", type=float, default=1.75)
+    parser_dec.add_argument("--match_consec_vols",   help="Number of consecutive vols over threshold required for a hit [%(default)s]", dest="nconsec_vols", action="store", type=int, default=2)
+    parser_dec.add_argument("--match_win_activate", help="Activate windowing of individual volumes prior to hit estimation [%(default)s]", dest="hit_dowin", action="store_true", default=False)
+    parser_dec.add_argument("--match_win_wl", help='Number of volumes for windowing step [%(default)s]', dest='hit_wl', default=4, type=int, action='store')
+    parser_dec.add_argument("--match_mot_activate", help="Consider a hit if excessive motion [%(default)s]", dest="hit_domot", action="store_true", default=False )
+    parser_dec.add_argument("--match_mot_th", help="Framewise Displacement Treshold for motion [%(default)s]",  action="store", type=float, dest="match_mot_th", default=1.2)
+    parser_dec.add_argument("--match_hit_mehod", help="Method for deciding hits [%(default)s]", type=str, choices=["method01"], default="method01", action="store", dest="hit_method")
+    parser_dec.add_argument("--match_vols_noqa", help="Min. number of volumes to wait since end of last QA before declaing a new hit. [%(default)s]", type=int, dest='vols_noqa', default=45, action="store"),
     parser_dec.add_argument("--q_path", help="The path to the questions json file containing the question stimuli. If not a full path, it will default to look in RESOURCES_DIR", type=str, dest='q_path', default="questions_v1", action="store")
     parser_dec = parser.add_argument_group('Testing Options')
     parser_dec.add_argument("--snapshot",  help="Run snapshot test", default=False, dest="snapshot", action="store_true")
