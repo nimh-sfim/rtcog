@@ -3,6 +3,8 @@ import sys
 import argparse
 import yaml
 
+from utils.core import file_exists
+
 class Options:
      """
      Configuration object for the real-time fMRI pipeline.
@@ -22,11 +24,6 @@ class Options:
      def __init__(self, config):
          self.__dict__.update(config)
 
-     @staticmethod    
-     def file_exists(path):
-          if not osp.isfile(path):
-               raise FileNotFoundError(f"File not found: {path}")
-          return path
 
      @staticmethod
      def load_yaml(path):
@@ -62,7 +59,7 @@ class Options:
           parser_gen.add_argument("-S", "--show_data", action="store_true",help="display received data in terminal if this option is specified", default=None)
           parser_gen.add_argument("--tr", help="Repetition time [sec]", dest="tr", action="store", type=float)
           parser_gen.add_argument("--ncores", help="Number of cores to use in the parallel processing part of the code", dest="n_cores", action="store",type=int)
-          parser_gen.add_argument("--mask", help="Mask necessary for smoothing operation", dest="mask_path", action="store", type=Options.file_exists)
+          parser_gen.add_argument("--mask", help="Mask necessary for smoothing operation", dest="mask_path", action="store", type=file_exists)
           
           parser_iglm = parser.add_argument_group("Incremental GLM Options")
           parser_iglm.add_argument("--polort", help="Order of Legengre Polynomials for iGLM",dest="iGLM_polort", action="store", type=int)
@@ -87,7 +84,7 @@ class Options:
           parser_exp.add_argument("--q_path", help="The path to the questions json file containing the question stimuli. If not a full path, it will look for the file in RESOURCES_DIR", type=str, dest='q_path', action="store")
 
           parser_dec = parser.add_argument_group('Matching Options')
-          parser_dec.add_argument("--match_path", help="Path to inputs required for matching method", dest="match_path", action="store", type=Options.file_exists, default=None)
+          parser_dec.add_argument("--match_path", help="Path to inputs required for matching method", dest="match_path", action="store", type=file_exists, default=None)
           parser_dec.add_argument("--hit_thr", help="Threshold for deciding hits [%(default)s]", dest="hit_thr", action="store", type=float, default=None)
 
           parser_dec = parser.add_argument_group('Testing Options')
