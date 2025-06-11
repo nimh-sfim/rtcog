@@ -182,7 +182,7 @@ class Pipeline:
                 log.error(f'Discrepancy across masks [data Nv = {self.Nv}, mask Nv = {self.mask_Nv}]')
                 sys.exit(-1)
         self.Data_FromAFNI = np.array(this_t_data[:,np.newaxis])
-        self.Data_processed = np.zeros((self.Nv, 1)) # Final output
+        self.Data_processed = np.zeros((self.Nv, self.Nt)) # Final output
         
         if self.save_orig:
             log.debug(f'[t={self.t},n={self.n}] Init - Data_FromAFNI.shape {self.Data_FromAFNI.shape}')
@@ -200,8 +200,7 @@ class Pipeline:
         else:
             self.Data_FromAFNI = np.hstack((self.Data_FromAFNI[:,-1][:,np.newaxis], this_t_data[:, np.newaxis]))  # Only keep this one and previous
         log.debug(f'[t={self.t},n={self.n}] Discard - Data_FromAFNI.shape {self.Data_FromAFNI.shape}')
-        self.Data_processed = np.append(self.Data_processed, np.zeros((self.Nv,1)), axis=1)
-
+        self.Data_processed[:, self.t] = 0
 
         for step in self.steps:
             step.run_discard_volumes(self)
@@ -240,13 +239,8 @@ class Pipeline:
 
         for func in self.run_funcs:
             self.processed_tr[:] = func(self)
-
-
         
-        start = time.perf_counter()
-        self.Data_processed = np.append(self.Data_processed, self.processed_tr, axis=1)
-        end = time.perf_counter()
-        print(f"Append took {end - start:.6f} seconds")
+        self.Data_processed[:, self.t] = self.processed_tr[:, 0]
 
         return self.processed_tr
 
