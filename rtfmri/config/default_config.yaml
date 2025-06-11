@@ -52,15 +52,13 @@ snapshot: false
 
 # Matching options
 matching:
-  matcher_type: svr # The matching algorithm to use
+  match_method: mask_method
   match_start: 100 # Volume when matching should start
   do_win: true # Activate windowing of individual volumes prior to hit estimation
   hit_wl: 4
   vols_noqa: 45 # Min. number of volumes to wait since end of last QA before declaing a new hit
-  svr_path: training_svr.pkl
 
 # Hit options
 hits:
-  zscore_thr: 1.75 # Z-score threshold for deciding hits
   nconsec_vols: 2 # Number of consecutive vols over threshold required for a hit
   hit_method: method01 # Method for deciding hits

@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 
 from core.pipeline import Pipeline
-from matching.matcher import SVRMatcher
+from matching.matcher import SVRMatcher, MaskMatcher
 from matching.hit_detector import HitDetector
 from utils.log import set_logger
 
@@ -107,8 +107,8 @@ class Experiment:
         # Update n (only if not longer a discard volume)
         if self.t > self.nvols_discard - 1:
             self.n += 1
-
         return self.pipe.process(self.t, self.n, motion, this_t_data)
+
 
     def compute_TR_data(self, motion, extra):
         _ = self._compute_TR_data_impl(motion, extra)
@@ -179,11 +179,13 @@ class ESAMExperiment(Experiment):
         self.vols_noqa = matching_opts.vols_noqa
         
         # TODO: add in other matcher options as I make them
-        if matching_opts.matcher_type == "svr":
-            self.matcher = SVRMatcher(matching_opts)
+        if matching_opts.match_method == "svr":
+            self.matcher = SVRMatcher(matching_opts, options.match_path)
+        elif matching_opts.match_method == 'mask_method':
+            self.matcher = MaskMatcher(matching_opts, options.match_path)
 
         self.hits = np.zeros((self.matcher.Ntemplates, 1))
-        self.hit_detector = HitDetector(hit_opts)
+        self.hit_detector = HitDetector(hit_opts, options.hit_thr)
         self.last_hit = None
         
         
