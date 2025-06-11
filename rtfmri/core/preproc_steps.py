@@ -21,8 +21,8 @@ class PreprocStep:
     Each subclass can also implement `start_step(pipeline)` to initlialize any variables 
     during the first TR that require access to pipeline's attributes.
     
-    You can also implement `run_discard(pipeline)` and `save_nifti(pipeline)` if you want to
-    save its nifti file at the end of the run.
+    You can also implement `save_nifti(pipeline)` if you want to save its nifti file at the
+    end of the run.
 
     Limitations:
       - Input/output data shape must be (N_voxels, 1).
@@ -56,10 +56,6 @@ class PreprocStep:
         # NOTE: can use setattr to define variable names dynamically to make this more easily subclassed, but might be too confusing?
         pass
 
-    def run_discard_volumes(self, pipeline):
-        """Optional: Handle discarded volumes (e.g., append zeros to arrays)."""
-        pass
-    
     def run(self, pipeline):
         raise NotImplementedError
     
@@ -83,10 +79,6 @@ class EMAStep(PreprocStep):
         if self.save:
             pipeline.Data_EMA = np.zeros((pipeline.Nv, pipeline.Nt))
     
-    def run_discard_volumes(self, pipeline):
-        if self.save:
-            pipeline.Data_EMA[:, pipeline.t] = np.zeros((pipeline.Nv,))
-
     def run(self, pipeline):
         Data_FromAFNI = pipeline.Data_FromAFNI[:, :pipeline.t + 1]
         ema_data_out, self.EMA_filt = rt_EMA_vol(pipeline.n, self.EMA_th, Data_FromAFNI, self.EMA_filt)
@@ -125,11 +117,6 @@ class iGLMStep(PreprocStep):
             pipeline.Data_iGLM = np.zeros((pipeline.Nv, pipeline.Nt))
             self.iGLM_Coeffs = np.zeros((pipeline.Nv, self.iGLM_num_regressors, pipeline.Nt))
 
-    def run_discard_volumes(self, pipeline):
-        if self.save:
-            pipeline.Data_iGLM[:, pipeline.t] = np.zeros((pipeline.Nv,))
-            self.iGLM_Coeffs[:, :, pipeline.t] = 0
-            
     def run(self, pipeline): 
         try:
             if pipeline.iGLM_motion:
@@ -177,10 +164,6 @@ class KalmanStep(PreprocStep):
         if self.save:
             pipeline.Data_kalman = np.zeros((pipeline.Nv, pipeline.Nt))
     
-    def run_discard_volumes(self, pipeline):
-        if self.save:
-            pipeline.Data_kalman[:, pipeline.t] = np.zeros((pipeline.Nv,))
-
     def run(self, pipeline):
         klm_data_out, S_x_new, S_P_new, fPos_new, fNeg_new = rt_kalman_vol(
             pipeline.n,
@@ -215,10 +198,6 @@ class SmoothStep(PreprocStep):
         if self.save:
             pipeline.Data_smooth = np.zeros((pipeline.Nv, pipeline.Nt))
 
-    def run_discard_volumes(self, pipeline):
-        if self.save:
-            pipeline.Data_smooth[:, pipeline.t] = np.zeros((pipeline.Nv,))
-
     def run(self, pipeline):
         smooth_out = rt_smooth_vol(pipeline.processed_tr, pipeline.mask_img, fwhm=pipeline.FWHM)
         if self.save:
@@ -235,10 +214,6 @@ class SnormStep(PreprocStep):
     def start_step(self, pipeline):
         if self.save:
             pipeline.Data_norm = np.zeros((pipeline.Nv, pipeline.Nt))
-
-    def run_discard_volumes(self, pipeline):
-        if self.save:
-            pipeline.Data_norm[:, pipeline.t] = np.zeros((pipeline.Nv,))
 
     def run(self, pipeline):
         norm_out = rt_snorm_vol(pipeline.processed_tr)

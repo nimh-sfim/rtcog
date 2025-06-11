@@ -16,9 +16,6 @@ from utils.log import get_logger
 from utils.fMRI import unmask_fMRI_img
 from paths import OUTPUT_DIR
 
-import time
-
-
 log = get_logger()
 
 class Pipeline:
@@ -104,8 +101,6 @@ class Pipeline:
 
         self.FWHM = options.FWHM # FWHM for Spatial Smoothing in [mm]
         
-        self.nvols_discard = options.discard # Number of volumes to discard from any analysis (won't enter pre-processing)
-
         self.iGLM_motion = options.iGLM_motion
         self.iGLM_polort = options.iGLM_polort
 
@@ -191,23 +186,9 @@ class Pipeline:
         
         for step in self.steps:
             step.start_step(self)
-            step.run_discard_volumes(self)
 
         return 1
     
-    def process_discard(self, this_t_data):
-        """Append a bunch of zeros for volumes we will be discarding"""
-        self.Data_FromAFNI[:, self.t] = this_t_data
-            
-        log.debug(f'[t={self.t},n={self.n}] Discard - Data_FromAFNI.shape {self.Data_FromAFNI.shape}')
-        self.Data_processed[:, self.t] = 0
-
-        for step in self.steps:
-            step.run_discard_volumes(self)
-        
-        log.debug(f'Discard volume, self.Data_FromAFNI[:10]: {self.Data_FromAFNI[:10]}')
-        return 1
-
     def run_welford(self, this_t_data):
         self.welford_M, self.welford_S, self.welford_std = welford(
             self.n,
@@ -227,7 +208,8 @@ class Pipeline:
         if self.t == 0:
             return self.process_first_volume(this_t_data)
         if self.n == 0:
-            return self.process_discard(this_t_data)
+            self.Data_FromAFNI[:, self.t] = this_t_data
+            return 1
         
         self.run_welford(this_t_data)
         

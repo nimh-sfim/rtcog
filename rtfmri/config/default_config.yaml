@@ -32,9 +32,8 @@ steps:
 
 
 # iGLM Options
-iGLM_polort: 
+iGLM_polort: 2
 iGLM_motion: true
-nvols: 300
 discard: 10
 
 # Smoothing options
