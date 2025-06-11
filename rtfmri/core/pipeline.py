@@ -10,7 +10,7 @@ sys.path.insert(0, osp.abspath(osp.join(osp.dirname(__file__), '../../../')))
 from preproc_steps import PreprocStep
 from preproc_steps import KALMAN, SMOOTH
 from utils.core import welford
-from utils.rt_functions import kalman_filter_mv, gen_polort_regressors
+from utils.rt_functions import kalman_filter_mv
 from utils.log import get_logger
 from utils.fMRI import unmask_fMRI_img
 from paths import OUTPUT_DIR
@@ -181,12 +181,13 @@ class Pipeline:
             if self.mask_Nv != self.Nv:
                 log.error(f'Discrepancy across masks [data Nv = {self.Nv}, mask Nv = {self.mask_Nv}]')
                 sys.exit(-1)
-        self.Data_FromAFNI = np.array(this_t_data[:,np.newaxis])
+
+        self.Data_FromAFNI = np.zeros((self.Nv, self.Nt))
+        self.Data_FromAFNI[:, self.t] = this_t_data
+        log.debug(f'[t={self.t},n={self.n}] Init - Data_FromAFNI.shape {self.Data_FromAFNI.shape}')
+    
         self.Data_processed = np.zeros((self.Nv, self.Nt)) # Final output
         
-        if self.save_orig:
-            log.debug(f'[t={self.t},n={self.n}] Init - Data_FromAFNI.shape {self.Data_FromAFNI.shape}')
-
         for step in self.steps:
             step.start_step(self)
             step.run_discard_volumes(self)
@@ -195,10 +196,8 @@ class Pipeline:
     
     def process_discard(self, this_t_data):
         """Append a bunch of zeros for volumes we will be discarding"""
-        if self.save_orig: 
-            self.Data_FromAFNI = np.append(self.Data_FromAFNI, this_t_data[:, np.newaxis], axis=1)
-        else:
-            self.Data_FromAFNI = np.hstack((self.Data_FromAFNI[:,-1][:,np.newaxis], this_t_data[:, np.newaxis]))  # Only keep this one and previous
+        self.Data_FromAFNI[:, self.t] = this_t_data
+            
         log.debug(f'[t={self.t},n={self.n}] Discard - Data_FromAFNI.shape {self.Data_FromAFNI.shape}')
         self.Data_processed[:, self.t] = 0
 
@@ -231,11 +230,7 @@ class Pipeline:
         
         self.run_welford(this_t_data)
         
-        if self.save_orig:
-            self.Data_FromAFNI = np.append(self.Data_FromAFNI,this_t_data[:, np.newaxis], axis=1)
-        else:
-            self.Data_FromAFNI = np.hstack((self.Data_FromAFNI[:,-1][:,np.newaxis],this_t_data[:, np.newaxis]))  # Only keep this one and previous
-            log.debug('[t=%d,n=%d] Online - Input - Data_FromAFNI.shape %s' % (self.t, self.n, str(self.Data_FromAFNI.shape)))
+        self.Data_FromAFNI[:, self.t] = this_t_data
 
         for func in self.run_funcs:
             self.processed_tr[:] = func(self)
@@ -269,7 +264,6 @@ class Pipeline:
             snap_path = osp.join(OUTPUT_DIR, f'snapshots.npz')
             np.savez(snap_path, **var_dict) 
             log.info(f'Snapshot saved to OUTPUT_DIR at {snap_path}')
-        
         
     def save_motion_estimates(self):
         self.motion_estimates = [item for sublist in self.motion_estimates for item in sublist]

@@ -88,7 +88,8 @@ class EMAStep(PreprocStep):
             pipeline.Data_EMA[:, pipeline.t] = np.zeros((pipeline.Nv,))
 
     def run(self, pipeline):
-        ema_data_out, self.EMA_filt = rt_EMA_vol(pipeline.n, self.EMA_th, pipeline.Data_FromAFNI, self.EMA_filt)
+        Data_FromAFNI = pipeline.Data_FromAFNI[:, :pipeline.t + 1]
+        ema_data_out, self.EMA_filt = rt_EMA_vol(pipeline.n, self.EMA_th, Data_FromAFNI, self.EMA_filt)
         if self.save: 
             pipeline.Data_EMA[:, pipeline.t] = ema_data_out.squeeze()
         
