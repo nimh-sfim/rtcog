@@ -4,8 +4,8 @@ import numpy as np
 
 from utils.log import get_logger
 from utils.exceptions import VolumeOverflowError
-from utils.rt_functions import gen_polort_regressors
-from utils.rt_functions import rt_EMA_vol, rt_regress_vol, rt_kalman_vol, rt_smooth_vol, rt_snorm_vol, welford
+from preproc.preproc_utils import gen_polort_regressors
+from preproc.preproc_utils import rt_EMA_vol, rt_regress_vol, rt_kalman_vol, rt_smooth_vol, rt_snorm_vol, welford
 from utils.fMRI import unmask_fMRI_img
 
 log = get_logger()

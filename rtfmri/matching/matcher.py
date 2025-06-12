@@ -1,13 +1,11 @@
 import sys
-import os.path as osp
 import pickle
 
 import numpy as np
 
 sys.path.append('..')
 from utils.log import get_logger
-from utils.core import create_win
-from utils.rt_functions import rt_svrscore_vol, rt_maskscore_vol
+from matching.matching_utils import create_win, rt_svrscore_vol, rt_maskscore_vol
 
 log = get_logger()
 
@@ -26,7 +24,6 @@ class Matcher:
         if self.do_win:
             self.hit_win_weights = create_win(self.hit_wl)
 
-    
     def _do_windowing(self, t, tr_data): 
         # TODO: fix bug (need to save last few TRs in buffer)
         if (t >= self.match_start):

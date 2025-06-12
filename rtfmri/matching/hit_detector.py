@@ -1,5 +1,3 @@
-import numpy as np
-
 from utils.svr_methods import is_hit_rt01
 
 class HitDetector:
@@ -14,7 +12,7 @@ class HitDetector:
         # self.hit_mot_th = hit_opts.svr_mot_th
 
         self.hit_method_func = None
-        # TODO: stop using string literals and add checks if method doesnt exist
+        # TODO: stop using string literals
         if self.hit_method == "method01":
             self.hit_method_func = is_hit_rt01
         else:

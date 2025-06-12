@@ -1,4 +1,3 @@
-from .fMRI import unmask_fMRI_img, mask_fMRI_img
 import numpy as np
 from scipy.special import legendre
 from scipy import ndimage
@@ -6,6 +5,8 @@ import itertools
 from numpy.linalg import cholesky, inv
 import logging
 from sklearn.preprocessing import StandardScaler
+
+from utils.fMRI import unmask_fMRI_img, mask_fMRI_img
 
 log = logging.getLogger('online_preproc')
 
@@ -196,6 +197,24 @@ def rt_EMA_vol(n, th, data, filt_in):
 
 # Kalman Filter Functions
 # =======================
+def initialize_kalman_pool(mask_Nv, n_cores):
+    """Initialize pool up front to avoid delay later"""
+    Nv = int(mask_Nv)
+    return [
+        {
+            'd': np.zeros((Nv, 1)),
+            'std': np.zeros((Nv)),
+            'S_x': np.zeros((Nv)),
+            'S_P': np.zeros((Nv)),
+            'S_Q': np.zeros((Nv)),
+            'S_R': np.zeros((Nv)),
+            'fPos': np.zeros((Nv)),
+            'fNeg': np.zeros((Nv)),
+            'vox': np.zeros((Nv))
+        }
+        for _ in range(n_cores)
+    ]
+
 def welford(k, x, M, S):
     # inputs np.array(Nv,)
     Mnext = M + (x-M)/k
@@ -538,46 +557,3 @@ def rt_snorm_vol(data):
     """
     sc  = StandardScaler(with_mean=True, with_std=True)
     return sc.fit_transform(data)
-
-# Matching Functions
-# ==================
-def rt_svrscore_vol(data, SVRs, caps_labels):
-    """
-    Compute SVR scores using pretrained models.
-
-    Parameters
-    ----------
-    data : np.ndarray
-        The input data to be used for making predictions.
-    SVRs : dict
-        A dictionary of trained Support Vector Regressor (SVR) models, where the keys are 
-        label names and the values are the corresponding SVR models.
-    caps_labels : list of str
-        A list of labels corresponding to the SVRs in `SVRs`. The function will use these 
-        labels to predict the values from the respective SVRs.
-
-    Returns
-    -------
-
-    np.ndarray
-        The predicted values from each SVR for each label.
-    """
-    out = []
-
-    for cap_lab in caps_labels:
-        out.append(SVRs[cap_lab].predict(data[:,np.newaxis].T)[0])
-
-    return np.array(out)[:,np.newaxis]
-
-def rt_maskscore_vol(data, inputs, labels):
-    out = []
-    masked_templates = inputs["masked_templates"].item()
-    masks = inputs["masks"].item()
-    voxel_counts = inputs["voxel_counts"].item()
-
-    for name in labels:
-        mask = masks[name]
-        template = masked_templates[name]
-        masked_data = data[mask]        
-        out.append(np.dot(template, masked_data) / voxel_counts[name])
-    return np.array(out)[:, np.newaxis]
