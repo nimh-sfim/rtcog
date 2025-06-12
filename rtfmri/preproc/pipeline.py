@@ -11,7 +11,7 @@ sys.path.insert(0, osp.abspath(osp.join(osp.dirname(__file__), '../../../')))
 from preproc.preproc_steps import PreprocStep
 from preproc.step_types import StepType
 from utils.exceptions import VolumeOverflowError
-from utils.core import welford
+from utils.core import initialize_kalman_pool
 from utils.rt_functions import kalman_filter_mv
 from utils.log import get_logger
 from utils.fMRI import unmask_fMRI_img
@@ -87,10 +87,6 @@ class Pipeline:
         
         self.snapshot = options.snapshot
 
-        self.welford_S = None
-        self.welford_M = None
-        self.welford_std = None
-
         self.Data_FromAFNI = None # np.array [Nv,Nt] for incoming data
         self.Data_processed = None
 
@@ -111,7 +107,7 @@ class Pipeline:
             self.pool = mp.Pool(processes=self.n_cores)
             if self.mask_Nv is not None:
                 log.info(f'Initializing Kalman pool with {self.n_cores} processes ...')
-                _ = self.pool.map(kalman_filter_mv, self._initialize_kalman_pool())
+                _ = self.pool.map(kalman_filter_mv, initialize_kalman_pool(self.mask_Nv, self.n_cores))
         else:
             self.n_cores = 0
             self.pool = None
@@ -129,24 +125,6 @@ class Pipeline:
             log.error(f'pipeline.processed_tr has incorrect shape. Expected: {self.Nv, 1}. Actual: {value.shape}')
             sys.exit(-1)
         self._processed_tr = value
-        
-    def _initialize_kalman_pool(self):
-        """Initialize pool up front to avoid delay later"""
-        Nv = int(self.mask_Nv)
-        return [
-            {
-                'd': np.zeros((Nv, 1)),
-                'std': np.zeros((Nv)),
-                'S_x': np.zeros((Nv)),
-                'S_P': np.zeros((Nv)),
-                'S_Q': np.zeros((Nv)),
-                'S_R': np.zeros((Nv)),
-                'fPos': np.zeros((Nv)),
-                'fNeg': np.zeros((Nv)),
-                'vox': np.zeros((Nv))
-            }
-            for _ in range(self.n_cores)
-        ]
     
     def __del__(self):
         if hasattr(self, 'pool') and self.pool is not None:
@@ -171,9 +149,6 @@ class Pipeline:
         self.Nv = len(this_t_data)
         log.info('Number of Voxels Nv=%d' % self.Nv)
 
-        self.welford_M   = np.zeros(self.Nv)
-        self.welford_S   = np.zeros(self.Nv)
-        self.welford_std = np.zeros(self.Nv)
         if StepType.SMOOTH.value in self.steps:
             if self.mask_Nv != self.Nv:
                 log.error(f'Discrepancy across masks [data Nv = {self.Nv}, mask Nv = {self.mask_Nv}]')
@@ -190,16 +165,6 @@ class Pipeline:
 
         return 1
     
-    def run_welford(self, this_t_data):
-        self.welford_M, self.welford_S, self.welford_std = welford(
-            self.n,
-            this_t_data,
-            self.welford_M,
-            self.welford_S
-        )
-
-        log.debug(f'Welford Method Ouputs: M={self.welford_M} | S={self.welford_S} | std={self.welford_std}')
-
     def process(self, t, n, motion, this_t_data):
         """Run full pipeline on a single TR"""  
         self.t = t
@@ -211,8 +176,6 @@ class Pipeline:
         if self.n == 0:
             self.Data_FromAFNI[:, self.t] = this_t_data
             return 1
-        
-        self.run_welford(this_t_data)
         
         try:
             self.Data_FromAFNI[:, self.t] = this_t_data

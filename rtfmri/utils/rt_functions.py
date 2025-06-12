@@ -196,6 +196,16 @@ def rt_EMA_vol(n, th, data, filt_in):
 
 # Kalman Filter Functions
 # =======================
+def welford(k, x, M, S):
+    # inputs np.array(Nv,)
+    Mnext = M + (x-M)/k
+    Snext = S + (x-M)*(x-Mnext)
+    if k == 1:
+        std = np.zeros(x.shape[0])
+    else:
+            std = np.sqrt(Snext/(k-1))
+    return Mnext, Snext, std
+
 def init_kalman(Nv,Nt):
     S_x              = np.zeros((Nv, Nt))
     S_P              = np.zeros((Nv, Nt))

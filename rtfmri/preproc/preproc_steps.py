@@ -5,7 +5,7 @@ import numpy as np
 from utils.log import get_logger
 from utils.exceptions import VolumeOverflowError
 from utils.rt_functions import gen_polort_regressors
-from utils.rt_functions import rt_EMA_vol, rt_regress_vol, rt_kalman_vol, rt_smooth_vol, rt_snorm_vol
+from utils.rt_functions import rt_EMA_vol, rt_regress_vol, rt_kalman_vol, rt_smooth_vol, rt_snorm_vol, welford
 from utils.fMRI import unmask_fMRI_img
 
 log = get_logger()
@@ -176,23 +176,39 @@ class iGLMStep(PreprocStep):
 class KalmanStep(PreprocStep):
     def __init__(self, save, suffix='.pp_LPfilter.nii'):
         super().__init__(save, suffix)
+        self.welford_S = None
+        self.welford_M = None
+        self.welford_std = None
+
         self.S_x = None
         self.S_P = None
         self.fPositDerivSpike = None
         self.fNegatDerivSpike = None
-        
+
     def _start(self, pipeline):
-        self.S_x = np.zeros(pipeline.Nv)
-        self.S_P = np.zeros(pipeline.Nv) 
-        self.fPositDerivSpike = np.zeros(pipeline.Nv)
-        self.fNegatDerivSpike = np.zeros(pipeline.Nv)
+        Nv = pipeline.Nv
+        self.welford_M = np.zeros(Nv)
+        self.welford_S   = np.zeros(Nv)
+        self.welford_std = np.zeros(Nv)
+
+        self.S_x = np.zeros(Nv)
+        self.S_P = np.zeros(Nv) 
+        self.fPositDerivSpike = np.zeros(Nv)
+        self.fNegatDerivSpike = np.zeros(Nv)
 
     def _run(self, pipeline):
+        self.welford_M, self.welford_S, self.welford_std = welford(
+            pipeline.n,
+            pipeline.Data_FromAFNI[:, pipeline.t],
+            self.welford_M,
+            self.welford_S
+        )
+
         klm_data_out, S_x_new, S_P_new, fPos_new, fNeg_new = rt_kalman_vol(
             pipeline.n,
             pipeline.t,
             pipeline.processed_tr,
-            pipeline.welford_std,
+            self.welford_std,
             self.S_x,
             self.S_P,
             self.fPositDerivSpike,
@@ -205,9 +221,6 @@ class KalmanStep(PreprocStep):
         self.S_P[:] = S_P_new.ravel()
         self.fPositDerivSpike[:] = fPos_new.ravel()
         self.fNegatDerivSpike[:] = fNeg_new.ravel()
-
-        if self.save:
-            self.data_out[:, pipeline.t] = klm_data_out.squeeze()
 
         return klm_data_out
 
