@@ -1,3 +1,4 @@
+import time
 import sys
 import os.path as osp
 import multiprocessing as mp
@@ -130,19 +131,19 @@ class Pipeline:
         self._processed_tr = value
         
     def _initialize_kalman_pool(self):
-        """Initialize pool with fake data up front to avoid delay later"""
+        """Initialize pool up front to avoid delay later"""
         Nv = int(self.mask_Nv)
         return [
             {
-                'd': np.random.rand(Nv, 1),
-                'std': np.random.rand(Nv),
-                'S_x': np.zeros(Nv),
-                'S_P': np.zeros(Nv),
-                'S_Q': np.random.rand(Nv),
-                'S_R': np.random.rand(Nv),
-                'fPos': np.zeros(Nv),
-                'fNeg': np.zeros(Nv),
-                'vox': np.arange(Nv)
+                'd': np.zeros((Nv, 1)),
+                'std': np.zeros((Nv)),
+                'S_x': np.zeros((Nv)),
+                'S_P': np.zeros((Nv)),
+                'S_Q': np.zeros((Nv)),
+                'S_R': np.zeros((Nv)),
+                'fPos': np.zeros((Nv)),
+                'fNeg': np.zeros((Nv)),
+                'vox': np.zeros((Nv))
             }
             for _ in range(self.n_cores)
         ]
