@@ -9,7 +9,7 @@ from psychopy import event
 sys.path.insert(0, osp.abspath(osp.join(osp.dirname(__file__), 'core')))
 
 from paths import RESOURCES_DIR
-from core.options import Options
+from utils.options import Options
 from utils.log import get_logger, set_logger
 from utils.gui import  get_experiment_info, DefaultGUI, EsamGUI
 
@@ -130,7 +130,6 @@ def comm_process(opts, mp_evt_hit, mp_evt_end, mp_evt_qa_end):
 
     if not receiver:
         return 1
-
 
     # 5) set signal handlers and look for data
     log.info('- comm_process - 4) Setting Signal Handlers...')

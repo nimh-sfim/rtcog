@@ -6,7 +6,7 @@ import shutil
 import traceback
 
 sys.path.append('..')
-from core.exceptions import VolumeOverflowError
+from utils.exceptions import VolumeOverflowError
 
 import logging
 log = logging.getLogger(__name__)

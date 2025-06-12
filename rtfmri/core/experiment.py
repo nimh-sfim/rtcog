@@ -7,7 +7,7 @@ import pandas as pd
 import holoviews as hv
 import hvplot.pandas
 
-from core.pipeline import Pipeline
+from preproc.pipeline import Pipeline
 from matching.matcher import SVRMatcher, MaskMatcher
 from matching.hit_detector import HitDetector
 from utils.log import set_logger
@@ -154,13 +154,13 @@ class ESAMExperiment(Experiment):
         Path where QA offsets will be saved.
 
     matcher : SVRMatcher
-        Object that performs template matching with SVR models.
+        Object that performs spatial pattern matching with templates.
 
     hits : np.ndarray
         2D array tracking detected hits [template x time].
 
     hit_detector : HitDetector
-        Object that applies hit detection logic to matcher scores.
+        Object that decides if a hit has occured.
     """
     def __init__(self, options, mp_evt_hit, mp_evt_end, mp_evt_qa_end):
         super().__init__(options, mp_evt_hit, mp_evt_end, mp_evt_qa_end)
@@ -229,6 +229,7 @@ class ESAMExperiment(Experiment):
         return 1
 
     def write_hit_arrays(self):
+        """Save match scores and hit arrays"""
         match_scores_path = osp.join(self.out_dir,self.out_prefix+f'.{self.match_method}_scores')
         np.save(match_scores_path, self.matcher.scores)
         self.log.info(f"Saved match scores to {match_scores_path + '.npy'}")
@@ -238,6 +239,7 @@ class ESAMExperiment(Experiment):
         self.log.info('Saved hits info to %s' % hits_path)
     
     def write_dynamic_report(self):
+        """Save html file with interactive plot of match scores and hits"""
         match_Scores_DF = pd.DataFrame(self.matcher.scores.T, columns=self.matcher.template_labels)
         match_Scores_DF['TR'] = match_Scores_DF.index
         match_scores_curve     = match_Scores_DF.hvplot(legend='top', label='match Scores', x='TR').opts(width=1500)
@@ -259,7 +261,7 @@ class ESAMExperiment(Experiment):
         for off in self.qa_offsets:
             wait_boxes.append(hv.Box(x=off+(self.vols_noqa/2),y=0,spec=(self.vols_noqa,10)))
         WAIT_periods = hv.Polygons(wait_boxes).opts(alpha=.2, color='cyan', line_color=None)
-        plot_layout = (match_scores_curve * Threshold_line * Hits_Marks * QA_periods * WAIT_periods).opts(title=f'Experimental Run Results:{self.out_prefix}, {self.match_method}')
+        plot_layout = (match_scores_curve * Threshold_line * Hits_Marks * QA_periods * WAIT_periods).opts(title=f'Experimental Run Results: {self.out_prefix}, {self.match_method}')
         renderer    = hv.renderer('bokeh')
         renderer.save(plot_layout, self.outhtml)
         self.log.info('Dynamic Report written to disk: [%s.html]' % self.outhtml)
@@ -267,7 +269,7 @@ class ESAMExperiment(Experiment):
         self.log.info('qa_offsets: %s' % str(self.qa_offsets))
     
     def write_hit_maps(self):
-        # Write out the maps associated with the hits
+        """Write out the maps associated with the hits"""
         if self.exp_type == "esam" or self.exp_type == "esam_test":
             Hits_DF = pd.DataFrame(self.hits.T, columns=self.matcher.template_labels)
             for template in self.matcher.template_labels:
@@ -287,7 +289,7 @@ class ESAMExperiment(Experiment):
                         hit_ID += 1
     
     def write_qa(self):
-        # Write out QA_Onsers and QA_Offsets
+        """Write out QA_Onsets and QA_Offsets"""
         with open(self.qa_onsets_path,'w') as file:
             for onset in self.qa_onsets:
                 file.write("%i\n" % onset)
