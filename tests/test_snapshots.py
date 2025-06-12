@@ -26,7 +26,7 @@ if __name__ == "__main__":
 
 def test_snapshot_new():
     orig = osp.join(DATA_DIR, 'snapshot_all-on_snapshots.npz')
-    res = osp.join(OUTPUT_DIR, 'snapshots.npz')
+    res = osp.join(OUTPUT_DIR, 'new_snapshots.npz')
 
     with np.load(orig, allow_pickle=True) as f1, np.load(res, allow_pickle=True) as f2:
 

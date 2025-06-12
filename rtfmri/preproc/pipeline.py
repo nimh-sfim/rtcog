@@ -8,7 +8,7 @@ import pandas as pd
 sys.path.insert(0, osp.abspath(osp.join(osp.dirname(__file__), '../../../')))
 
 from preproc.preproc_steps import PreprocStep
-from preproc.preproc_steps import KALMAN, SMOOTH
+from preproc.step_types import StepType
 from utils.exceptions import VolumeOverflowError
 from utils.core import welford
 from utils.rt_functions import kalman_filter_mv
@@ -105,7 +105,7 @@ class Pipeline:
         self.iGLM_polort = options.iGLM_polort
 
         # If kalman needed, create a pool
-        if KALMAN in self.steps:
+        if StepType.KALMAN.value in self.steps:
             self.n_cores = options.n_cores
             self.pool = mp.Pool(processes=self.n_cores)
             if self.mask_Nv is not None:
@@ -173,7 +173,7 @@ class Pipeline:
         self.welford_M   = np.zeros(self.Nv)
         self.welford_S   = np.zeros(self.Nv)
         self.welford_std = np.zeros(self.Nv)
-        if SMOOTH in self.steps:
+        if StepType.SMOOTH.value in self.steps:
             if self.mask_Nv != self.Nv:
                 log.error(f'Discrepancy across masks [data Nv = {self.Nv}, mask Nv = {self.mask_Nv}]')
                 sys.exit(-1)
@@ -241,16 +241,11 @@ class Pipeline:
             for step in self.steps:
                 var_dict.update(step.snapshot())
             var_dict.update({
-                # 'Data_norm': self.steps['snorm'].data_out,
-                # 'Data_EMA': self.steps['ema'].data_out,
-                # 'Data_iGLM': self.steps['iglm'].data_out,
-                # 'Data_smooth': self.steps['smooth'].data_out,
-                # 'Data_kalman': np.concatenate(self.Data_kalman, axis=1),
                 'Data_FromAFNI': self.Data_FromAFNI,
                 'Data_processed': self.Data_processed
             })
         
-            snap_path = osp.join(OUTPUT_DIR, f'snapshots.npz')
+            snap_path = osp.join(OUTPUT_DIR, f'new_snapshots.npz')
             np.savez(snap_path, **var_dict) 
             log.info(f'Snapshot saved to OUTPUT_DIR at {snap_path}')
         

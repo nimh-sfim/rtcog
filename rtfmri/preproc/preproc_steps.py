@@ -1,3 +1,4 @@
+from enum import Enum
 import os.path as osp
 import numpy as np
 
@@ -52,7 +53,7 @@ class PreprocStep:
         self.suffix = suffix
 
         self.data_out = None
-        
+
     @property
     def name(self):
         return self.__class__.__name__.replace('Step', '').lower()
@@ -106,11 +107,6 @@ class PreprocStep:
         """Return data_out for testing purposes"""
         return {self.name: self.data_out}
         
-        
-        
-
-
-
 
 class EMAStep(PreprocStep):
     def __init__(self, save, suffix='.pp_EMA.nii', ema_th=0.98):
@@ -211,7 +207,7 @@ class KalmanStep(PreprocStep):
         self.fNegatDerivSpike[:] = fNeg_new.ravel()
 
         if self.save:
-            pipeline.Data_kalman[:, pipeline.t] = klm_data_out.squeeze()
+            self.data_out[:, pipeline.t] = klm_data_out.squeeze()
 
         return klm_data_out
 
@@ -232,10 +228,3 @@ class SnormStep(PreprocStep):
         
         return norm_out
     
-
-# Avoid use of string literals in pipeline.py
-EMA = 'ema'
-IGLM = 'iglm'
-KALMAN = 'kalman'
-SMOOTH = 'smooth'
-SNORM = 'snorm'
