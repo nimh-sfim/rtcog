@@ -8,8 +8,7 @@ import numpy as np
 
 from rtcaps.config import DATA_DIR, OUTPUT_DIR
 
-# @pytest.mark.snapshot
-def test_snapshot():
+def test_snapshot_old():
     orig = osp.join(DATA_DIR, 'snapshot_all-on_snapshots.npz')
     res = osp.join(OUTPUT_DIR, 'snapshots.npz')
 
@@ -20,6 +19,21 @@ def test_snapshot():
             a2 = f2[key]
 
             assert np.array_equal(a1, a2)
+        assert np.array_equal(f1["Data_norm"], f2["Data_processed"])
+
+if __name__ == "__main__":
+    pytest.main()
+
+def test_snapshot_new():
+    orig = osp.join(DATA_DIR, 'snapshot_all-on_snapshots.npz')
+    res = osp.join(OUTPUT_DIR, 'snapshots.npz')
+
+    with np.load(orig, allow_pickle=True) as f1, np.load(res, allow_pickle=True) as f2:
+
+        assert np.array_equal(f1["Data_EMA"], f2["ema"])
+        assert np.array_equal(f1["Data_iGLM"], f2["iglm"])
+        assert np.array_equal(f1["Data_smooth"], f2["smooth"])
+        assert np.array_equal(f1["Data_norm"], f2["snorm"])
         assert np.array_equal(f1["Data_norm"], f2["Data_processed"])
 
 if __name__ == "__main__":
