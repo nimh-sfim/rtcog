@@ -16,7 +16,7 @@ class PreprocStep:
 
     Subclasses must implement the `_run(pipeline)` method, which is called on each TR 
     and receives access to the pipeline’s state. Optionally, subclasses may also implement 
-    `_start(pipeline)` to initialize state before the first TR, and `_save(pipeline)` to 
+    `_start(pipeline)` to initialize state at the first TR, and `_save(pipeline)` to 
     perform any custom saving logic at the end of the run.
 
     Attributes

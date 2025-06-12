@@ -30,31 +30,29 @@ conda activate rtcaps
 
 ### Adding preprocessing steps
 
-You can easily extend the real-time fMRI preprocessing pipeline by defining a new step as a subclass of `PreprocStep`. Each step operates on one TR at a time and integrates seamlessly into the existing framework.
+You can easily extend the real-time fMRI preprocessing pipeline by defining a new step as a subclass of `PreprocStep`. Each step operates on one TR at a time and integrates into the existing framework.
 
 ### 1. **Create your step class**
 
 In `preproc_steps.py`, define a new class that inherits from `PreprocStep`. Your class must implement the following method:
 
-- `run(self, pipeline)`: **required**  
-  This is where you apply your preprocessing logic. It must read from `pipeline.processed_tr` (a NumPy array of shape `(N_voxels, 1)`) and overwrite it with the transformed data.
+- `_run(self, pipeline)`: **required**  
+  This is where you apply your preprocessing logic. It operates on `pipeline.processed_tr` (a NumPy array of shape `(N_voxels, 1)`) and returns transformed data.
 
 **Optional methods:**
 
-If your step generates data that should be saved, you can optionally implement:
+You can optionally implement:
 
-- `initialize_array(self, pipeline)`: define any arrays needed before the first TR
-- `run_discard_volumes(self, pipeline)`: handle discard TRs
-- `save_nifti(self, pipeline)`: save outputs to `.nii` file if `save=True`
+- `_start(self, pipeline)`: initalize the state at the first TR
+- `_save(self, pipeline)`: save any extra outputs if `save=True`
 
 Example:
 
 ```python
 class CustomStep(PreprocStep):
-    def run(self, pipeline):
-        data = pipeline.processed_tr
-        new_data = some_function(data) # Apply your transformation
-        pipeline.processed_tr = new_data
+    def _run(self, pipeline):
+        new_data = some_function(pipeline.processed_tr) # Apply your transformation
+        return new_data
 ```
 
 Your class name must end with Step, and it will automatically be registered using the lowercase name (e.g., "custom").
@@ -71,3 +69,21 @@ steps:
 ```
 
 The string "custom" will be matched to your CustomStep class via automatic registration.
+
+### 3. (Optional) Add your step to `StepTypes` enum
+
+If you want to check whether a step is active in `Pipeline` without relying on string literals, add it to the `StepType` enum:
+
+```python
+# step_type.py
+class StepType(Enum):
+  # ...
+  CUSTOM = 'custom'
+```
+
+Then in pipeline.py:
+
+```python
+if StepType.CUSTOM.value in self.steps:
+   do_something()
+```
