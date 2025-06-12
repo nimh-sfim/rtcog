@@ -163,7 +163,7 @@ class Pipeline:
             StepClass = self.step_registry.get(name)
             if step["enabled"]:
                 self.steps.append(StepClass(step["save"]))
-        log.info(f"Steps used: {', '.join([step.__class__.__name__.replace('Step', '') for step in self.steps])}")
+        log.info(f"Steps used: {', '.join([step.name for step in self.steps])}")
 
     def process_first_volume(self, this_t_data):
         """Create empty structures"""
@@ -237,15 +237,18 @@ class Pipeline:
 
         # If running snapshot test, save the variable states
         if self.snapshot:
-            var_dict = {
-                'Data_norm': self.Data_norm,
-                'Data_EMA': self.Data_EMA,
-                'Data_iGLM': self.Data_iGLM,
-                'Data_smooth': self.Data_smooth,
+            var_dict = {}
+            for step in self.steps:
+                var_dict.update(step.snapshot())
+            var_dict.update({
+                # 'Data_norm': self.steps['snorm'].data_out,
+                # 'Data_EMA': self.steps['ema'].data_out,
+                # 'Data_iGLM': self.steps['iglm'].data_out,
+                # 'Data_smooth': self.steps['smooth'].data_out,
                 # 'Data_kalman': np.concatenate(self.Data_kalman, axis=1),
                 'Data_FromAFNI': self.Data_FromAFNI,
                 'Data_processed': self.Data_processed
-            }
+            })
         
             snap_path = osp.join(OUTPUT_DIR, f'snapshots.npz')
             np.savez(snap_path, **var_dict) 
