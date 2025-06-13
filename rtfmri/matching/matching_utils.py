@@ -1,6 +1,32 @@
 import numpy as np
 from scipy.signal.windows import exponential
 
+def create_win(M, center=0, tau=3):
+    win = exponential(M, center, tau, False)
+    print('++ Create Window: Window Values [%s]' % str(win))
+    return win[:, np.newaxis]
+
+class CircularBuffer:
+    """Used for managing windowing in Matcher"""
+    def __init__(self, Nv, size):
+        self.insert_idx = 0
+        self.size = size
+        self.buffer = np.zeros((Nv, size))
+        self.full = False
+    
+    def update(self, data):
+        self.buffer[:, self.insert_idx] = data.squeeze()
+        self.insert_idx = (self.insert_idx + 1) % self.size
+
+        if self.insert_idx == 0 and not self.full:
+            self.full = True
+
+        if self.full:
+            return np.concatenate([self.buffer[:, self.insert_idx:], self.buffer[:, :self.insert_idx]], axis=1)
+        
+        else:
+            return None
+
 def rt_svrscore_vol(data, SVRs, caps_labels):
     """
     Compute SVR scores using pretrained models.
@@ -41,8 +67,3 @@ def rt_maskscore_vol(data, inputs, labels):
         masked_data = data[mask]        
         out.append(np.dot(template, masked_data) / voxel_counts[name])
     return np.array(out)[:, np.newaxis]
-
-def create_win(M, center=0, tau=3):
-    win = exponential(M, center, tau, False)
-    print('++ Create Window: Window Values [%s]' % str(win))
-    return win[:, np.newaxis]

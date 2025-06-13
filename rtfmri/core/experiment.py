@@ -111,7 +111,6 @@ class Experiment:
             self.n += 1
         return self.pipe.process(self.t, self.n, motion, this_t_data)
 
-
     def compute_TR_data(self, motion, extra):
         _ = self._compute_TR_data_impl(motion, extra)
         self.log.info(f' - Time point [t={self.t}, n={self.n}]')
@@ -183,11 +182,11 @@ class ESAMExperiment(Experiment):
         self.vols_noqa = matching_opts.vols_noqa
         self.match_method = matching_opts.match_method
         
-        # TODO: add in other matcher options as I make them
+        # TODO: have cleaner way of instantiating these. If new matching methods are added, this would get annoying
         if self.match_method == "svr":
-            self.matcher = SVRMatcher(matching_opts, options.match_path, self.Nt)
+            self.matcher = SVRMatcher(matching_opts, options.match_path, self.Nt, self.mp_evt_end)
         elif self.match_method == 'mask_method':
-            self.matcher = MaskMatcher(matching_opts, options.match_path, self.Nt)
+            self.matcher = MaskMatcher(matching_opts, options.match_path, self.Nt, self.mp_evt_end)
 
         self.hits = np.zeros((self.matcher.Ntemplates, self.Nt))
         self.hit_detector = HitDetector(hit_opts, self.hit_thr)
@@ -197,11 +196,13 @@ class ESAMExperiment(Experiment):
         
         
     def compute_TR_data(self, motion, extra):
+        # TODO: see why I'm getting off by one for hits and the numbers are slightly different.
         hit_status    = self.mp_evt_hit.is_set()
         qa_end_status = self.mp_evt_qa_end.is_set()
 
         processed = super()._compute_TR_data_impl(motion, extra)
-        scores = self.matcher.match(self.t, self.n, processed)
+        if self.t > self.nvols_discard - 1:
+            scores = self.matcher.match(self.t, self.n, processed)
 
         if qa_end_status:
             self.lastQA_endTR = self.t
@@ -283,7 +284,7 @@ class ESAMExperiment(Experiment):
                             this_template_vols = vol-np.arange(self.hit_detector.nconsec_vols)
                         out_file = osp.join(self.out_dir, self.out_prefix + '.Hit_'+template+'_'+str(hit_ID).zfill(2)+'.nii')
                         self.log.info(' - final_steps - [%s-%d]. Contributing Vols: %s | File: %s' % (template, hit_ID,str(this_template_vols), out_file ))
-                        this_template_InMask  = self.pipe.Data_norm[:,this_template_vols].mean(axis=1)
+                        this_template_InMask  = self.pipe.Data_processed[:,this_template_vols].mean(axis=1)
                         self.log.debug(' - final_steps - this_template_InMask.shape %s' % str(this_template_InMask.shape))
                         unmask_fMRI_img(this_template_InMask, self.mask_img, out_file)
                         hit_ID += 1
