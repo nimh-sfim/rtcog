@@ -9,6 +9,7 @@ mask_path: GMribbon_R4Feed.nii
 save_orig: False # save the unprocessed image data
 
 # Preprocessing steps in order
+# TODO: move relevant parameters here
 steps:
   - name: EMA
     enabled: true
@@ -29,7 +30,10 @@ steps:
   - name: snorm
     enabled: true
     save: false
-
+  
+  - name: windowing
+    enabled: true
+    save: false
 
 # iGLM Options
 iGLM_polort: 2
@@ -54,7 +58,7 @@ matching:
   match_method: mask_method
   match_start: 100 # Volume when matching should start
   do_win: true # Activate windowing of individual volumes prior to hit estimation
-  hit_wl: 4
+  win_length: 4
   vols_noqa: 45 # Min. number of volumes to wait since end of last QA before declaing a new hit
 
 # Hit options

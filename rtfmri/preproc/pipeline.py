@@ -1,5 +1,5 @@
-import time
 import sys
+from types import SimpleNamespace
 import os.path as osp
 import multiprocessing as mp
 
@@ -95,10 +95,17 @@ class Pipeline:
         self.build_steps()
         self.run_funcs = [step.run for step in self.steps]
 
+        # TODO: move this step specific stuff out of pipeline
         self.FWHM = options.FWHM # FWHM for Spatial Smoothing in [mm]
         
         self.iGLM_motion = options.iGLM_motion
         self.iGLM_polort = options.iGLM_polort
+
+        self.n_cores = 0
+        self.pool = None
+
+        match_opts = SimpleNamespace(**options.matching)        
+        self.win_length = match_opts.win_length
 
         # If kalman needed, create a pool
         if StepType.KALMAN.value in self.steps:
@@ -107,9 +114,6 @@ class Pipeline:
             if self.mask_Nv is not None:
                 log.info(f'Initializing Kalman pool with {self.n_cores} processes ...')
                 _ = self.pool.map(kalman_filter_mv, initialize_kalman_pool(self.mask_Nv, self.n_cores))
-        else:
-            self.n_cores = 0
-            self.pool = None
 
     @property
     def processed_tr(self):
@@ -226,7 +230,7 @@ class Pipeline:
 
     def save_nifti_files(self):
         out_vars   = [self.Data_processed]
-        out_labels = ['.pp_Zscore.nii']
+        out_labels = ['.pp_Final.nii']
 
         if self.save_orig:
             out_vars.append(self.Data_FromAFNI)

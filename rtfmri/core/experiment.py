@@ -181,6 +181,7 @@ class ESAMExperiment(Experiment):
 
         self.vols_noqa = matching_opts.vols_noqa
         self.match_method = matching_opts.match_method
+        self.win_length = matching_opts.win_length
         
         # TODO: have cleaner way of instantiating these. If new matching methods are added, this would get annoying
         if self.match_method == "svr":
@@ -279,7 +280,7 @@ class ESAMExperiment(Experiment):
                     hit_ID = 1
                     for vol in Hits_DF[Hits_DF[template]==True].index:
                         if self.matcher.do_win == True:
-                            this_template_vols = vol-np.arange(self.matcher.hit_wl+self.hit_detector.nconsec_vols-1)
+                            this_template_vols = vol-np.arange(self.win_length+self.hit_detector.nconsec_vols-1)
                         else:
                             this_template_vols = vol-np.arange(self.hit_detector.nconsec_vols)
                         out_file = osp.join(self.out_dir, self.out_prefix + '.Hit_'+template+'_'+str(hit_ID).zfill(2)+'.nii')

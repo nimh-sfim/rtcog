@@ -1,4 +1,4 @@
-from enum import Enum
+from matching.matching_utils import create_win, CircularBuffer
 import os.path as osp
 import numpy as np
 
@@ -7,6 +7,7 @@ from utils.exceptions import VolumeOverflowError
 from preproc.preproc_utils import gen_polort_regressors
 from preproc.preproc_utils import rt_EMA_vol, rt_regress_vol, rt_kalman_vol, rt_smooth_vol, rt_snorm_vol, welford
 from utils.fMRI import unmask_fMRI_img
+
 
 log = get_logger()
 
@@ -236,8 +237,31 @@ class SmoothStep(PreprocStep):
 
     
 class SnormStep(PreprocStep):
+    def __init__(self, save=False, suffix='.pp_Zscore.nii'):
+        super().__init__(save, suffix)
+
     def _run(self, pipeline):
         norm_out = rt_snorm_vol(pipeline.processed_tr)
         
         return norm_out
+
+class WindowingStep(PreprocStep):
+    def __init__(self, save=False, suffix='.pp_Windowed.nii'):
+        super().__init__(save, suffix)
+        self.buffer = None
+        self.win_length = None
+    
+    def _start(self, pipeline):
+        self.win_length = pipeline.win_length
+        self.hit_win_weights = create_win(self.win_length)
+
+    def _run(self, pipeline):
+        if self.buffer is None:
+            self.buffer = CircularBuffer(pipeline.processed_tr.shape[0], self.win_length)
+        current_window = self.buffer.update(pipeline.processed_tr)
+        if current_window is not None:
+            return np.dot(current_window, self.hit_win_weights)
+
+        return pipeline.processed_tr
+        
     

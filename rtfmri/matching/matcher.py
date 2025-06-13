@@ -5,7 +5,6 @@ import numpy as np
 
 sys.path.append('..')
 from utils.log import get_logger
-from matching.matching_utils import CircularBuffer
 from matching.matching_utils import create_win, rt_svrscore_vol, rt_maskscore_vol
 
 log = get_logger()
@@ -21,25 +20,12 @@ class Matcher:
         
         self.mp_evt_end = mp_evt_end
 
-        self.buffer = None
         self.do_win = match_opts.do_win
         
-        if self.do_win:
-            self.hit_wl = match_opts.hit_wl
-            self.hit_win_weights = create_win(self.hit_wl)
-
     def match(self, t, n, tr_data):
         if self.scores is None:
             self.scores = np.zeros((self.Ntemplates, self.Nt))
 
-        if self.do_win:
-            if self.buffer is None:
-                self.buffer = CircularBuffer(tr_data.shape[0], self.hit_wl)
-            if self.buffer:
-                current_window = self.buffer.update(tr_data)
-                if current_window is not None:
-                    tr_data = np.dot(current_window, self.hit_win_weights)
-        
         if t >= self.match_start: # Wait until after iGLM is stable to perform matching
             this_t_scores = self.func(np.squeeze(tr_data), self.input, self.template_labels)
             self.scores[:, t] = this_t_scores.ravel()

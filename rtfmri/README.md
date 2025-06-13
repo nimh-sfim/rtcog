@@ -26,7 +26,7 @@ conda env create -f env.yml
 conda activate rtcaps
 ```
 
-## Customoization
+## Customization
 
 ### Adding preprocessing steps
 

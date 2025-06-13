@@ -6,3 +6,4 @@ class StepType(Enum):
     KALMAN = 'kalman'
     SMOOTH = 'smooth'
     SNORM = 'snorm'
+    WINDOWING = 'windowing'
