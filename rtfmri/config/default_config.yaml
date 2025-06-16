@@ -4,9 +4,9 @@ silent: false # set logger level to warning
 tcp_port: 53214
 show_data: false
 tr: 1.0
-n_cores: 10 # number of cores for Kalman
 mask_path: GMribbon_R4Feed.nii
 save_orig: False # save the unprocessed image data
+discard: 10
 
 # Preprocessing steps in order
 # TODO: move relevant parameters here
@@ -18,14 +18,18 @@ steps:
   - name: iGLM
     enabled: true
     save: false
+    iGLM_polort: 2
+    iGLM_motion: true
 
   - name: kalman
     enabled: true
     save: false
+    n_cores: 10
 
   - name: smooth
     enabled: true
     save: false
+    fwhm: 4.0
 
   - name: snorm
     enabled: true
@@ -34,14 +38,7 @@ steps:
   - name: windowing
     enabled: true
     save: false
-
-# iGLM Options
-iGLM_polort: 2
-iGLM_motion: true
-discard: 10
-
-# Smoothing options
-FWHM: 4.0
+    win_length: 4
 
 # Experiment/GUI Options
 no_gui: false
@@ -58,7 +55,7 @@ matching:
   match_method: mask_method
   match_start: 100 # Volume when matching should start
   do_win: true # Activate windowing of individual volumes prior to hit estimation
-  win_length: 4
+  # win_length: 4
   vols_noqa: 45 # Min. number of volumes to wait since end of last QA before declaing a new hit
 
 # Hit options
