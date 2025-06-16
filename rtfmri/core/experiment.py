@@ -195,7 +195,6 @@ class ESAMExperiment(Experiment):
         self.hits = np.zeros((self.matcher.Ntemplates, self.Nt))
         self.hit_detector = HitDetector(hit_opts, self.hit_thr)
         self.last_hit = None
-
         
         
     def compute_TR_data(self, motion, extra):
@@ -204,8 +203,6 @@ class ESAMExperiment(Experiment):
         qa_end_status = self.mp_evt_qa_end.is_set()
 
         processed = super()._compute_TR_data_impl(motion, extra)
-        if self.t > self.nvols_discard - 1:
-            scores = self.matcher.match(self.t, self.n, processed)
 
         if qa_end_status:
             self.lastQA_endTR = self.t
@@ -215,23 +212,34 @@ class ESAMExperiment(Experiment):
         
         hit = None
         template_labels = self.matcher.template_labels
-        if hit_status or (self.t <= self.lastQA_endTR + self.vols_noqa):
+        
+        in_matching_window = self.t >= self.match_start # Ready to match
+        cooldown = self.t < self.lastQA_endTR + self.vols_noqa # Cooldown after a hit
+
+        if self.t == max(0, self.match_start - 1):
+            self.hit_detector.calculate_enorm_diff(self.this_motion) # Feed in motion before matching begins
+
+        if in_matching_window:
+            scores = self.matcher.match(self.t, self.n, processed)
+
             info_text = f' - Time point [t={self.t}, n={self.n}]'
             if self.last_hit:
                 info_text += f' | Last hit: {self.last_hit}'
             self.log.info(info_text)
-            if self.t == self.match_start:
-                self.hit_detector.calculate_enorm_diff(self.this_motion)
+
+            if not (hit_status or cooldown):
+                hit = self.hit_detector.detect(self.t, template_labels, scores, self.this_motion)
         else:
-            hit = self.hit_detector.detect(self.t, template_labels, scores, self.this_motion)
-        
+            self.log.info(f' - Time point [t={self.t}, n={self.n}] | Matching beings at t={self.match_start}')
+
         if hit:
             self.log.info(f'[t={self.t},n={self.n}] =============================================  CAP hit [{hit}]')
             self.qa_onsets.append(self.t)
             self.hits[template_labels.index(hit), self.t] = 1
             self.mp_evt_hit.set()
             self.last_hit = hit
-            
+
+        
         return 1
 
     def write_hit_arrays(self):

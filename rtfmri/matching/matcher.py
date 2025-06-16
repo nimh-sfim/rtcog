@@ -26,9 +26,8 @@ class Matcher:
         if self.scores is None:
             self.scores = np.zeros((self.Ntemplates, self.Nt))
 
-        if t >= self.match_start: # Wait until after iGLM is stable to perform matching
-            this_t_scores = self.func(np.squeeze(tr_data), self.input, self.template_labels)
-            self.scores[:, t] = this_t_scores.ravel()
+        this_t_scores = self.func(np.squeeze(tr_data), self.input, self.template_labels)
+        self.scores[:, t] = this_t_scores.ravel()
         log.debug(f'[t={t},n={n}] Online - Matching - scores.shape   {self.scores.shape}')
         
         return self.scores
