@@ -58,6 +58,8 @@ class Experiment:
 
         self.nvols_discard = options.discard # Number of volumes to discard from any analysis (won't enter pre-processing)
 
+        self.this_motion = None
+
         if options.mask_path is None:
             self.log.error('  Experiment_init_ - No mask was provided!')
             sys.exit(-1)
@@ -87,12 +89,12 @@ class Experiment:
         self.t += 1
 
         # Keep a record of motion estimates
-        motion = [i[self.t] for i in motion]
-        self.pipe.motion_estimates.append(motion)
+        self.this_motion = [i[self.t] for i in motion]
+        self.pipe.motion_estimates.append(self.this_motion)
 
-        if len(motion) != 6:
+        if len(self.this_motion) != 6:
             self.log.error('Motion not read in correctly.')
-            self.log.error(f'Expected length: 6 | Actual length: {len(motion)}')
+            self.log.error(f'Expected length: 6 | Actual length: {len(self.this_motion)}')
             sys.exit(-1)
         
         this_t_data = np.array([e[self.t] for e in extra])
@@ -109,7 +111,7 @@ class Experiment:
         # Update n (only if not longer a discard volume)
         if self.t > self.nvols_discard - 1:
             self.n += 1
-        return self.pipe.process(self.t, self.n, motion, this_t_data)
+        return self.pipe.process(self.t, self.n, self.this_motion, this_t_data)
 
     def compute_TR_data(self, motion, extra):
         _ = self._compute_TR_data_impl(motion, extra)
@@ -182,6 +184,7 @@ class ESAMExperiment(Experiment):
         self.vols_noqa = matching_opts.vols_noqa
         self.match_method = matching_opts.match_method
         self.win_length = matching_opts.win_length
+        self.match_start = matching_opts.match_start
         
         # TODO: have cleaner way of instantiating these. If new matching methods are added, this would get annoying
         if self.match_method == "svr":
@@ -193,7 +196,6 @@ class ESAMExperiment(Experiment):
         self.hit_detector = HitDetector(hit_opts, self.hit_thr)
         self.last_hit = None
 
-        self.outhtml = osp.join(self.out_dir, self.out_prefix+'.dyn_report')
         
         
     def compute_TR_data(self, motion, extra):
@@ -211,15 +213,17 @@ class ESAMExperiment(Experiment):
             self.mp_evt_qa_end.clear()
             self.log.info(f'QA ended (cleared) --> updating lastQA_endTR = {self.lastQA_endTR}')
         
+        hit = None
         template_labels = self.matcher.template_labels
         if hit_status or (self.t <= self.lastQA_endTR + self.vols_noqa):
             info_text = f' - Time point [t={self.t}, n={self.n}]'
             if self.last_hit:
                 info_text += f' | Last hit: {self.last_hit}'
             self.log.info(info_text)
-            hit = None
+            if self.t == self.match_start:
+                self.hit_detector.calculate_enorm_diff(self.this_motion)
         else:
-            hit = self.hit_detector.detect(self.t, template_labels, scores)
+            hit = self.hit_detector.detect(self.t, template_labels, scores, self.this_motion)
         
         if hit:
             self.log.info(f'[t={self.t},n={self.n}] =============================================  CAP hit [{hit}]')
