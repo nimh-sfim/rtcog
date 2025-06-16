@@ -59,12 +59,12 @@ class Experiment:
         self.nvols_discard = options.discard # Number of volumes to discard from any analysis (won't enter pre-processing)
 
         if options.mask_path is None:
-            self.log.warning('  Experiment_init_ - No mask was provided!')
-            self.mask_img = None
+            self.log.error('  Experiment_init_ - No mask was provided!')
+            sys.exit(-1)
         else:
             self.mask_img  = load_fMRI_file(options.mask_path)
             self.mask_Nv = int(np.sum(self.mask_img.get_fdata()))
-            self.log.debug('  Experiment_init_ - Number of Voxels in user-provided mask: %d' % self.mask_Nv)
+            self.log.debug(f'  Experiment_init_ - Number of Voxels in user-provided mask: {self.mask_Nv}')
 
         self.pipe = Pipeline(options, self.Nt, self.mask_Nv, self.mask_img, self.exp_type)        
 
@@ -304,6 +304,7 @@ class ESAMExperiment(Experiment):
         if save:
             self.pipe.final_steps()
 
+        # TODO: move hit saving to HitDetector
         self.write_hit_arrays()
         self.write_dynamic_report()
         self.write_hit_maps()

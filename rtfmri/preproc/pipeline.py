@@ -31,7 +31,7 @@ class Pipeline:
         Configuration object containing flags for which steps to run and what to save.
     Nt : int
         Number of TRs expected in the session.
-    mask_Nv : int, optional
+    mask_Nv : int
         Number of voxels in the brain mask.
     mask_img : nibabel.Nifti1Image, optional
         Binary brain mask used for reshaping and spatial operations.
@@ -65,7 +65,7 @@ class Pipeline:
     legendre_pols : np.ndarray
         Legendre polynomial regressors for detrending.
     """
-    def __init__(self, options, Nt, mask_Nv=None, mask_img=None, exp_type=None):
+    def __init__(self, options, Nt, mask_Nv, mask_img=None, exp_type=None):
         self.t = None
         self.n = None
 
@@ -95,26 +95,6 @@ class Pipeline:
         self.build_steps()
         self.run_funcs = [step.run for step in self.steps]
 
-        # TODO: move this step specific stuff out of pipeline
-        self.FWHM = options.FWHM # FWHM for Spatial Smoothing in [mm]
-        
-        self.iGLM_motion = options.iGLM_motion
-        self.iGLM_polort = options.iGLM_polort
-
-        self.n_cores = 0
-        self.pool = None
-
-        match_opts = SimpleNamespace(**options.matching)        
-        self.win_length = match_opts.win_length
-
-        # If kalman needed, create a pool
-        if StepType.KALMAN.value in self.steps:
-            self.n_cores = options.n_cores
-            self.pool = mp.Pool(processes=self.n_cores)
-            if self.mask_Nv is not None:
-                log.info(f'Initializing Kalman pool with {self.n_cores} processes ...')
-                _ = self.pool.map(kalman_filter_mv, initialize_kalman_pool(self.mask_Nv, self.n_cores))
-
     @property
     def processed_tr(self):
         return self._processed_tr
@@ -143,8 +123,17 @@ class Pipeline:
                 log.error(f'Unknown step: {name}')
                 sys.exit(-1)
             StepClass = self.step_registry.get(name)
-            if step["enabled"]:
-                self.steps.append(StepClass(step["save"]))
+            if not step.get("enabled", False):
+                continue
+            save = step.pop("save", False)
+            step.pop("enabled", None)
+            step.pop("name", None)
+
+            kwargs = step.copy()
+            if name == StepType.KALMAN.value:
+                kwargs["mask_Nv"] = self.mask_Nv
+            
+            self.steps.append(StepClass(save=save, **kwargs))
         log.info(f"Steps used: {', '.join([step.name for step in self.steps])}")
 
     def process_first_volume(self, this_t_data):
@@ -152,10 +141,9 @@ class Pipeline:
         self.Nv = len(this_t_data)
         log.info('Number of Voxels Nv=%d' % self.Nv)
 
-        if StepType.SMOOTH.value in self.steps:
-            if self.mask_Nv != self.Nv:
-                log.error(f'Discrepancy across masks [data Nv = {self.Nv}, mask Nv = {self.mask_Nv}]')
-                sys.exit(-1)
+        if self.mask_Nv != self.Nv:
+            log.error(f'Discrepancy across masks [data Nv = {self.Nv}, mask Nv = {self.mask_Nv}]')
+            sys.exit(-1)
 
         self.Data_FromAFNI = np.zeros((self.Nv, self.Nt))
         self.Data_FromAFNI[:, self.t] = this_t_data

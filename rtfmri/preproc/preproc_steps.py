@@ -1,3 +1,5 @@
+import multiprocessing as mp
+
 from matching.matching_utils import create_win, CircularBuffer
 import os.path as osp
 import numpy as np
@@ -5,7 +7,8 @@ import numpy as np
 from utils.log import get_logger
 from utils.exceptions import VolumeOverflowError
 from preproc.preproc_utils import gen_polort_regressors
-from preproc.preproc_utils import rt_EMA_vol, rt_regress_vol, rt_kalman_vol, rt_smooth_vol, rt_snorm_vol, welford
+from preproc.preproc_utils import initialize_kalman_pool, kalman_filter_mv, rt_kalman_vol
+from preproc.preproc_utils import rt_EMA_vol, rt_regress_vol, rt_smooth_vol, rt_snorm_vol, welford
 from utils.fMRI import unmask_fMRI_img
 
 
@@ -49,7 +52,7 @@ class PreprocStep:
     """
     registry = {} # Holds all available step classes that can be instantiated later on in Pipeline.
 
-    def __init__(self, save=False, suffix=None):
+    def __init__(self, save=False, suffix=None, **kwargs):
         self.save = save
         self.suffix = suffix
 
@@ -123,23 +126,26 @@ class EMAStep(PreprocStep):
     
 
 class iGLMStep(PreprocStep):
-    def __init__(self, save, suffix='.pp_iGLM.nii'):
+    def __init__(self, save, suffix='.pp_iGLM.nii', iGLM_polort=2, iGLM_motion=True):
         super().__init__(save, suffix)
+        self.iGLM_polort = iGLM_polort
+        self.iGLM_motion = iGLM_motion
+
         self.iGLM_prev = {}
 
         if self.save:
             self.iGLM_Coeffs = None
         
     def _start(self, pipeline):
-        if pipeline.iGLM_motion:
-            self.iGLM_num_regressors = pipeline.iGLM_polort + 6
-            self.nuisance_labels = ['Polort'+str(i) for i in np.arange(pipeline.iGLM_polort)] + ['roll','pitch','yaw','dS','dL','dP']
+        if self.iGLM_motion:
+            self.iGLM_num_regressors = self.iGLM_polort + 6
+            self.nuisance_labels = ['Polort'+str(i) for i in np.arange(self.iGLM_polort)] + ['roll','pitch','yaw','dS','dL','dP']
         else:
-            self.iGLM_num_regressors = pipeline.iGLM_polort
-            self.nuisance_labels = ['Polort'+str(i) for i in np.arange(pipeline.iGLM_polort)]
+            self.iGLM_num_regressors = self.iGLM_polort
+            self.nuisance_labels = ['Polort'+str(i) for i in np.arange(self.iGLM_polort)]
         
-        if pipeline.iGLM_polort > -1:
-            self.legendre_pols = gen_polort_regressors(pipeline.iGLM_polort, pipeline.Nt)
+        if self.iGLM_polort > -1:
+            self.legendre_pols = gen_polort_regressors(self.iGLM_polort, pipeline.Nt)
         else:
             self.legendre_pols = None
 
@@ -148,7 +154,7 @@ class iGLMStep(PreprocStep):
 
     def _run(self, pipeline): 
         try:
-            if pipeline.iGLM_motion:
+            if self.iGLM_motion:
                 this_t_nuisance = np.concatenate((self.legendre_pols[pipeline.t,:], pipeline.motion))[:,np.newaxis]
             else:
                 this_t_nuisance = (self.legendre_pols[pipeline.t,:])[:,np.newaxis]
@@ -175,7 +181,7 @@ class iGLMStep(PreprocStep):
 
 
 class KalmanStep(PreprocStep):
-    def __init__(self, save, suffix='.pp_LPfilter.nii'):
+    def __init__(self, save, suffix='.pp_LPfilter.nii', n_cores=10, mask_Nv=None):
         super().__init__(save, suffix)
         self.welford_S = None
         self.welford_M = None
@@ -185,6 +191,13 @@ class KalmanStep(PreprocStep):
         self.S_P = None
         self.fPositDerivSpike = None
         self.fNegatDerivSpike = None
+        
+        self.n_cores = n_cores
+        self.pool = mp.Pool(processes=self.n_cores)
+        self.mask_Nv = mask_Nv
+
+        log.info(f'Initializing Kalman pool with {self.n_cores} processes ...')
+        _ = self.pool.map(kalman_filter_mv, initialize_kalman_pool(self.mask_Nv, self.n_cores))        
 
     def _start(self, pipeline):
         Nv = pipeline.Nv
@@ -214,8 +227,8 @@ class KalmanStep(PreprocStep):
             self.S_P,
             self.fPositDerivSpike,
             self.fNegatDerivSpike,
-            pipeline.n_cores,
-            pipeline.pool,
+            self.n_cores,
+            self.pool,
         )
 
         self.S_x[:] = S_x_new.ravel()
@@ -227,11 +240,12 @@ class KalmanStep(PreprocStep):
 
 
 class SmoothStep(PreprocStep):
-    def __init__(self, save=False, suffix='.pp_Smooth.nii'):
+    def __init__(self, save=False, suffix='.pp_Smooth.nii', fwhm=4):
         super().__init__(save, suffix)
+        self.fwhm = fwhm
 
     def _run(self, pipeline):
-        smooth_out = rt_smooth_vol(pipeline.processed_tr, pipeline.mask_img, fwhm=pipeline.FWHM)
+        smooth_out = rt_smooth_vol(pipeline.processed_tr, pipeline.mask_img, fwhm=self.fwhm)
             
         return smooth_out
 
@@ -246,15 +260,14 @@ class SnormStep(PreprocStep):
         return norm_out
 
 class WindowingStep(PreprocStep):
-    def __init__(self, save=False, suffix='.pp_Windowed.nii'):
+    def __init__(self, save=False, suffix='.pp_Windowed.nii', win_length=2):
         super().__init__(save, suffix)
         self.buffer = None
-        self.win_length = None
-    
-    def _start(self, pipeline):
-        self.win_length = pipeline.win_length
-        self.hit_win_weights = create_win(self.win_length)
 
+        self.win_length = win_length
+        self.hit_win_weights = create_win(self.win_length)
+    
+    # NOTE: windowing used to only be done once matching began, now starting it along with all other preproc steps.
     def _run(self, pipeline):
         if self.buffer is None:
             self.buffer = CircularBuffer(pipeline.processed_tr.shape[0], self.win_length)
