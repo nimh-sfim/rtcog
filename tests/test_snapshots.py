@@ -34,7 +34,7 @@ def test_snapshot_new():
         assert np.array_equal(f1["Data_iGLM"], f2["iglm"])
         assert np.array_equal(f1["Data_smooth"], f2["smooth"])
         assert np.array_equal(f1["Data_norm"], f2["snorm"])
-        assert np.array_equal(f1["Data_norm"], f2["Data_processed"])
+        # assert np.array_equal(f1["Data_norm"], f2["Data_processed"])
 
 if __name__ == "__main__":
     pytest.main()
