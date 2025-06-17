@@ -59,7 +59,7 @@ class Options:
           parser_gen.add_argument("-S", "--show_data", action="store_true",help="display received data in terminal if this option is specified", default=None)
           parser_gen.add_argument("--tr", help="Repetition time [sec]", dest="tr", action="store", type=float)
           parser_gen.add_argument("--ncores", help="Number of cores to use in the parallel processing part of the code", dest="n_cores", action="store",type=int)
-          parser_gen.add_argument("--mask", help="Mask necessary for smoothing operation", dest="mask_path", action="store", type=file_exists)
+          parser_gen.add_argument("-m","--mask", help="Path to mask", dest="mask_path", action="store", type=file_exists)
           
           parser_iglm = parser.add_argument_group("Incremental GLM Options")
           parser_iglm.add_argument("--polort", help="Order of Legengre Polynomials for iGLM",dest="iGLM_polort", action="store", type=int)

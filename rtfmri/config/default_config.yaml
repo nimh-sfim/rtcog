@@ -4,12 +4,10 @@ silent: false # set logger level to warning
 tcp_port: 53214
 show_data: false
 tr: 1.0
-mask_path: GMribbon_R4Feed.nii
 save_orig: False # save the unprocessed image data
 discard: 10
 
 # Preprocessing steps in order
-# TODO: move relevant parameters here
 steps:
   - name: EMA
     enabled: true
