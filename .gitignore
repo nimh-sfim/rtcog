@@ -13,6 +13,8 @@ emails/
 deprecated/
 Papers/
 ScanNotes/
+rtcaps/
+Scripts/
 
 # Python and Jupyter stuff
 __pycache__/
