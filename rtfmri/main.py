@@ -35,8 +35,8 @@ def main():
         
     if opts.test_latency:
         clock = SharedClock()
-        trigger_path = osp.join(opts.out_dir, f'{opts.out_prefix}_trigger_timing.csv')
-        recevier_path = osp.join(opts.out_dir, f'{opts.out_prefix}_receiver_timing.csv')
+        trigger_path = osp.join(opts.out_dir, f'{opts.out_prefix}_trigger_timing.pkl')
+        recevier_path = osp.join(opts.out_dir, f'{opts.out_prefix}_receiver_timing.pkl')
 
     # 2) Create Multi-processing infrastructure
     # ------------------------------------------
