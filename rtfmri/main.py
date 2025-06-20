@@ -11,7 +11,9 @@ sys.path.insert(0, osp.abspath(osp.join(osp.dirname(__file__), 'core')))
 from paths import RESOURCES_DIR
 from utils.options import Options
 from utils.log import get_logger, set_logger
-from utils.gui import  get_experiment_info, DefaultGUI, EsamGUI
+from utils.gui import validate_likert_questions, get_experiment_info, DefaultGUI, EsamGUI
+from utils.core import SharedClock
+from utils.trigger_listener import TriggerListener
 
 from psychopy import logging
 logging.console.setLevel(logging.ERROR)
@@ -29,36 +31,30 @@ def main():
     log = set_logger(debug=opts.debug, silent=opts.silent)
 
     if opts.exp_type == "esam":
-        if not opts.q_path:
-            log.error('Path to Likert questions was not provided. Program will exit.')
-            sys.exit(-1)
-        if not osp.isfile(opts.q_path): # If not file, assume in RESOURCES_DIR
-            fname = opts.q_path + ".json" if not opts.q_path.endswith(".json") else opts.q_path 
-            opts.q_path = osp.join(RESOURCES_DIR, fname)
-        try:
-            with open(opts.q_path, 'r') as f:
-                opts.likert_questions = json.load(f)
-        except json.JSONDecodeError:
-            log.error(f'The question file at {opts.q_path} is not a valid JSON.')
-            sys.exit(-1)
-        except Exception as e:
-            log.error(f'Error loading questions at {opts.q_path}: {e}')
-            sys.exit(-1)
+        opts.likert_questions = validate_likert_questions(opts.q_path)
         
+    if opts.test_latency:
+        clock = SharedClock()
+        trigger_path = osp.join(opts.out_dir, f'{opts.out_prefix}_trigger_timing.csv')
+        recevier_path = osp.join(opts.out_dir, f'{opts.out_prefix}_receiver_timing.csv')
+
     # 2) Create Multi-processing infrastructure
     # ------------------------------------------
     mp_evt_hit    = mp.Event()
     mp_evt_end    = mp.Event()
     mp_evt_qa_end = mp.Event()
-    mp_prc_comm   = mp.Process(target=comm_process, args=(opts, mp_evt_hit, mp_evt_end, mp_evt_qa_end))
-    mp_prc_comm.start()
+    mp_prc_comm   = mp.Process(target=comm_process, args=(opts, mp_evt_hit, mp_evt_end, mp_evt_qa_end, clock, recevier_path))
+    mp_prc_comm.start() 
+    
+    trigger_listener = TriggerListener(mp_evt_end, clock, trigger_path)
+    mp_trigger_process = mp.Process(target=trigger_listener.capture_trigger)
+    mp_trigger_process.start()
 
     # 3) Get additional info using the GUI
     # ------------------------------------
     if not opts.no_gui:
         exp_info = get_experiment_info(opts)
 
-    # add logic for esam
     if opts.exp_type == "preproc":
         if not opts.no_gui:
             # 4) Start GUI
@@ -101,9 +97,9 @@ def main():
         # ------------------------
         esam_gui.save_likert_files()
         esam_gui.close_psychopy_infrastructure()
+        
 
-
-def comm_process(opts, mp_evt_hit, mp_evt_end, mp_evt_qa_end):
+def comm_process(opts, mp_evt_hit, mp_evt_end, mp_evt_qa_end, clock, time_path):
     from comm.receiver_interface import CustomReceiverInterface
     from core.experiment import Experiment, ESAMExperiment
     
@@ -119,7 +115,7 @@ def comm_process(opts, mp_evt_hit, mp_evt_end, mp_evt_qa_end):
     log.info('- comm_process - 3) Opening Communication Channel...')
 
     auto_save = opts.auto_save if hasattr(opts, "auto_save") else False
-    receiver = CustomReceiverInterface(port=opts.tcp_port, show_data=opts.show_data, auto_save=auto_save)
+    receiver = CustomReceiverInterface(port=opts.tcp_port, show_data=opts.show_data, auto_save=auto_save, clock=clock, out_path=time_path)
     if not receiver:
         return 1
 
@@ -147,6 +143,9 @@ def comm_process(opts, mp_evt_hit, mp_evt_end, mp_evt_qa_end):
     # 8) Vinai's alternative
     log.info('6) Here we go...')
     rv = receiver.process_one_run()
+    
+    if opts.test_latency:
+        receiver.save_timing()
 
     if experiment.exp_type == "esam" or experiment.exp_type == "esam_test":
         while experiment.mp_evt_hit.is_set():

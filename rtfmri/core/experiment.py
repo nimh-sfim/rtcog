@@ -114,7 +114,7 @@ class Experiment:
         return self.pipe.process(self.t, self.n, self.this_motion, this_t_data)
 
     def compute_TR_data(self, motion, extra):
-        _ = self._compute_TR_data_impl(motion, extra)
+        self._compute_TR_data_impl(motion, extra)
         self.log.info(f' - Time point [t={self.t}, n={self.n}]')
         return 1
     

@@ -4,6 +4,7 @@ import sys
 import os.path as osp
 import shutil
 import traceback
+import pickle
 
 sys.path.append('..')
 from utils.exceptions import VolumeOverflowError
@@ -30,7 +31,7 @@ from realtime_receiver import ReceiverInterface
 from afnipy import lib_realtime as RT
 
 class CustomReceiverInterface(ReceiverInterface):
-    def __init__(self, port=None, show_data=False, verb=0, auto_save=True):
+    def __init__(self, port=None, show_data=False, verb=0, auto_save=True, clock=None, out_path=None):
         super().__init__()
         self.RTI = RT.RTInterface()
         
@@ -56,6 +57,10 @@ class CustomReceiverInterface(ReceiverInterface):
         self.final_steps     = None
         
         self.auto_save = auto_save
+        
+        self.clock = clock
+        self.timing = {"recv": [], "proc": []}
+        self.out_path = out_path
 
     def process_one_TR(self):
         """return 0 to continue, 1 on valid termination, -1 on error"""
@@ -66,6 +71,12 @@ class CustomReceiverInterface(ReceiverInterface):
         log.debug("++ Entering process_one_TR()")
 
         rv = self.RTI.read_TR_data()
+        if self.clock:
+            recv_time = self.clock.now()
+            self.timing["recv"].append(recv_time)
+            print(f"Recv @ {recv_time}", flush=True)
+
+
         if rv:
             log.error('** process 1 TR: read data failure')
             return rv
@@ -78,6 +89,10 @@ class CustomReceiverInterface(ReceiverInterface):
 
         if self.compute_TR_data:
             data = self.compute_TR_data(self.RTI.motion, self.RTI.extras)
+            if self.clock:
+                proc_time = self.clock.now()
+                self.timing["proc"].append(proc_time)
+                print(f"Proc @ {proc_time}", flush=True)
 
         if not data:
             return 1
@@ -129,5 +144,10 @@ class CustomReceiverInterface(ReceiverInterface):
             tail = '(terminating on error)'
         log.info('-- processed %d TRs of data %s' % (self.RTI.nread, tail))
         log.info('-' * 60)
-      
+        
         return rv
+    
+    def save_timing(self):
+        with open(self.out_path, 'wb') as f:
+            pickle.dump(self.timing, f)
+        log.info(f'Timing saved to {self.out_path}')

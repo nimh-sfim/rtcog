@@ -89,6 +89,7 @@ class Options:
 
           parser_dec = parser.add_argument_group('Testing Options')
           parser_dec.add_argument("--snapshot", help="Run snapshot test", dest="snapshot", action="store_true", default=None)
+          parser_dec.add_argument("--latency", help="Run latency test", dest="test_latency", action="store_true", default=None)
 
           cli_args = parser.parse_args(remaining_args)
 

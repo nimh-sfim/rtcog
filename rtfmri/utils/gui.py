@@ -4,6 +4,7 @@ import time
 import os.path as osp
 import csv
 import logging
+import json
 from playsound import playsound
 from .recorder import Recorder
 
@@ -31,6 +32,24 @@ log_ch = logging.StreamHandler()
 log_ch.setFormatter(log_fmt)
 log_ch.setLevel(logging.INFO)
 log.addHandler(log_ch)
+
+def validate_likert_questions(q_path):
+    """Make sure the questions provided are valid"""
+    if not q_path:
+            log.error('Path to Likert questions was not provided. Program will exit.')
+            sys.exit(-1)
+    if not osp.isfile(q_path): # If not file, assume in RESOURCES_DIR
+        fname = q_path + ".json" if not q_path.endswith(".json") else q_path 
+        q_path = osp.join(RESOURCES_DIR, fname)
+    try:
+        with open(q_path, 'r') as f:
+            return json.load(f)
+    except json.JSONDecodeError:
+        log.error(f'The question file at {q_path} is not a valid JSON.')
+        sys.exit(-1)
+    except Exception as e:
+        log.error(f'Error loading questions at {q_path}: {e}')
+        sys.exit(-1)
 
 def get_avail_keyboards():
     available_keyboards = keyboard.getKeyboards()
