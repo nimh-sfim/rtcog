@@ -6,7 +6,7 @@ import csv
 import logging
 import json
 from playsound import playsound
-from .recorder import Recorder
+from rtfmri.utils.recorder import Recorder
 
 from psychopy import core, event, gui, data
 from psychopy.hardware import keyboard

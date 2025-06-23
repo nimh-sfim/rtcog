@@ -1,7 +1,7 @@
 from math import sqrt
-from utils.svr_methods import is_hit_rt01
+from rtfmri.utils.svr_methods import is_hit_rt01
 
-from utils.log import get_logger
+from rtfmri.utils.log import get_logger
 
 log = get_logger()
 
@@ -12,7 +12,6 @@ class HitDetector:
         self.zscore_thr = hit_thr
         self.nconsec_vols  = hit_opts.nconsec_vols
 
-        # # These don't do anything yet...
         self.do_mot = hit_opts.do_mot
         self.mot_thr = hit_opts.mot_thr
 

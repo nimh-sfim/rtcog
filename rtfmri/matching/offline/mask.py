@@ -8,9 +8,8 @@ import hvplot.pandas
 import panel as pn
 import matplotlib.pyplot as plt
 
-sys.path.insert(0, osp.abspath(osp.join(osp.dirname(__file__), '../..')))
-from utils.fMRI import load_fMRI_file, mask_fMRI_img
-from utils.core import file_exists
+from rtfmri.utils.fMRI import load_fMRI_file, mask_fMRI_img
+from rtfmri.utils.core import file_exists
 
 import logging
 log     = logging.getLogger("offline_mask")

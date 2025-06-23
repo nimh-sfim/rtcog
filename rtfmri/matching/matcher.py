@@ -4,8 +4,8 @@ import pickle
 import numpy as np
 
 sys.path.append('..')
-from utils.log import get_logger
-from matching.matching_utils import create_win, rt_svrscore_vol, rt_maskscore_vol
+from rtfmri.utils.log import get_logger
+from rtfmri.matching.matching_utils import rt_svrscore_vol, rt_maskscore_vol
 
 log = get_logger()
 

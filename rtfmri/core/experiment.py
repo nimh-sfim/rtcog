@@ -2,20 +2,16 @@ import sys
 import os.path as osp
 from types import SimpleNamespace
 
-import numpy as np
+import numpy as n
 import pandas as pd
 import holoviews as hv
 import hvplot.pandas
 
-from preproc.pipeline import Pipeline
-from matching.matcher import SVRMatcher, MaskMatcher
-from matching.hit_detector import HitDetector
-from utils.log import set_logger
-
-sys.path.insert(0, osp.abspath(osp.join(osp.dirname(__file__), '..')))
-sys.path.append('..')
-
-from utils.fMRI import load_fMRI_file, unmask_fMRI_img
+from rtfmri.preproc.pipeline import Pipeline
+from rtfmri.matching.matcher import SVRMatcher, MaskMatcher
+from rtfmri.matching.hit_detector import HitDetector
+from rtfmri.utils.log import set_logger
+from rtfmri.utils.fMRI import load_fMRI_file, unmask_fMRI_img
 
 
 class Experiment:
@@ -230,7 +226,7 @@ class ESAMExperiment(Experiment):
             if not (hit_status or cooldown):
                 hit = self.hit_detector.detect(self.t, template_labels, scores, self.this_motion)
         else:
-            self.log.info(f' - Time point [t={self.t}, n={self.n}] | Matching beings at t={self.match_start}')
+            self.log.info(f' - Time point [t={self.t}, n={self.n}] | Matching begins at t={self.match_start}')
 
         if hit:
             self.log.info(f'[t={self.t},n={self.n}] =============================================  CAP hit [{hit}]')

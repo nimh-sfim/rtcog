@@ -17,9 +17,8 @@ sys.path.insert(0, osp.abspath(osp.join(osp.dirname(__file__), '..')))
 from tqdm import tqdm
 tqdm().pandas()
 
-from rtcap_lib.fMRI import load_fMRI_file, mask_fMRI_img
-from rtcap_lib.training import SVRtrainer
-from bin.rtcaps_matcher import file_exists
+from rtfmri.matching.offline.training import SVRtrainer
+from rtfmri.utils.core import file_exists
 # -------------------------------------------------------------------------------------
 
 def processProgramOptions (self, options=None):

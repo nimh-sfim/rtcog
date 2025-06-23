@@ -1,6 +1,5 @@
 import sys
 import os.path as osp
-from .fMRI import load_fMRI_file, mask_fMRI_img
 import numpy as np
 import pandas as pd
 from sklearn import linear_model
@@ -17,6 +16,8 @@ import multiprocessing as mp
 import panel as pn
 from bokeh.palettes import Category10_7
 tqdm().pandas()
+
+from rtfmri.utils.fMRI import load_fMRI_file, mask_fMRI_img
 
 import logging
 log     = logging.getLogger("training")
