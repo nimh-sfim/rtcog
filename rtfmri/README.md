@@ -1,4 +1,4 @@
-# rtFMRI
+# rtfMRI
 
 ## Installation
 
@@ -26,6 +26,16 @@ conda env create -f env.yml
 conda activate rtcaps
 ```
 
+## Setup
+
+### 1. Update config
+
+This package relies on options specified in a yaml file to run. We've provided you with a default setup at `rtfmri/config/default_config.yaml` which you can customize to your setup. Please note that the order of preprocessing steps is preserved, so any changes to that will affect the pipeline.
+
+### 2. Real-Time Scanner Setup
+
+To run rtCAPs in a live scanner environment, see [guides/scanner_setup.md](guides/scanner_setup.md).
+
 ## Customization
 
 ### Adding preprocessing steps
@@ -34,7 +44,7 @@ You can easily extend the real-time fMRI preprocessing pipeline by defining a ne
 
 ### 1. **Create your step class**
 
-In `preproc_steps.py`, define a new class that inherits from `PreprocStep`. Your class must implement the following method:
+In `rtfmri/preproc/preproc_steps.py`, define a new class that inherits from `PreprocStep`. Your class must implement the following method:
 
 - `_run(self, pipeline)`: **required**  
   This is where you apply your preprocessing logic. It operates on `pipeline.processed_tr` (a NumPy array of shape `(N_voxels, 1)`) and returns transformed data.
@@ -43,7 +53,7 @@ In `preproc_steps.py`, define a new class that inherits from `PreprocStep`. Your
 
 You can optionally implement:
 
-- `_start(self, pipeline)`: initalize the state at the first TR
+- `_start(self, pipeline)`: initialize the state at the first TR
 - `_save(self, pipeline)`: save any extra outputs if `save=True`
 
 Example:
@@ -55,7 +65,9 @@ class CustomStep(PreprocStep):
         return new_data
 ```
 
-Your class name must end with Step, and it will automatically be registered using the lowercase name (e.g., "custom").
+Class names ending with "Step" are registered using the lowercase prefix (e.g., `CustomStep` → `"custom"`). If your class does not end with "Step", it is registered using the full class name in lowercase (e.g., `ZScore` → `"zscore"`).
+
+Private classes (classes that start with `_`) are not registered.
 
 ### 2. Enable the step in your config file
 
@@ -68,9 +80,9 @@ steps:
     save: false
 ```
 
-The string "custom" will be matched to your CustomStep class via automatic registration.
+The string "custom" will automatically map to your CustomStep class.
 
-### 3. (Optional) Add your step to `StepTypes` enum
+### 3. (Optional) Registering with StepTypes
 
 If you want to check whether a step is active in `Pipeline` without relying on string literals, add it to the `StepType` enum:
 
