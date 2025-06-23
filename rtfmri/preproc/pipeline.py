@@ -8,13 +8,12 @@ import pandas as pd
 
 sys.path.insert(0, osp.abspath(osp.join(osp.dirname(__file__), '../../../')))
 
-from preproc.preproc_steps import PreprocStep
-from preproc.step_types import StepType
-from utils.exceptions import VolumeOverflowError
-from preproc.preproc_utils import initialize_kalman_pool, kalman_filter_mv
-from utils.log import get_logger
-from utils.fMRI import unmask_fMRI_img
-from paths import OUTPUT_DIR
+from rtfmri.preproc.preproc_steps import PreprocStep
+from rtfmri.preproc.step_types import StepType
+from rtfmri.utils.exceptions import VolumeOverflowError
+from rtfmri.utils.log import get_logger
+from rtfmri.utils.fMRI import unmask_fMRI_img
+from rtfmri.paths import OUTPUT_DIR
 
 log = get_logger()
 

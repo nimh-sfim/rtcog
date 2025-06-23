@@ -2,7 +2,7 @@ import sys
 import os.path as osp
 from types import SimpleNamespace
 
-import numpy as n
+import numpy as np
 import pandas as pd
 import holoviews as hv
 import hvplot.pandas
