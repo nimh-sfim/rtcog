@@ -64,7 +64,17 @@ class PreprocStep:
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
-        name = cls.__name__.replace('Step', '').lower()
+
+        # Skip abstract or helper base classes
+        if cls.__name__ == "PreprocStep" or cls.__name__.startswith("_"):
+            return
+    
+        # Strip "Step" from the end of class names
+        name = cls.__name__
+        if name.endswith("Step"):
+            name = name[:-4]
+        name = name.lower()
+
         cls.registry[name] = cls
     
     def __eq__(self, other):
