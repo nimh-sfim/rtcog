@@ -8,9 +8,9 @@ import hvplot.pandas
 import panel as pn
 import matplotlib.pyplot as plt
 
-sys.path.insert(0, osp.abspath(osp.join(osp.dirname(__file__), '..')))
-from rtcap_lib.fMRI import load_fMRI_file, mask_fMRI_img
-from bin.rtcaps_matcher import file_exists
+sys.path.insert(0, osp.abspath(osp.join(osp.dirname(__file__), '../..')))
+from utils.fMRI import load_fMRI_file, mask_fMRI_img
+from utils.core import file_exists
 
 import logging
 log     = logging.getLogger("offline_mask")
@@ -168,9 +168,3 @@ if __name__ == "__main__":
     offline_mask.load_datasets()
     offline_mask.get_masked_traces()
     offline_mask.save_figures()
- 
-# npz = np.load("template_data.npz", allow_pickle=True)
-# labels = npz["labels"]
-# masked_templates = npz["masked_templates"].item()
-# masks = npz["masks"].item()
-# voxel_counts = npz["voxel_counts"].item()
