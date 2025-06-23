@@ -6,25 +6,10 @@ import os.path as osp
 import pytest
 import numpy as np
 
-from rtcaps.config import DATA_DIR, OUTPUT_DIR
+from rtfmri.paths import DATA_DIR, OUTPUT_DIR
 
-def test_snapshot_old():
-    orig = osp.join(DATA_DIR, 'snapshot_all-on_snapshots.npz')
-    res = osp.join(OUTPUT_DIR, 'snapshots.npz')
-
-    with np.load(orig, allow_pickle=True) as f1, np.load(res, allow_pickle=True) as f2:
-
-        for key in f1.files:
-            a1 = f1[key]
-            a2 = f2[key]
-
-            assert np.array_equal(a1, a2)
-        assert np.array_equal(f1["Data_norm"], f2["Data_processed"])
-
-if __name__ == "__main__":
-    pytest.main()
-
-def test_snapshot_new():
+def test_snapshot():
+    """New version of software vs old version (v2.0, using rtcaps_matcher.py)"""
     orig = osp.join(DATA_DIR, 'snapshot_all-on_snapshots.npz')
     res = osp.join(OUTPUT_DIR, 'new_snapshots.npz')
 

@@ -6,7 +6,7 @@ from numpy.linalg import cholesky, inv
 import logging
 from sklearn.preprocessing import StandardScaler
 
-from utils.fMRI import unmask_fMRI_img, mask_fMRI_img
+from rtfmri.utils.fMRI import unmask_fMRI_img, mask_fMRI_img
 
 log = logging.getLogger('online_preproc')
 

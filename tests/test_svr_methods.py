@@ -1,8 +1,8 @@
 import pytest
 import numpy as np
 
-from rtcaps.config import CAP_labels
-from rtcaps.rtcap_lib.svr_methods import is_hit_rt01
+from rtfmri.paths import CAP_labels
+from rtfmri.utils.svr_methods import is_hit_rt01
 
 
 def test_is_hit_rt01_two_above_thr(caplog):

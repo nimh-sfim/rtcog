@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "rtfmri"
+version = "3.0.0.dev0"
+description = "Realtime fMRI utilities"
+readme = "README.md"
+requires-python = ">=3.10"
+
+authors = [
+  { name="Javier Gonzalez-Castillo", email="javiergc@mail.nih.gov" },
+  { name="Marly Rubin", email="rubinmar@mail.nih.gov" },
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+
+[project.urls]
+"Homepage" = "https://github.com/nimh-sfim/rtCAPs"
+"Bug Tracker" = "https://github.com/nimh-sfim/rtCAPs/issues"

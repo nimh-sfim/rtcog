@@ -1,14 +1,11 @@
-from random import sample
-import sys
 import pytest
 import numpy as np
-import nibabel as nib
 from numpy.testing import assert_array_equal
 
-from rtcaps.rtcap_lib.rt_functions import gen_polort_regressors, _is_pos_def, _iGLMVol, rt_regress_vol
-from rtcaps.rtcap_lib.rt_functions import rt_EMA_vol
-from rtcaps.rtcap_lib.rt_functions import init_kalman, _kalman_filter, rt_kalman_vol
-from rtcaps.rtcap_lib.rt_functions import rt_smooth_vol, rt_snorm_vol, rt_svrscore_vol
+from rtfmri.preproc.preproc_utils import gen_polort_regressors, _is_pos_def, _iGLMVol, rt_regress_vol
+from rtfmri.preproc.preproc_utils import rt_EMA_vol
+from rtfmri.preproc.preproc_utils import init_kalman, _kalman_filter, rt_kalman_vol
+from rtfmri.preproc.preproc_utils import rt_smooth_vol, rt_snorm_vol
 
 
 def test_gen_polort_regressors():
