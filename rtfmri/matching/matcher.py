@@ -1,9 +1,10 @@
 import sys
 import pickle
+from types import SimpleNamespace
+from multiprocessing.shared_memory import SharedMemory
 
 import numpy as np
 
-sys.path.append('..')
 from rtfmri.utils.log import get_logger
 from rtfmri.matching.matching_utils import rt_svrscore_vol, rt_maskscore_vol
 
@@ -12,13 +13,17 @@ log = get_logger()
 
 class Matcher:
     """Base class for matching processed TR data to given templates"""
-    def __init__(self, match_opts, match_path, Nt, mp_evt_end):
+    def __init__(self, match_opts, match_path, Nt, mp_evt_end, mp_new_tr, mp_shm_ready):
+        match_opts = SimpleNamespace(**match_opts)
+
         self.match_start = match_opts.match_start # First volume to do decoding on
         self.Nt = Nt
         self.scores = None
         self.Ntemplates = None
         
         self.mp_evt_end = mp_evt_end
+        self.mp_new_tr = mp_new_tr
+        self.mp_shm_ready = mp_shm_ready
 
         self.do_win = match_opts.do_win
     
@@ -52,14 +57,24 @@ class Matcher:
 
         this_t_scores = self.func(np.squeeze(tr_data), self.input, self.template_labels)
         self.scores[:, t] = this_t_scores.ravel()
+        self.shared_arr[:, t] = this_t_scores.ravel()
+        self.mp_new_tr.set()
         log.debug(f'[t={t},n={n}] Online - Matching - scores.shape   {self.scores.shape}')
         
         return self.scores
+    
+    def setup_shared_memory(self):
+        if self.Ntemplates is None:
+            raise RuntimeError("Ntemplates must be set before creating shared memory")
+        self.base_arr = np.zeros((self.Ntemplates, self.Nt), dtype=np.float32)
+        self.shm = SharedMemory(create=True, size=self.base_arr.nbytes, name="match_scores")
+        self.shared_arr = np.ndarray(self.base_arr.shape, dtype=self.base_arr.dtype, buffer=self.shm.buf)
+        
 
 class SVRMatcher(Matcher):
     """Match to templates using pretrained SVR model"""
-    def __init__(self, match_opts, match_path, Nt, mp_evt_end):
-        super().__init__(match_opts, match_path, Nt, mp_evt_end)
+    def __init__(self, match_opts, match_path, Nt, mp_evt_end, mp_new_tr, mp_shm_ready):
+        super().__init__(match_opts, match_path, Nt, mp_evt_end, mp_new_tr, mp_shm_ready)
 
         if match_path is None:
             log.error('SVR Model not provided. Program will exit.')
@@ -80,11 +95,14 @@ class SVRMatcher(Matcher):
         self.template_labels = list(self.input.keys())
         log.info(f'List of templates to be tested: {self.template_labels}')
         
+        self.setup_shared_memory()
+        self.mp_shm_ready.set()
+        
 
 class MaskMatcher(Matcher):
     """Match to templates using pretrained Mask Method"""
-    def __init__(self, match_opts, match_path, Nt, mp_evt_end):
-        super().__init__(match_opts, match_path, Nt, mp_evt_end)
+    def __init__(self, match_opts, match_path, Nt, mp_evt_end, mp_new_tr, mp_shm_ready):
+        super().__init__(match_opts, match_path, Nt, mp_evt_end, mp_new_tr, mp_shm_ready)
 
         if match_path is None:
             log.error('Template info for match method not provided. Program will exit.')
@@ -103,4 +121,6 @@ class MaskMatcher(Matcher):
         self.template_labels = list(self.input["labels"])
         self.Ntemplates = len(self.template_labels)
         log.info(f'List of templates to be tested: {self.template_labels}')
-        
+
+        self.setup_shared_memory()
+        self.mp_shm_ready.set()

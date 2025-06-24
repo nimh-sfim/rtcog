@@ -8,12 +8,11 @@ from psychopy import event
 
 sys.path.insert(0, osp.abspath(osp.join(osp.dirname(__file__), 'core')))
 
-from paths import RESOURCES_DIR
-from utils.options import Options
-from utils.log import get_logger, set_logger
-from utils.gui import validate_likert_questions, get_experiment_info, DefaultGUI, EsamGUI
-from utils.core import SharedClock
-from utils.trigger_listener import TriggerListener
+from rtfmri.utils.options import Options
+from rtfmri.utils.log import get_logger, set_logger
+from rtfmri.utils.gui import validate_likert_questions, get_experiment_info, DefaultGUI, EsamGUI
+from rtfmri.utils.core import SharedClock
+from rtfmri.utils.trigger_listener import TriggerListener
 
 from psychopy import logging
 logging.console.setLevel(logging.ERROR)
@@ -30,8 +29,6 @@ def main():
 
     log = set_logger(debug=opts.debug, silent=opts.silent)
 
-    if opts.exp_type == "esam":
-        opts.likert_questions = validate_likert_questions(opts.q_path)
         
     if opts.test_latency:
         clock = SharedClock()
@@ -40,15 +37,23 @@ def main():
 
     # 2) Create Multi-processing infrastructure
     # ------------------------------------------
-    mp_evt_hit    = mp.Event()
-    mp_evt_end    = mp.Event()
+    mp_evt_hit = mp.Event()
+    mp_evt_end = mp.Event()
     mp_evt_qa_end = mp.Event()
-    mp_prc_comm   = mp.Process(target=comm_process, args=(opts, mp_evt_hit, mp_evt_end, mp_evt_qa_end, clock, recevier_path))
-    mp_prc_comm.start() 
     
-    trigger_listener = TriggerListener(mp_evt_end, clock, trigger_path)
-    mp_trigger_process = mp.Process(target=trigger_listener.capture_trigger)
-    mp_trigger_process.start()
+    if opts.exp_type == "esam":
+        opts.likert_questions = validate_likert_questions(opts.q_path)
+        mp_new_tr = mp.Event()
+        mp_shm_ready = mp.Event()
+
+    mp_prc_comm = mp.Process(target=comm_process, args=(opts, mp_evt_hit, mp_evt_end, mp_evt_qa_end, mp_new_tr, mp_shm_ready, clock, recevier_path))
+    mp_prc_comm.start()
+
+    
+    if opts.test_latency:
+        trigger_listener = TriggerListener(mp_evt_end, clock, trigger_path)
+        mp_trigger_process = mp.Process(target=trigger_listener.capture_trigger)
+        mp_trigger_process.start()
 
     # 3) Get additional info using the GUI
     # ------------------------------------
@@ -99,7 +104,7 @@ def main():
         esam_gui.close_psychopy_infrastructure()
         
 
-def comm_process(opts, mp_evt_hit, mp_evt_end, mp_evt_qa_end, clock, time_path):
+def comm_process(opts, mp_evt_hit, mp_evt_end, mp_evt_qa_end, mp_new_tr, mp_shm_ready, clock, time_path):
     from comm.receiver_interface import CustomReceiverInterface
     from core.experiment import Experiment, ESAMExperiment
     
@@ -107,7 +112,9 @@ def comm_process(opts, mp_evt_hit, mp_evt_end, mp_evt_qa_end, clock, time_path):
     log.info('- comm_process - 2) Instantiating Experiment Object...')
     if opts.exp_type == 'esam':
         log.info('This an experimental run')
-        experiment = ESAMExperiment(opts, mp_evt_hit, mp_evt_end, mp_evt_qa_end)
+        experiment = ESAMExperiment(opts, mp_evt_hit, mp_evt_end, mp_evt_qa_end, mp_new_tr, mp_shm_ready)
+        experiment.start_streaming()
+        # TODO: add event to signal when server is ready before printing ready to go
     else:
         experiment = Experiment(opts, mp_evt_hit, mp_evt_end, mp_evt_qa_end)
 

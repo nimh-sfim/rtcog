@@ -1,5 +1,6 @@
 import sys
 import os.path as osp
+from multiprocessing import Process
 from types import SimpleNamespace
 
 import numpy as np
@@ -8,8 +9,9 @@ import holoviews as hv
 import hvplot.pandas
 
 from rtfmri.preproc.pipeline import Pipeline
-from rtfmri.matching.matcher import SVRMatcher, MaskMatcher
+from rtfmri.matching.matcher import Matcher
 from rtfmri.matching.hit_detector import HitDetector
+from rtfmri.viz.streaming import run_streamer
 from rtfmri.utils.log import set_logger
 from rtfmri.utils.fMRI import load_fMRI_file, unmask_fMRI_img
 
@@ -34,7 +36,6 @@ class Experiment:
     """
     def __init__(self, options, mp_evt_hit, mp_evt_end, mp_evt_qa_end):
         self.log = set_logger(options.debug, options.silent)
-
         self.mp_evt_hit = mp_evt_hit # Signals a CAP hit
         self.mp_evt_end = mp_evt_end # Signals the end of the experiment
         self.mp_evt_qa_end = mp_evt_qa_end # Signals the end of a QA set
@@ -65,6 +66,7 @@ class Experiment:
             self.log.debug(f'  Experiment_init_ - Number of Voxels in user-provided mask: {self.mask_Nv}')
 
         self.pipe = Pipeline(options, self.Nt, self.mask_Nv, self.mask_img, self.exp_type)        
+        
 
     def _compute_TR_data_impl(self, motion, extra):
         """
@@ -159,8 +161,12 @@ class ESAMExperiment(Experiment):
     hit_detector : HitDetector
         Object that decides if a hit has occured.
     """
-    def __init__(self, options, mp_evt_hit, mp_evt_end, mp_evt_qa_end):
+    def __init__(self, options, mp_evt_hit, mp_evt_end, mp_evt_qa_end, mp_new_tr, mp_shm_ready):
         super().__init__(options, mp_evt_hit, mp_evt_end, mp_evt_qa_end)
+        self.mp_new_tr = mp_new_tr
+        self.mp_shm_ready = mp_shm_ready
+        self.streamer = None
+
         self.lastQA_endTR  = 0
         self.out_dir = options.out_dir
         self.out_prefix = options.out_prefix
@@ -182,15 +188,18 @@ class ESAMExperiment(Experiment):
         self.win_length = matching_opts.win_length
         self.match_start = matching_opts.match_start
         
-        # TODO: have cleaner way of instantiating these. If new matching methods are added, this would get annoying
-        if self.match_method == "svr":
-            self.matcher = SVRMatcher(matching_opts, options.match_path, self.Nt, self.mp_evt_end)
-        elif self.match_method == 'mask_method':
-            self.matcher = MaskMatcher(matching_opts, options.match_path, self.Nt, self.mp_evt_end)
+        try:
+            matcher_cls = Matcher.from_name(matching_opts.match_method)
+            self.matcher = matcher_cls(options.matching, options.match_path, options.nvols, mp_evt_end, mp_new_tr, mp_shm_ready)
+        except ValueError as e:
+            self.log.error(f"Matcher setup failed: {e}")
+            mp_evt_end.set()
+            sys.exit(-1)
 
         self.hits = np.zeros((self.matcher.Ntemplates, self.Nt))
         self.hit_detector = HitDetector(hit_opts, self.hit_thr)
         self.last_hit = None
+        
         
         
     def compute_TR_data(self, motion, extra):
@@ -237,6 +246,14 @@ class ESAMExperiment(Experiment):
 
         
         return 1
+
+    def start_streaming(self):
+        if self.streamer is None:
+            self.mp_prc_stream = Process(
+                target=run_streamer,
+                args=(self.Nt, self.matcher.template_labels, self.mp_new_tr, self.mp_shm_ready)
+            )
+            self.mp_prc_stream.start()
 
     def write_hit_arrays(self):
         """Save match scores and hit arrays"""
@@ -312,7 +329,7 @@ class ESAMExperiment(Experiment):
         if save:
             self.pipe.final_steps()
 
-        # TODO: move hit saving to HitDetector
+        # TODO: move hit saving to HitDetector?
         self.write_hit_arrays()
         self.write_dynamic_report()
         self.write_hit_maps()

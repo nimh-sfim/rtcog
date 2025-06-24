@@ -50,7 +50,7 @@ snapshot: false
 
 # Matching options
 matching:
-  match_method: mask_method
+  match_method: mask
   match_start: 100 # Volume when matching should start
   do_win: true # Activate windowing of individual volumes prior to hit estimation
   vols_noqa: 45 # Min. number of volumes to wait since end of last QA before declaing a new hit
