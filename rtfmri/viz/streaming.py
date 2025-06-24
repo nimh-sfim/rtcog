@@ -34,9 +34,7 @@ class Streamer:
         self.dmap = hv.DynamicMap(self.plot, streams=[Stream.define('Next')()])
 
     def update_df(self):
-        if self.t < self.Nt:
-            self.df.iloc[self.t] = self.shared_arr[:, self.t]
-            self.t += 1
+        self.df.iloc[self.t] = self.shared_arr[:, self.t]
     
     def update(self):
         # Wait for new data, then update plot
@@ -45,6 +43,7 @@ class Streamer:
                 self.mp_new_tr.wait()
                 self.mp_new_tr.clear()
                 self.update_df()
+                self.t += 1
                 self.dmap.event()
         finally:
             self._close_shared_memory()
