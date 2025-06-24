@@ -30,6 +30,9 @@ def main():
     log = set_logger(debug=opts.debug, silent=opts.silent)
 
         
+    clock = None
+    trigger_path = None
+    recevier_path = None
     if opts.test_latency:
         clock = SharedClock()
         trigger_path = osp.join(opts.out_dir, f'{opts.out_prefix}_trigger_timing.pkl')
@@ -41,6 +44,8 @@ def main():
     mp_evt_end = mp.Event()
     mp_evt_qa_end = mp.Event()
     
+    mp_new_tr = None
+    mp_shm_ready = None
     if opts.exp_type == "esam":
         opts.likert_questions = validate_likert_questions(opts.q_path)
         mp_new_tr = mp.Event()
@@ -103,7 +108,7 @@ def main():
         esam_gui.close_psychopy_infrastructure()
         
 
-def comm_process(opts, mp_evt_hit, mp_evt_end, mp_evt_qa_end, mp_new_tr, mp_shm_ready, clock, time_path):
+def comm_process(opts, mp_evt_hit, mp_evt_end, mp_evt_qa_end, mp_new_tr=None, mp_shm_ready=None, clock=None, time_path=None):
     from comm.receiver_interface import CustomReceiverInterface
     from core.experiment import Experiment, ESAMExperiment
     

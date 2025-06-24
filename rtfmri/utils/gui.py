@@ -313,4 +313,5 @@ class EsamGUI(DefaultGUI):
                     rating, rt = val
                     w.writerow([key, rating, round(rt, 2)])
                 log.debug(f'Likert responses written to {resp_path}')
-        log.info(f'All likert responses saved')
+        if self.responses:
+            log.info(f'All likert responses saved')
