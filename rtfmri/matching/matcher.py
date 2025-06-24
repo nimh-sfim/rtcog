@@ -14,8 +14,6 @@ log = get_logger()
 class Matcher:
     """Base class for matching processed TR data to given templates"""
     def __init__(self, match_opts, match_path, Nt, mp_evt_end, mp_new_tr, mp_shm_ready):
-        match_opts = SimpleNamespace(**match_opts)
-
         self.match_start = match_opts.match_start # First volume to do decoding on
         self.Nt = Nt
         self.scores = None

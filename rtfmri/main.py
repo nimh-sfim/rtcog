@@ -49,7 +49,6 @@ def main():
     mp_prc_comm = mp.Process(target=comm_process, args=(opts, mp_evt_hit, mp_evt_end, mp_evt_qa_end, mp_new_tr, mp_shm_ready, clock, recevier_path))
     mp_prc_comm.start()
 
-    
     if opts.test_latency:
         trigger_listener = TriggerListener(mp_evt_end, clock, trigger_path)
         mp_trigger_process = mp.Process(target=trigger_listener.capture_trigger)
@@ -113,7 +112,7 @@ def comm_process(opts, mp_evt_hit, mp_evt_end, mp_evt_qa_end, mp_new_tr, mp_shm_
     if opts.exp_type == 'esam':
         log.info('This an experimental run')
         experiment = ESAMExperiment(opts, mp_evt_hit, mp_evt_end, mp_evt_qa_end, mp_new_tr, mp_shm_ready)
-        experiment.start_streaming()
+        experiment.start_streaming() # Start panel server
         # TODO: add event to signal when server is ready before printing ready to go
     else:
         experiment = Experiment(opts, mp_evt_hit, mp_evt_end, mp_evt_qa_end)

@@ -11,22 +11,21 @@ from holoviews.streams import Stream
 hv.extension('bokeh')
 pn.extension()
 
-def run_streamer(Nt, template_labels, mp_new_tr, mp_shm_ready):
-    streamer = Streamer(Nt, template_labels, mp_new_tr, mp_shm_ready)
+def run_streamer(Nt, template_labels, match_start, mp_new_tr, mp_shm_ready):
+    streamer = Streamer(Nt, template_labels, match_start, mp_new_tr, mp_shm_ready)
     streamer.run()
 
 class Streamer:
     """Receives scores from Matcher and starts server to stream the data live"""
-    def __init__(self, Nt, template_labels, mp_new_tr, mp_shm_ready):
+    def __init__(self, Nt, template_labels, match_start, mp_new_tr, mp_shm_ready):
         mp_shm_ready.wait()
-        print("received shm")
 
         self.mp_new_tr = mp_new_tr
         self.Nt = Nt
         self.template_labels = template_labels
         self.Ntemplates = len(template_labels)
 
-        self.t = 0
+        self.t = match_start
 
         self.shm = SharedMemory(name="match_scores")
         self.shared_arr = np.ndarray((self.Ntemplates, Nt), dtype=np.float32, buffer=self.shm.buf)
@@ -41,12 +40,14 @@ class Streamer:
     
     def update(self):
         # Wait for new data, then update plot
-        while self.t < self.Nt:
-            self.mp_new_tr.wait()
-            self.mp_new_tr.clear()
-            self.update_df()
-            self.dmap.event()
-        self._close_shared_memory()
+        try:
+            while self.t < self.Nt:
+                self.mp_new_tr.wait()
+                self.mp_new_tr.clear()
+                self.update_df()
+                self.dmap.event()
+        finally:
+            self._close_shared_memory()
     
     def plot(self):
         return self.df.iloc[:self.t].hvplot.line(legend='top', label='Match Scores', width=1500)

@@ -177,7 +177,7 @@ class ESAMExperiment(Experiment):
         self.qa_onsets_path  = osp.join(self.out_dir,self.out_prefix+'.qa_onsets.txt')
         self.qa_offsets_path = osp.join(self.out_dir,self.out_prefix+'.qa_offsets.txt')
         
-        # Convert dicts into a objects that allow dot notation (ex. matching_opts.matcher_type)
+        # Convert dicts into a objects that allow dot notation
         matching_opts = SimpleNamespace(**options.matching)
         hit_opts = SimpleNamespace(**options.hits)
 
@@ -190,7 +190,7 @@ class ESAMExperiment(Experiment):
         
         try:
             matcher_cls = Matcher.from_name(matching_opts.match_method)
-            self.matcher = matcher_cls(options.matching, options.match_path, options.nvols, mp_evt_end, mp_new_tr, mp_shm_ready)
+            self.matcher = matcher_cls(matching_opts, options.match_path, self.Nt, self.mp_evt_end, mp_new_tr, mp_shm_ready)
         except ValueError as e:
             self.log.error(f"Matcher setup failed: {e}")
             mp_evt_end.set()
@@ -199,8 +199,6 @@ class ESAMExperiment(Experiment):
         self.hits = np.zeros((self.matcher.Ntemplates, self.Nt))
         self.hit_detector = HitDetector(hit_opts, self.hit_thr)
         self.last_hit = None
-        
-        
         
     def compute_TR_data(self, motion, extra):
         # TODO: see why I'm getting off by one for hits and the numbers are slightly different.
@@ -251,7 +249,7 @@ class ESAMExperiment(Experiment):
         if self.streamer is None:
             self.mp_prc_stream = Process(
                 target=run_streamer,
-                args=(self.Nt, self.matcher.template_labels, self.mp_new_tr, self.mp_shm_ready)
+                args=(self.Nt, self.matcher.template_labels, self.match_start, self.mp_new_tr, self.mp_shm_ready)
             )
             self.mp_prc_stream.start()
 
