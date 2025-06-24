@@ -21,7 +21,31 @@ class Matcher:
         self.mp_evt_end = mp_evt_end
 
         self.do_win = match_opts.do_win
+    
+    registry = {} # Holds all available matching classes
         
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+
+        # Skip abstract or helper base classes
+        if cls.__name__ == "Matcher" or cls.__name__.startswith("_"):
+            return
+    
+        # Strip "Matcher" from the end of class names
+        name = cls.__name__
+        if name.endswith("Matcher"):
+            name = name[:-7]
+        name = name.lower()
+        
+        cls.registry[name] = cls
+
+    @classmethod
+    def from_name(cls, name):
+        # match_method = opts.matching["match_method"].lower()
+        if name not in cls.registry:
+            raise ValueError(f'Unknown matching method: {name}')
+        return cls.registry[name]
+
     def match(self, t, n, tr_data):
         if self.scores is None:
             self.scores = np.zeros((self.Ntemplates, self.Nt))
