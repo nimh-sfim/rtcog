@@ -249,7 +249,7 @@ class ESAMExperiment(Experiment):
         if self.streamer is None:
             self.mp_prc_stream = Process(
                 target=run_streamer,
-                args=(self.Nt, self.matcher.template_labels, self.match_start, self.mp_new_tr, self.mp_shm_ready)
+                args=(self.Nt, self.matcher.template_labels, self.match_start, self.mp_new_tr, self.mp_shm_ready, self.mp_evt_qa_end, self.mp_evt_hit)
             )
             self.mp_prc_stream.start()
 
