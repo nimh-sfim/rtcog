@@ -47,6 +47,7 @@ q_path: questions_v1 # path to the questions used for the experiment TODO: FIX
 
 # Testing option2
 snapshot: false
+test_latency: false
 
 # Matching options
 matching:

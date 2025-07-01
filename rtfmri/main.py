@@ -33,22 +33,26 @@ def main():
     if opts.exp_type == "esam":
         opts.likert_questions = validate_likert_questions(opts.q_path)
         
+    clock = None
+    trigger_path = None
+    receiver_path = None
     if opts.test_latency:
         clock = SharedClock()
         trigger_path = osp.join(opts.out_dir, f'{opts.out_prefix}_trigger_timing.pkl')
-        recevier_path = osp.join(opts.out_dir, f'{opts.out_prefix}_receiver_timing.pkl')
+        receiver_path = osp.join(opts.out_dir, f'{opts.out_prefix}_receiver_timing.pkl')
 
     # 2) Create Multi-processing infrastructure
     # ------------------------------------------
     mp_evt_hit    = mp.Event()
     mp_evt_end    = mp.Event()
     mp_evt_qa_end = mp.Event()
-    mp_prc_comm   = mp.Process(target=comm_process, args=(opts, mp_evt_hit, mp_evt_end, mp_evt_qa_end, clock, recevier_path))
+    mp_prc_comm   = mp.Process(target=comm_process, args=(opts, mp_evt_hit, mp_evt_end, mp_evt_qa_end, clock, receiver_path))
     mp_prc_comm.start() 
     
-    trigger_listener = TriggerListener(mp_evt_end, clock, trigger_path)
-    mp_trigger_process = mp.Process(target=trigger_listener.capture_trigger)
-    mp_trigger_process.start()
+    if opts.test_latency:
+        trigger_listener = TriggerListener(mp_evt_end, clock, trigger_path)
+        mp_trigger_process = mp.Process(target=trigger_listener.capture_trigger)
+        mp_trigger_process.start()
 
     # 3) Get additional info using the GUI
     # ------------------------------------
