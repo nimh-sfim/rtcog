@@ -5,6 +5,7 @@ import itertools
 from numpy.linalg import cholesky, inv
 import logging
 from sklearn.preprocessing import StandardScaler
+from scipy.signal.windows import exponential
 
 from rtfmri.utils.fMRI import unmask_fMRI_img, mask_fMRI_img
 
@@ -557,3 +558,30 @@ def rt_snorm_vol(data):
     """
     sc  = StandardScaler(with_mean=True, with_std=True)
     return sc.fit_transform(data)
+
+# Windowing utilities
+# ==========================
+def create_win(M, center=0, tau=3):
+    win = exponential(M, center, tau, False)
+    print('++ Create Window: Window Values [%s]' % str(win))
+    return win[:, np.newaxis]
+
+class CircularBuffer:
+    def __init__(self, Nv, size):
+        self.insert_idx = 0
+        self.size = size
+        self.buffer = np.zeros((Nv, size))
+        self.full = False
+    
+    def update(self, data):
+        self.buffer[:, self.insert_idx] = data.squeeze()
+        self.insert_idx = (self.insert_idx + 1) % self.size
+
+        if self.insert_idx == 0 and not self.full:
+            self.full = True
+
+        if self.full:
+            return np.concatenate([self.buffer[:, self.insert_idx:], self.buffer[:, :self.insert_idx]], axis=1)
+        
+        else:
+            return None

@@ -6,7 +6,6 @@ import csv
 import logging
 import json
 from playsound import playsound
-from rtfmri.utils.recorder import Recorder
 
 from psychopy import core, event, gui, data
 from psychopy.hardware import keyboard
@@ -15,10 +14,9 @@ from psychopy.visual import TextStim, Window, ImageStim
 from psychopy.visual.slider import Slider 
 from psychopy import prefs
 prefs.hardware['keyboard'] = 'pygame'
-# prefs.hardware['audio'] = 'pygame'
 
-sys.path.append('..')
-from paths import RESOURCES_DIR
+from rtfmri.utils.recorder import Recorder
+from rtfmri.paths import RESOURCES_DIR
 
 # Patch for dependency issues
 import numpy as np

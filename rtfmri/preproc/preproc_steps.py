@@ -1,6 +1,4 @@
 import multiprocessing as mp
-
-from matching.matching_utils import create_win, CircularBuffer
 import os.path as osp
 import numpy as np
 
@@ -9,6 +7,7 @@ from rtfmri.utils.exceptions import VolumeOverflowError
 from rtfmri.preproc.preproc_utils import gen_polort_regressors
 from rtfmri.preproc.preproc_utils import initialize_kalman_pool, kalman_filter_mv, rt_kalman_vol
 from rtfmri.preproc.preproc_utils import rt_EMA_vol, rt_regress_vol, rt_smooth_vol, rt_snorm_vol, welford
+from rtfmri.preproc.preproc_utils import create_win, CircularBuffer
 from rtfmri.utils.fMRI import unmask_fMRI_img
 
 

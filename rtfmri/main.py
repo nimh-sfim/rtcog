@@ -8,12 +8,11 @@ from psychopy import event
 
 sys.path.insert(0, osp.abspath(osp.join(osp.dirname(__file__), 'core')))
 
-from paths import RESOURCES_DIR
-from utils.options import Options
-from utils.log import get_logger, set_logger
-from utils.gui import validate_likert_questions, get_experiment_info, DefaultGUI, EsamGUI
-from utils.core import SharedClock
-from utils.trigger_listener import TriggerListener
+from rtfmri.utils.options import Options
+from rtfmri.utils.log import get_logger, set_logger
+from rtfmri.utils.gui import validate_likert_questions, get_experiment_info, DefaultGUI, EsamGUI
+from rtfmri.utils.core import SharedClock
+from rtfmri.utils.trigger_listener import TriggerListener
 
 from psychopy import logging
 logging.console.setLevel(logging.ERROR)
@@ -104,8 +103,8 @@ def main():
         
 
 def comm_process(opts, mp_evt_hit, mp_evt_end, mp_evt_qa_end, clock, time_path):
-    from comm.receiver_interface import CustomReceiverInterface
-    from core.experiment import Experiment, ESAMExperiment
+    from rtfmri.comm.receiver_interface import CustomReceiverInterface
+    from rtfmri.core.experiment import Experiment, ESAMExperiment
     
     # 2) Create Experiment Object
     log.info('- comm_process - 2) Instantiating Experiment Object...')

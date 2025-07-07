@@ -185,8 +185,12 @@ class ESAMExperiment(Experiment):
         # TODO: have cleaner way of instantiating these. If new matching methods are added, this would get annoying
         if self.match_method == "svr":
             self.matcher = SVRMatcher(matching_opts, options.match_path, self.Nt, self.mp_evt_end)
-        elif self.match_method == 'mask_method':
+        elif self.match_method == 'mask':
             self.matcher = MaskMatcher(matching_opts, options.match_path, self.Nt, self.mp_evt_end)
+        else:
+            self.log.error(f'Invalid match method: {self.match_method}')
+            self.mp_evt_end.set()
+            sys.exit(-1)
 
         self.hits = np.zeros((self.matcher.Ntemplates, self.Nt))
         self.hit_detector = HitDetector(hit_opts, self.hit_thr)
