@@ -24,6 +24,7 @@ conda env create -f env.yml
 
 ```bash
 conda activate rtcaps
+pip install .
 ```
 
 ## Setup

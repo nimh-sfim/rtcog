@@ -32,11 +32,11 @@ def main():
         
     clock = None
     trigger_path = None
-    recevier_path = None
+    receiver_path = None
     if opts.test_latency:
         clock = SharedClock()
         trigger_path = osp.join(opts.out_dir, f'{opts.out_prefix}_trigger_timing.pkl')
-        recevier_path = osp.join(opts.out_dir, f'{opts.out_prefix}_receiver_timing.pkl')
+        receiver_path = osp.join(opts.out_dir, f'{opts.out_prefix}_receiver_timing.pkl')
 
     # 2) Create Multi-processing infrastructure
     # ------------------------------------------
@@ -51,7 +51,7 @@ def main():
         mp_new_tr = mp.Event()
         mp_shm_ready = mp.Event()
 
-    mp_prc_comm = mp.Process(target=comm_process, args=(opts, mp_evt_hit, mp_evt_end, mp_evt_qa_end, mp_new_tr, mp_shm_ready, clock, recevier_path))
+    mp_prc_comm = mp.Process(target=comm_process, args=(opts, mp_evt_hit, mp_evt_end, mp_evt_qa_end, mp_new_tr, mp_shm_ready, clock, receiver_path))
     mp_prc_comm.start()
 
     if opts.test_latency:
