@@ -11,13 +11,13 @@ from holoviews.streams import Stream
 hv.extension('bokeh')
 pn.extension()
 
-def run_streamer(Nt, template_labels, match_start, mp_new_tr, mp_shm_ready):
-    streamer = Streamer(Nt, template_labels, match_start, mp_new_tr, mp_shm_ready)
+def run_streamer(Nt, template_labels, match_start, mp_new_tr, mp_shm_ready, mp_evt_qa_end, mp_evt_hit):
+    streamer = Streamer(Nt, template_labels, match_start, mp_new_tr, mp_shm_ready, mp_evt_qa_end, mp_evt_hit)
     streamer.run()
 
 class Streamer:
     """Receives scores from Matcher and starts server to stream the data live"""
-    def __init__(self, Nt, template_labels, match_start, mp_new_tr, mp_shm_ready):
+    def __init__(self, Nt, template_labels, match_start, mp_new_tr, mp_shm_ready, mp_evt_qa_end, mp_evt_hit):
         mp_shm_ready.wait()
 
         self.mp_new_tr = mp_new_tr
@@ -32,6 +32,9 @@ class Streamer:
 
         self.df = pd.DataFrame(np.nan, index=np.arange(self.Nt), columns=self.template_labels)
         self.dmap = hv.DynamicMap(self.plot, streams=[Stream.define('Next')()])
+        
+        self.mp_evt_qa_end = mp_evt_qa_end
+        self.mp_evt_hit = mp_evt_hit
 
     def update_df(self):
         self.df.iloc[self.t] = self.shared_arr[:, self.t]

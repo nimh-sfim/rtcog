@@ -28,7 +28,6 @@ def main():
     print(opts)
 
     log = set_logger(debug=opts.debug, silent=opts.silent)
-
         
     clock = None
     trigger_path = None
@@ -109,8 +108,8 @@ def main():
         
 
 def comm_process(opts, mp_evt_hit, mp_evt_end, mp_evt_qa_end, mp_new_tr=None, mp_shm_ready=None, clock=None, time_path=None):
-    from comm.receiver_interface import CustomReceiverInterface
-    from core.experiment import Experiment, ESAMExperiment
+    from rtfmri.comm.receiver_interface import CustomReceiverInterface
+    from rtfmri.core.experiment import Experiment, ESAMExperiment
     
     # 2) Create Experiment Object
     log.info('- comm_process - 2) Instantiating Experiment Object...')
