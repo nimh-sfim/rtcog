@@ -147,8 +147,8 @@ class DefaultGUI:
 
 
 class EsamGUI(DefaultGUI):
-    def __init__(self, expInfo, opts):
-        super().__init__(expInfo, opts)
+    def __init__(self, expInfo, opts, clock=None):
+        super().__init__(expInfo, opts, clock)
         self.hitID = 1
 
         self.key_left   = expInfo['leftKey']
