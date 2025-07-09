@@ -12,7 +12,6 @@ from rtfmri.utils.options import Options
 from rtfmri.utils.log import get_logger, set_logger
 from rtfmri.utils.gui import validate_likert_questions, get_experiment_info, DefaultGUI, EsamGUI
 from rtfmri.utils.core import SharedClock
-from rtfmri.utils.trigger_listener import TriggerListener
 
 from psychopy import logging
 logging.console.setLevel(logging.ERROR)
@@ -33,11 +32,9 @@ def main():
         opts.likert_questions = validate_likert_questions(opts.q_path)
         
     clock = None
-    trigger_path = None
     receiver_path = None
     if opts.test_latency:
         clock = SharedClock()
-        trigger_path = osp.join(opts.out_dir, f'{opts.out_prefix}_trigger_timing.pkl')
         receiver_path = osp.join(opts.out_dir, f'{opts.out_prefix}_receiver_timing.pkl')
 
     # 2) Create Multi-processing infrastructure
@@ -48,10 +45,10 @@ def main():
     mp_prc_comm   = mp.Process(target=comm_process, args=(opts, mp_evt_hit, mp_evt_end, mp_evt_qa_end, clock, receiver_path))
     mp_prc_comm.start() 
     
-    if opts.test_latency:
-        trigger_listener = TriggerListener(mp_evt_end, clock, trigger_path)
-        mp_trigger_process = mp.Process(target=trigger_listener.capture_trigger)
-        mp_trigger_process.start()
+    # if opts.test_latency:
+    #     trigger_listener = TriggerListener(mp_evt_end, clock, trigger_path)
+    #     mp_trigger_process = mp.Process(target=trigger_listener.capture_trigger)
+    #     mp_trigger_process.start()
 
     # 3) Get additional info using the GUI
     # ------------------------------------
@@ -61,14 +58,17 @@ def main():
     if opts.exp_type == "preproc":
         if not opts.no_gui:
             # 4) Start GUI
-            preproc_gui = DefaultGUI(exp_info, opts)
+            preproc_gui = DefaultGUI(exp_info, opts, clock)
 
             # 5) Keep the experiment going, until it ends
             while not mp_evt_end.is_set():
                 preproc_gui.draw_resting_screen()
+                if opts.test_latency:
+                    preproc_gui.poll_trigger()
                 if event.getKeys(['escape']):
                     log.info('- User pressed escape key')
                     mp_evt_end.set()
+            preproc_gui.save_trigger()
 
             # 6) Close Psychopy Window
             # ------------------------

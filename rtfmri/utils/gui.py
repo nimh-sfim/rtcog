@@ -1,4 +1,5 @@
 import sys
+import pickle
 from time import sleep
 import time
 import os.path as osp
@@ -79,7 +80,7 @@ def get_experiment_info(opts):
     return expInfo
 
 class DefaultGUI:
-    def __init__(self, expInfo, opts):
+    def __init__(self, expInfo, opts, clock=None):
         self.out_dir    = opts.out_dir
         self.out_prefix = opts.out_prefix
 
@@ -102,6 +103,11 @@ class DefaultGUI:
             TextStim(win=self.ewin, text='Do not sleep', pos=(0.0,-0.3)),
             TextStim(win=self.ewin, text='X', pos=(0,0))
         ]
+        
+        self.clock = clock
+        self.trigger_path = osp.join(opts.out_dir, f'{opts.out_prefix}_trigger_timing.pkl')
+        self.triggers = []
+        
    
     def _create_experiment_window(self):
         return Window(
@@ -120,6 +126,18 @@ class DefaultGUI:
     def draw_resting_screen(self):
         self._draw_stims(self.default_inst)
     
+    def poll_trigger(self):
+        keys = event.getKeys(['t'])
+        now = self.clock.now()
+        for _ in keys:
+            self.triggers.append((now))
+            print(f"Trig @ {now:.3f} seconds")
+
+    def save_trigger(self):
+        with open(self.trigger_path, 'wb') as f:
+            pickle.dump(self.triggers, f)
+        print(f'Timing saved to {self.trigger_path}')
+
     def close_psychopy_infrastructure(self):
         log.info(' - close_psychopy_infrastructure - Function called.')
         self.ewin.flip()
