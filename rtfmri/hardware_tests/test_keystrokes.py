@@ -3,7 +3,6 @@ import argparse
 
 from rtfmri.utils.gui import DefaultGUI, get_experiment_info
 from rtfmri.utils.core import SharedClock
-from rtfmri.utils.options import Options
 
 def get_opts(options=None):
     parser = argparse.ArgumentParser(
