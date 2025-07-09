@@ -74,7 +74,7 @@ class CustomReceiverInterface(ReceiverInterface):
         if self.clock:
             recv_time = self.clock.now()
             self.timing["recv"].append(recv_time)
-            print(f"Recv @ {recv_time}", flush=True)
+            print(f"Recv @ {recv_time:.3f}", flush=True)
 
 
         if rv:
@@ -92,7 +92,7 @@ class CustomReceiverInterface(ReceiverInterface):
             if self.clock:
                 proc_time = self.clock.now()
                 self.timing["proc"].append(proc_time)
-                print(f"Proc @ {proc_time}", flush=True)
+                print(f"Proc @ {proc_time:.3f}", flush=True)
 
         if not data:
             return 1

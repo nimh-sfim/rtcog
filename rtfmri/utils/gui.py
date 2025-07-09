@@ -131,7 +131,7 @@ class DefaultGUI:
         now = self.clock.now()
         for _ in keys:
             self.triggers.append((now))
-            print(f"Trig @ {now:.3f} seconds")
+            print(f"Trig @ {now:.3f}")
 
     def save_trigger(self):
         with open(self.trigger_path, 'wb') as f:
