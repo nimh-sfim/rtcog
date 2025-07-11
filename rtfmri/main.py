@@ -12,7 +12,6 @@ from rtfmri.utils.options import Options
 from rtfmri.utils.log import get_logger, set_logger
 from rtfmri.utils.gui import validate_likert_questions, get_experiment_info, DefaultGUI, EsamGUI
 from rtfmri.utils.core import SharedClock
-from rtfmri.utils.trigger_listener import TriggerListener
 
 from psychopy import logging
 logging.console.setLevel(logging.ERROR)
@@ -30,11 +29,9 @@ def main():
     log = set_logger(debug=opts.debug, silent=opts.silent)
         
     clock = None
-    trigger_path = None
     receiver_path = None
     if opts.test_latency:
         clock = SharedClock()
-        trigger_path = osp.join(opts.out_dir, f'{opts.out_prefix}_trigger_timing.pkl')
         receiver_path = osp.join(opts.out_dir, f'{opts.out_prefix}_receiver_timing.pkl')
 
     # 2) Create Multi-processing infrastructure
@@ -66,14 +63,17 @@ def main():
     if opts.exp_type == "preproc":
         if not opts.no_gui:
             # 4) Start GUI
-            preproc_gui = DefaultGUI(exp_info, opts)
+            preproc_gui = DefaultGUI(exp_info, opts, clock)
 
             # 5) Keep the experiment going, until it ends
             while not mp_evt_end.is_set():
                 preproc_gui.draw_resting_screen()
+                if opts.test_latency:
+                    preproc_gui.poll_trigger()
                 if event.getKeys(['escape']):
                     log.info('- User pressed escape key')
                     mp_evt_end.set()
+            preproc_gui.save_trigger()
 
             # 6) Close Psychopy Window
             # ------------------------
@@ -86,20 +86,24 @@ def main():
     if opts.exp_type == "esam":
         # 4) Start GUI
         # ------------
-        esam_gui = EsamGUI(exp_info, opts)
+        esam_gui = EsamGUI(exp_info, opts, clock)
     
         # 5) Wait for things to happen
         # ----------------------------
         while not mp_evt_end.is_set():
             esam_gui.draw_resting_screen()
+            if opts.test_latency:
+                esam_gui.poll_trigger()
             if event.getKeys(['escape']):
                 log.info('- User pressed escape key')
                 mp_evt_end.set()
-            if mp_evt_hit.is_set():
+            if mp_evt_hit.is_set() and not opts.test_latency:
                 responses = esam_gui.run_full_QA()
                 log.info(' - Responses: %s' % str(responses))
                 mp_evt_hit.clear()
                 mp_evt_qa_end.set()
+        if opts.test_latency:
+            esam_gui.save_trigger()
         
         # 6) Close Psychopy Window
         # ------------------------

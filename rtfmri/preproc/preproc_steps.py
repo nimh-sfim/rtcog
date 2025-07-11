@@ -269,7 +269,7 @@ class SnormStep(PreprocStep):
         return norm_out
 
 class WindowingStep(PreprocStep):
-    def __init__(self, save=False, suffix='.pp_Windowed.nii', win_length=2):
+    def __init__(self, save=False, suffix='.pp_Windowed.nii', win_length=4):
         super().__init__(save, suffix)
         self.buffer = None
 

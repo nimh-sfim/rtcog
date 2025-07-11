@@ -71,11 +71,10 @@ class CustomReceiverInterface(ReceiverInterface):
         log.debug("++ Entering process_one_TR()")
 
         rv = self.RTI.read_TR_data()
-        if self.clock:
+        if self.clock and not rv:
             recv_time = self.clock.now()
             self.timing["recv"].append(recv_time)
-            print(f"Recv @ {recv_time}", flush=True)
-
+            print(f"Recv @ {recv_time:.3f}", flush=True)
 
         if rv:
             log.error('** process 1 TR: read data failure')
@@ -92,7 +91,7 @@ class CustomReceiverInterface(ReceiverInterface):
             if self.clock:
                 proc_time = self.clock.now()
                 self.timing["proc"].append(proc_time)
-                print(f"Proc @ {proc_time}", flush=True)
+                print(f"Proc @ {proc_time:.3f}", flush=True)
 
         if not data:
             return 1
