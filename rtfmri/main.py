@@ -45,11 +45,6 @@ def main():
     mp_prc_comm   = mp.Process(target=comm_process, args=(opts, mp_evt_hit, mp_evt_end, mp_evt_qa_end, clock, receiver_path))
     mp_prc_comm.start() 
     
-    # if opts.test_latency:
-    #     trigger_listener = TriggerListener(mp_evt_end, clock, trigger_path)
-    #     mp_trigger_process = mp.Process(target=trigger_listener.capture_trigger)
-    #     mp_trigger_process.start()
-
     # 3) Get additional info using the GUI
     # ------------------------------------
     if not opts.no_gui:

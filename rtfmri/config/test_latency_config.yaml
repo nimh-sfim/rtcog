@@ -11,31 +11,31 @@ discard: 10
 steps:
   - name: EMA
     enabled: true
-    save: false
+    save: true
 
   - name: iGLM
     enabled: true
-    save: false
+    save: true
     iGLM_polort: 2
     iGLM_motion: true
 
   - name: kalman
     enabled: true
-    save: false
+    save: true
     n_cores: 10
 
   - name: smooth
     enabled: true
-    save: false
+    save: true
     fwhm: 4.0
 
   - name: snorm
     enabled: true
-    save: false
+    save: true
   
   - name: windowing
     enabled: true
-    save: false
+    save: true
     win_length: 4
 
 # Experiment/GUI Options
@@ -46,15 +46,15 @@ screen: 1
 q_path: questions_v1 # path to the questions used for the experiment TODO: FIX
 
 # Testing option2
-snapshot: false
-test_latency: false
+snapshot: true
+test_latency: true
 
 # Matching options
 matching:
   match_method: mask
   match_start: 100 # Volume when matching should start
   vols_noqa: 45 # Min. number of volumes to wait since end of last QA before declaing a new hit
-
+  
   # Has to be removed from here eventually once I fix hit map saving...
   do_win: true
   win_length: 4
