@@ -127,11 +127,15 @@ class DefaultGUI:
         self._draw_stims(self.default_inst)
     
     def poll_trigger(self):
-        keys = event.getKeys(['t'])
+        keys = event.getKeys(['t', 'escape'])
         now = self.clock.now()
-        for _ in keys:
-            self.triggers.append((now))
-            print(f"Trig @ {now:.3f}")
+        for key in keys:
+            if key == 't':
+                self.triggers.append((now))
+                print(f"Trig @ {now:.3f}")
+            elif key == 'escape':
+                self.save_trigger()
+                self.close_psychopy_infrastructure()
 
     def save_trigger(self):
         with open(self.trigger_path, 'wb') as f:

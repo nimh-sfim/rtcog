@@ -24,13 +24,10 @@ def main():
 
     gui = DefaultGUI(exp_info, opts, clock)
     
-    try:
-        while True:
-            gui.draw_resting_screen()
-            gui.poll_trigger()
-    except KeyboardInterrupt:
-        gui.save_trigger()
-        gui.close_psychopy_infrastructure()
+    print('Press `t` to test keypresses, `escape` to end')
+    while True:
+        gui.draw_resting_screen()
+        gui.poll_trigger()
     
 if __name__ == "__main__":
     main()
