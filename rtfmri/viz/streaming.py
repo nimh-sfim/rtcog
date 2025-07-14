@@ -52,11 +52,13 @@ class Streamer:
                 self.mp_new_tr.wait()
                 self.mp_new_tr.clear()
 
-                if self.mp_evt_hit.is_set():
+                if self.mp_evt_hit.is_set() and not self.in_qa:
                     self.qa_onsets.append(self.t)
                     self.in_qa = True
+                    self.mp_evt_hit.clear()
                 elif self.mp_evt_qa_end.is_set():
                     self.qa_offsets.append(self.t)
+                    print(f"new static is {self.qa_onsets[-1]} to {self.t} long")
                     self.qa_polys_static.append(self._draw_poly(self.qa_onsets[-1], self.t).opts(alpha=0.2, color='blue', line_color=None))
                     self.in_qa = False
 
@@ -71,12 +73,10 @@ class Streamer:
         line_plot = self.df.iloc[:self.t].hvplot.line(legend='top', label='Match Scores', width=1500)
 
         # Combine all static boxes
-        if self.qa_polys_static:
-            static_polys = hv.Overlay(self.qa_polys_static)
-        else:
-            static_polys = hv.Overlay([])
+        static_polys = hv.Overlay(self.qa_polys_static) if self.qa_polys_static else hv.Overlay([])
 
         if self.in_qa:
+            print(f"dynamic is {self.qa_onsets[-1]} to {self.t} long")
             qa_poly_dynamic = self._draw_poly(self.qa_onsets[-1], self.t).opts(alpha=0.2, color='blue', line_color=None)
             return line_plot * static_polys * qa_poly_dynamic
 
