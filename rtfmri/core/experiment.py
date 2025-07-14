@@ -161,7 +161,7 @@ class ESAMExperiment(Experiment):
     hit_detector : HitDetector
         Object that decides if a hit has occured.
     """
-    def __init__(self, options, mp_evt_hit, mp_evt_end, mp_evt_qa_end, mp_new_tr, mp_shm_ready):
+    def __init__(self, options, mp_evt_hit, mp_evt_end, mp_evt_qa_end, mp_new_tr, mp_shm_ready, queue):
         super().__init__(options, mp_evt_hit, mp_evt_end, mp_evt_qa_end)
         self.mp_new_tr = mp_new_tr
         self.mp_shm_ready = mp_shm_ready
@@ -199,6 +199,8 @@ class ESAMExperiment(Experiment):
         self.hits = np.zeros((self.matcher.Ntemplates, self.Nt))
         self.hit_detector = HitDetector(hit_opts, self.hit_thr)
         self.last_hit = None
+        
+        self.queue = queue
         
     def compute_TR_data(self, motion, extra):
         # TODO: see why I'm getting off by one for hits and the numbers are slightly different.
