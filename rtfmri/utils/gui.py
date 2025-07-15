@@ -132,7 +132,7 @@ class DefaultGUI:
         for key in keys:
             if key == 't':
                 self.triggers.append((now))
-                print(f"Trig @ {now:.3f}", flush=True)
+                print(f"Trig @ {now:.3f} | {len(self.triggers)}", flush=True)
             elif key == 'escape':
                 self.save_trigger()
                 self.close_psychopy_infrastructure()
