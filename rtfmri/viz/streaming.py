@@ -80,27 +80,44 @@ class Streamer:
 
     def plot(self):
         line_plot = self.df.iloc[:self.t].hvplot.line(legend='top', label='Match Scores', width=1500)
+        overlays = [line_plot]
+
+        overlays.append(self._draw_hit_markers())
 
         # Combine all static boxes
-        static_polys = hv.Overlay(self.polys_static) if self.polys_static else hv.Overlay([])
+        overlays.append(hv.Overlay(self.polys_static) if self.polys_static else hv.Overlay([]))
 
         if self.in_qa:
-            print(f"dynamic is {self.qa_onsets[-1]} to {self.t} long")
             qa_poly_dynamic = self._draw_poly(self.qa_onsets[-1], self.t).opts(alpha=0.2, color='blue', line_color=None)
-            return line_plot * static_polys * qa_poly_dynamic
+            overlays.append(qa_poly_dynamic)
 
-        return line_plot * static_polys
+        return hv.Overlay(overlays)
+    
+    def _draw_hit_markers(self):
+        points = []
+        for hit_time in self.qa_onsets:
+            row = self.df.iloc[hit_time]
+            if not row.isna().all():
+                max_template = row.idxmax() # Template with the highest score
+                max_score = row[max_template] # Highest score value
+                points.append((hit_time, max_score, max_template))
+
+        if points:
+            df_points = pd.DataFrame(points, columns=["TR", "score", "template"])
+            scatter = hv.Scatter(df_points, kdims=["TR"], vdims=["score", "template"]).opts(
+                marker='circle',
+                alpha=0.5,
+                size=15,
+                tools=['hover'],
+                cmap='Category10'
+            )
+            return scatter
+        else:
+            
+            return hv.Scatter([], kdims=["TR"], vdims=["score", "template"])
 
 
-    # def plot(self):
-    #     line_plot = self.df.iloc[:self.t].hvplot.line(legend='top', label='Match Scores', width=1500)
-        
-    #     if self.in_qa:
-    #         qa_poly_dynamic = self._draw_poly(self.qa_onsets[-1], self.t).opts(alpha=0.2, color='blue', line_color=None)
-    #         return line_plot * self.polys_static * qa_poly_dynamic
-        
-    #     return line_plot * self.polys_static
-      
+
     def run(self):
         threading.Thread(target=self.update, daemon=True).start()
         pn.serve(self.dmap, start=True, show=True)
