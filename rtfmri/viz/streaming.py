@@ -54,10 +54,6 @@ class Streamer:
                 self.mp_new_tr.wait()
                 self.mp_new_tr.clear()
 
-
-                if self.qa_offsets:
-                    self.in_cooldown = self.t < self.qa_offsets[-1] + self.vols_noqa
-
                 if self.mp_evt_hit.is_set() and not self.in_qa:
                     self.qa_onsets.append(self.t)
                     self.in_qa = True
@@ -65,7 +61,14 @@ class Streamer:
                 elif self.mp_evt_qa_end.is_set():
                     self.qa_offsets.append(self.t)
                     print(f"new static is {self.qa_onsets[-1]} to {self.t} long")
+                    
+                    # Add QA box
                     self.polys_static.append(self._draw_poly(self.qa_onsets[-1], self.t).opts(alpha=0.2, color='blue', line_color=None))
+
+                    # Add cooldown box right after QA ends
+                    cooldown_end = self.t + self.vols_noqa
+                    self.polys_static.append(self._draw_poly(self.t, cooldown_end).opts(alpha=0.2, color='cyan', line_color=None))
+
                     self.in_qa = False
 
                 self.update_df()
@@ -85,9 +88,6 @@ class Streamer:
             print(f"dynamic is {self.qa_onsets[-1]} to {self.t} long")
             qa_poly_dynamic = self._draw_poly(self.qa_onsets[-1], self.t).opts(alpha=0.2, color='blue', line_color=None)
             return line_plot * static_polys * qa_poly_dynamic
-        if self.in_cooldown:
-            wait_poly_dynamic = self._draw_poly(self.qa_offsets[-1], self.t).opts(alpha=0.2, color='cyan', line_color=None)
-            return line_plot * static_polys * wait_poly_dynamic
 
         return line_plot * static_polys
 
