@@ -203,7 +203,6 @@ class ESAMExperiment(Experiment):
         self.queue = queue
         
     def compute_TR_data(self, motion, extra):
-        # TODO: see why I'm getting off by one for hits and the numbers are slightly different.
         hit_status    = self.mp_evt_hit.is_set()
         qa_end_status = self.mp_evt_qa_end.is_set()
 
@@ -224,7 +223,7 @@ class ESAMExperiment(Experiment):
         if self.t == max(0, self.match_start - 1):
             self.hit_detector.calculate_enorm_diff(self.this_motion) # Feed in motion before matching begins
 
-        if in_matching_window:
+        if in_matching_window: 
             scores = self.matcher.match(self.t, self.n, processed)
 
             info_text = f' - Time point [t={self.t}, n={self.n}]'
@@ -232,17 +231,18 @@ class ESAMExperiment(Experiment):
                 info_text += f' | Last hit: {self.last_hit}'
             self.log.info(info_text)
 
-            if not (hit_status or cooldown):
+            if not (hit_status or cooldown): # If waiting for hit
                 hit = self.hit_detector.detect(self.t, template_labels, scores, self.this_motion)
+        
+                if hit:
+                    self.log.info(f'[t={self.t},n={self.n}] =============================================  CAP hit [{hit}]')
+                    self.qa_onsets.append(self.t)
+                    self.hits[template_labels.index(hit), self.t] = 1
+                    self.mp_evt_hit.set()
+                    self.last_hit = hit
         else:
             self.log.info(f' - Time point [t={self.t}, n={self.n}] | Matching begins at t={self.match_start}')
 
-        if hit:
-            self.log.info(f'[t={self.t},n={self.n}] =============================================  CAP hit [{hit}]')
-            self.qa_onsets.append(self.t)
-            self.hits[template_labels.index(hit), self.t] = 1
-            self.mp_evt_hit.set()
-            self.last_hit = hit
 
         
         return 1
@@ -251,7 +251,7 @@ class ESAMExperiment(Experiment):
         if self.streamer is None:
             self.mp_prc_stream = Process(
                 target=run_streamer,
-                args=(self.Nt, self.matcher.template_labels, self.match_start, self.mp_new_tr, self.mp_shm_ready, self.mp_evt_qa_end, self.mp_evt_hit)
+                args=(self.Nt, self.matcher.template_labels, self.match_start, self.vols_noqa, self.mp_new_tr, self.mp_shm_ready, self.mp_evt_qa_end, self.mp_evt_hit)
             )
             self.mp_prc_stream.start()
 

@@ -11,13 +11,13 @@ from holoviews.streams import Stream
 hv.extension('bokeh')
 pn.extension()
 
-def run_streamer(Nt, template_labels, match_start, mp_new_tr, mp_shm_ready, mp_evt_qa_end, mp_evt_hit):
-    streamer = Streamer(Nt, template_labels, match_start, mp_new_tr, mp_shm_ready, mp_evt_qa_end, mp_evt_hit)
+def run_streamer(Nt, template_labels, match_start, vols_noqa, mp_new_tr, mp_shm_ready, mp_evt_qa_end, mp_evt_hit):
+    streamer = Streamer(Nt, template_labels, match_start, vols_noqa, mp_new_tr, mp_shm_ready, mp_evt_qa_end, mp_evt_hit)
     streamer.run()
 
 class Streamer:
     """Receives scores from Matcher and starts server to stream the data live"""
-    def __init__(self, Nt, template_labels, match_start, mp_new_tr, mp_shm_ready, mp_evt_qa_end, mp_evt_hit):
+    def __init__(self, Nt, template_labels, match_start, vols_noqa, mp_new_tr, mp_shm_ready, mp_evt_qa_end, mp_evt_hit):
         mp_shm_ready.wait()
 
         self.mp_new_tr = mp_new_tr
@@ -26,6 +26,7 @@ class Streamer:
         self.Ntemplates = len(template_labels)
 
         self.t = match_start
+        self.vols_noqa = vols_noqa
 
         self.shm = SharedMemory(name="match_scores")
         self.shared_arr = np.ndarray((self.Ntemplates, Nt), dtype=np.float32, buffer=self.shm.buf)
@@ -39,8 +40,9 @@ class Streamer:
         self.qa_onsets = []
         self.qa_offsets = []
         self.in_qa = False
+        self.in_cooldown = False
 
-        self.qa_polys_static = []
+        self.polys_static = []
 
     def update_df(self):
         self.df.iloc[self.t] = self.shared_arr[:, self.t]
@@ -52,14 +54,18 @@ class Streamer:
                 self.mp_new_tr.wait()
                 self.mp_new_tr.clear()
 
+
+                if self.qa_offsets:
+                    self.in_cooldown = self.t < self.qa_offsets[-1] + self.vols_noqa
+
                 if self.mp_evt_hit.is_set() and not self.in_qa:
                     self.qa_onsets.append(self.t)
                     self.in_qa = True
-                    self.mp_evt_hit.clear()
+                    # self.mp_evt_hit.clear()
                 elif self.mp_evt_qa_end.is_set():
                     self.qa_offsets.append(self.t)
                     print(f"new static is {self.qa_onsets[-1]} to {self.t} long")
-                    self.qa_polys_static.append(self._draw_poly(self.qa_onsets[-1], self.t).opts(alpha=0.2, color='blue', line_color=None))
+                    self.polys_static.append(self._draw_poly(self.qa_onsets[-1], self.t).opts(alpha=0.2, color='blue', line_color=None))
                     self.in_qa = False
 
                 self.update_df()
@@ -73,23 +79,27 @@ class Streamer:
         line_plot = self.df.iloc[:self.t].hvplot.line(legend='top', label='Match Scores', width=1500)
 
         # Combine all static boxes
-        static_polys = hv.Overlay(self.qa_polys_static) if self.qa_polys_static else hv.Overlay([])
+        static_polys = hv.Overlay(self.polys_static) if self.polys_static else hv.Overlay([])
 
         if self.in_qa:
             print(f"dynamic is {self.qa_onsets[-1]} to {self.t} long")
             qa_poly_dynamic = self._draw_poly(self.qa_onsets[-1], self.t).opts(alpha=0.2, color='blue', line_color=None)
             return line_plot * static_polys * qa_poly_dynamic
+        if self.in_cooldown:
+            wait_poly_dynamic = self._draw_poly(self.qa_offsets[-1], self.t).opts(alpha=0.2, color='cyan', line_color=None)
+            return line_plot * static_polys * wait_poly_dynamic
 
         return line_plot * static_polys
+
 
     # def plot(self):
     #     line_plot = self.df.iloc[:self.t].hvplot.line(legend='top', label='Match Scores', width=1500)
         
     #     if self.in_qa:
     #         qa_poly_dynamic = self._draw_poly(self.qa_onsets[-1], self.t).opts(alpha=0.2, color='blue', line_color=None)
-    #         return line_plot * self.qa_polys_static * qa_poly_dynamic
+    #         return line_plot * self.polys_static * qa_poly_dynamic
         
-    #     return line_plot * self.qa_polys_static
+    #     return line_plot * self.polys_static
       
     def run(self):
         threading.Thread(target=self.update, daemon=True).start()
