@@ -2,11 +2,8 @@ import sys
 import os.path as osp
 import logging
 import multiprocessing as mp
-import json
 import time
 from psychopy import event
-
-sys.path.insert(0, osp.abspath(osp.join(osp.dirname(__file__), 'core')))
 
 from rtfmri.utils.options import Options
 from rtfmri.utils.log import get_logger, set_logger

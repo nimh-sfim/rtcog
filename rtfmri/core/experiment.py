@@ -12,6 +12,7 @@ from rtfmri.preproc.pipeline import Pipeline
 from rtfmri.matching.matcher import Matcher
 from rtfmri.matching.hit_detector import HitDetector
 from rtfmri.viz.streaming import run_streamer
+from rtfmri.viz.streaming_config import StreamerConfig, SyncEvents
 from rtfmri.utils.log import set_logger
 from rtfmri.utils.fMRI import load_fMRI_file, unmask_fMRI_img
 
@@ -165,7 +166,7 @@ class ESAMExperiment(Experiment):
         super().__init__(options, mp_evt_hit, mp_evt_end, mp_evt_qa_end)
         self.mp_new_tr = mp_new_tr
         self.mp_shm_ready = mp_shm_ready
-        self.streamer = None
+        # self.streamer = None
 
         self.lastQA_endTR  = 0
         self.out_dir = options.out_dir
@@ -201,6 +202,7 @@ class ESAMExperiment(Experiment):
         self.last_hit = None
         
         self.queue = queue
+        self.matching_opts = matching_opts
         
     def compute_TR_data(self, motion, extra):
         hit_status    = self.mp_evt_hit.is_set()
@@ -248,12 +250,11 @@ class ESAMExperiment(Experiment):
         return 1
 
     def start_streaming(self):
-        if self.streamer is None:
-            self.mp_prc_stream = Process(
-                target=run_streamer,
-                args=(self.Nt, self.matcher.template_labels, self.match_start, self.vols_noqa, self.mp_new_tr, self.mp_shm_ready, self.mp_evt_qa_end, self.mp_evt_hit)
-            )
-            self.mp_prc_stream.start()
+        streamer_config = StreamerConfig(self.Nt, self.matcher.template_labels, self.hit_thr, self.matching_opts)
+        sync_events = SyncEvents(self.mp_new_tr, self.mp_shm_ready, self.mp_evt_qa_end, self.mp_evt_hit)
+        
+        self.mp_prc_stream = Process(target=run_streamer, args=(streamer_config, sync_events))
+        self.mp_prc_stream.start()
 
     def write_hit_arrays(self):
         """Save match scores and hit arrays"""
