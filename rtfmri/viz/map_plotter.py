@@ -4,7 +4,7 @@ from multiprocessing.shared_memory import SharedMemory
 import holoviews as hv
 import panel as pn
 import nibabel as nib
-from nilearn.plotting import plot_stat_map
+from nilearn.plotting import plot_epi
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
@@ -31,23 +31,20 @@ class MapPlotter:
         self.affine =  self.mask_img.affine
         
         self.brain_img = nib.Nifti1Image(np.zeros((self.mask_img.shape)), affine=self.affine)
-        print(f'++ MASK: {self.mask_img}')
-        # print(f'++ Nv: {self.Nv}')
         
         fig = plt.figure(figsize=(8, 6))
-        plot_stat_map(self.brain_img, display_mode='ortho', draw_cross=False, figure=fig)
+        plot_epi(self.brain_img, display_mode='ortho', draw_cross=False, figure=fig)
         self.pane = pn.pane.Matplotlib(fig, dpi=150, tight=True, sizing_mode='scale_both')
 
 
     def update(self, t: int, data: np.ndarray, qa_state: QAState) -> None:
-        print(f'++ DATA: {np.sum(data)}')
         self.t = t
         self.qa_state = qa_state
        
         if self.qa_state.qa_onsets and self.t == self.qa_state.qa_onsets[-1]:
             self.brain_img = self.arr_to_nifti(data)
             fig = plt.figure(figsize=(8, 6))
-            plot_stat_map(self.brain_img, display_mode='ortho', draw_cross=False, figure=fig)
+            plot_epi(self.brain_img, display_mode='ortho', draw_cross=False, figure=fig)
             self.pane.object = fig
 
     def arr_to_nifti(self, data: np.ndarray) -> nib.nifti1.Nifti1Image:

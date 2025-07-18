@@ -102,4 +102,5 @@ class Streamer:
     def _close_shared_memory(self) -> None:
         self.match_scores.close()
         self.match_scores.unlink()
+        self.tr_data.close()
         
