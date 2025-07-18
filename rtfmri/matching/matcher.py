@@ -64,9 +64,9 @@ class Matcher:
     def setup_shared_memory(self):
         if self.Ntemplates is None:
             raise RuntimeError("Ntemplates must be set before creating shared memory")
-        self.base_arr = np.zeros((self.Ntemplates, self.Nt), dtype=np.float32)
-        self.shm = SharedMemory(create=True, size=self.base_arr.nbytes, name="match_scores")
-        self.shared_arr = np.ndarray(self.base_arr.shape, dtype=self.base_arr.dtype, buffer=self.shm.buf)
+        base_arr = np.zeros((self.Ntemplates, self.Nt), dtype=np.float32)
+        self.shm = SharedMemory(create=True, size=base_arr.nbytes, name="match_scores")
+        self.shared_arr = np.ndarray(base_arr.shape, dtype=base_arr.dtype, buffer=self.shm.buf)
         
 
 class SVRMatcher(Matcher):

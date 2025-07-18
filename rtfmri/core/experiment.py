@@ -2,6 +2,7 @@ import sys
 import os.path as osp
 from multiprocessing import Process
 from types import SimpleNamespace
+from multiprocessing.shared_memory import SharedMemory
 
 import numpy as np
 import pandas as pd
@@ -162,11 +163,10 @@ class ESAMExperiment(Experiment):
     hit_detector : HitDetector
         Object that decides if a hit has occured.
     """
-    def __init__(self, options, mp_evt_hit, mp_evt_end, mp_evt_qa_end, mp_new_tr, mp_shm_ready, queue):
+    def __init__(self, options, mp_evt_hit, mp_evt_end, mp_evt_qa_end, mp_new_tr, mp_shm_ready):
         super().__init__(options, mp_evt_hit, mp_evt_end, mp_evt_qa_end)
         self.mp_new_tr = mp_new_tr
         self.mp_shm_ready = mp_shm_ready
-        # self.streamer = None
 
         self.lastQA_endTR  = 0
         self.out_dir = options.out_dir
@@ -189,6 +189,10 @@ class ESAMExperiment(Experiment):
         self.win_length = matching_opts.win_length
         self.match_start = matching_opts.match_start
         
+        base_arr = np.zeros((self.mask_Nv,), dtype=np.float32)
+        self.shm_tr = SharedMemory(create=True, size=base_arr.nbytes, name="tr_data")
+        self.shared_tr_data = np.ndarray(base_arr.shape, dtype=base_arr.dtype, buffer=self.shm_tr.buf)
+
         try:
             matcher_cls = Matcher.from_name(matching_opts.match_method)
             self.matcher = matcher_cls(matching_opts, options.match_path, self.Nt, self.mp_evt_end, mp_new_tr, mp_shm_ready)
@@ -201,7 +205,6 @@ class ESAMExperiment(Experiment):
         self.hit_detector = HitDetector(hit_opts, self.hit_thr)
         self.last_hit = None
         
-        self.queue = queue
         self.matching_opts = matching_opts
         
     def compute_TR_data(self, motion, extra):
@@ -209,6 +212,8 @@ class ESAMExperiment(Experiment):
         qa_end_status = self.mp_evt_qa_end.is_set()
 
         processed = super()._compute_TR_data_impl(motion, extra)
+        if self.t >= self.match_start:
+            self.shared_tr_data[:] = processed.ravel()
 
         if qa_end_status:
             self.lastQA_endTR = self.t
@@ -250,7 +255,14 @@ class ESAMExperiment(Experiment):
         return 1
 
     def start_streaming(self):
-        streamer_config = StreamerConfig(self.Nt, self.matcher.template_labels, self.hit_thr, self.matching_opts)
+        streamer_config = StreamerConfig(
+            self.Nt,
+            self.matcher.template_labels,
+            self.hit_thr,
+            self.matching_opts,
+            self.mask_img,
+            self.mask_Nv
+        )
         sync_events = SyncEvents(self.mp_new_tr, self.mp_shm_ready, self.mp_evt_qa_end, self.mp_evt_hit)
         
         self.mp_prc_stream = Process(target=run_streamer, args=(streamer_config, sync_events))
@@ -335,5 +347,7 @@ class ESAMExperiment(Experiment):
         self.write_dynamic_report()
         self.write_hit_maps()
         self.write_qa()
+        self.shm_tr.close()
+        self.shm_tr.unlink()
 
-        self.mp_evt_end.set()
+        lf.mp_evt_end.set()

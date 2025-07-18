@@ -1,6 +1,5 @@
 import numpy as np
 import pandas as pd
-from multiprocessing.shared_memory import SharedMemory
 import holoviews as hv
 import hvplot.pandas
 import panel as pn
@@ -12,7 +11,6 @@ class ScorePlotter:
     """Receives scores from Matcher to stream the data live"""
     data_key = 'scores'
     def __init__(self, config: StreamerConfig):
-
         self.Nt = config.Nt
         self.template_labels = config.template_labels
         self.Ntemplates = len(config.template_labels)
@@ -21,7 +19,7 @@ class ScorePlotter:
         self.hit_thr = config.hit_thr
 
         self.df = pd.DataFrame(np.nan, index=np.arange(self.Nt), columns=self.template_labels)
-        self.dmap = hv.DynamicMap(self.plot, streams=[Stream.define('Next')()])
+        self.dmap = hv.DynamicMap(self._plot, streams=[Stream.define('Next')()])
         
         self.polys_static = []
         
@@ -29,13 +27,13 @@ class ScorePlotter:
         
         self.last_cooldown_shown = None
 
-    def update(self, t: int, data: np.ndarray, qa_state: QAState):
+    def update(self, t: int, data: np.ndarray, qa_state: QAState) -> None:
         self.t = t
         self.df.iloc[t] = data
         self.qa_state = qa_state
         self.dmap.event()
 
-    def plot(self):
+    def _plot(self) -> hv.Overlay:
         line_plot = self.df.hvplot.line(legend='top', label='Match Scores', width=1500)
         overlays = [line_plot]
 
@@ -61,15 +59,15 @@ class ScorePlotter:
         
         return hv.Overlay(overlays)
 
-    def _draw_dynamic_box(self):
+    def _draw_dynamic_box(self) -> hv.Polygons:
         return self._draw_poly(self.qa_state.qa_onsets[-1], self.t).opts(alpha=0.2, color='blue', line_color=None)
         
-    def _draw_poly(self, start, end):
+    def _draw_poly(self, start, end) -> hv.Polygons:
         return hv.Polygons([
             [(start, -5), (end, -5), (end, 10), (start, 10)]
         ])
 
-    def _draw_hit_markers(self):
+    def _draw_hit_markers(self) -> hv.Scatter:
         points = []
         for hit_time in self.qa_state.qa_onsets:
             row = self.df.iloc[hit_time]

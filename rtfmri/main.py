@@ -39,14 +39,12 @@ def main():
     
     mp_new_tr = None
     mp_shm_ready = None
-    queue = None
     if opts.exp_type == "esam":
         opts.likert_questions = validate_likert_questions(opts.q_path)
         mp_new_tr = mp.Event()
         mp_shm_ready = mp.Event()
-        queue = mp.Queue()
 
-    mp_prc_comm = mp.Process(target=comm_process, args=(opts, mp_evt_hit, mp_evt_end, mp_evt_qa_end, mp_new_tr, mp_shm_ready, clock, receiver_path, queue))
+    mp_prc_comm = mp.Process(target=comm_process, args=(opts, mp_evt_hit, mp_evt_end, mp_evt_qa_end, mp_new_tr, mp_shm_ready, clock, receiver_path))
     mp_prc_comm.start()
 
     # 3) Get additional info using the GUI
@@ -105,7 +103,7 @@ def main():
         esam_gui.close_psychopy_infrastructure()
         
 
-def comm_process(opts, mp_evt_hit, mp_evt_end, mp_evt_qa_end, mp_new_tr=None, mp_shm_ready=None, clock=None, time_path=None, queue=None):
+def comm_process(opts, mp_evt_hit, mp_evt_end, mp_evt_qa_end, mp_new_tr=None, mp_shm_ready=None, clock=None, time_path=None):
     from rtfmri.comm.receiver_interface import CustomReceiverInterface
     from rtfmri.core.experiment import Experiment, ESAMExperiment
     
@@ -113,7 +111,7 @@ def comm_process(opts, mp_evt_hit, mp_evt_end, mp_evt_qa_end, mp_new_tr=None, mp
     log.info('- comm_process - 2) Instantiating Experiment Object...')
     if opts.exp_type == 'esam':
         log.info('This an experimental run')
-        experiment = ESAMExperiment(opts, mp_evt_hit, mp_evt_end, mp_evt_qa_end, mp_new_tr, mp_shm_ready, queue)
+        experiment = ESAMExperiment(opts, mp_evt_hit, mp_evt_end, mp_evt_qa_end, mp_new_tr, mp_shm_ready)
         experiment.start_streaming() # Start panel server
         # TODO: add event to signal when server is ready before printing ready to go
     else:

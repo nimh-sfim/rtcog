@@ -5,9 +5,9 @@ import pandas as pd
 import holoviews as hv
 import hvplot.pandas
 import panel as pn
-from holoviews.streams import Stream
 
 from rtfmri.viz.score_plotter import ScorePlotter
+from rtfmri.viz.map_plotter import MapPlotter
 from rtfmri.viz.streaming_config import StreamerConfig, SyncEvents, QAState
 
 hv.extension('bokeh')
@@ -28,10 +28,13 @@ class Streamer:
         self.Nt = config.Nt
     
         self.match_scores = SharedMemory(name="match_scores")
+        self.tr_data = SharedMemory(name="tr_data")
+
         self.shared_arrs = {}
         self.shared_arrs["scores"] = np.ndarray((Ntemplates, self.Nt), dtype=np.float32, buffer=self.match_scores.buf)
+        self.shared_arrs["tr_data"] = np.ndarray((config.Nv,), dtype=np.float32, buffer=self.tr_data.buf)
         
-        self.plotters = [ScorePlotter(config)] # Making this a list to extend in the future
+        self.plotters = [ScorePlotter(config), MapPlotter(config)] # Making this a list to extend in the future
 
         self.t = config.matching_opts.match_start
         self.vols_noqa = config.matching_opts.vols_noqa
@@ -42,7 +45,7 @@ class Streamer:
         self.cooldown_end = None
 
     @property
-    def qa_state(self):
+    def qa_state(self) -> QAState:
         return QAState(
             self.qa_onsets,
             self.qa_offsets,
@@ -52,12 +55,12 @@ class Streamer:
         )
     
     @property
-    def in_cooldown(self):
+    def in_cooldown(self) -> bool:
         if self.qa_offsets:
             return self.t < self.qa_offsets[-1] + self.vols_noqa
         return False
     
-    def update(self):
+    def update(self) -> None:
         # Wait for new data, then update plot
         try:
             while self.t < self.Nt:
@@ -72,19 +75,31 @@ class Streamer:
                     self.in_qa = False
                     self.cooldown_end = self.t + self.vols_noqa
 
-                print(self.qa_state)
+                # TODO: make this less bad
                 for plotter in self.plotters:
-                    plotter.update(self.t, self.shared_arrs[plotter.data_key][:,self.t], self.qa_state)
+                    if plotter.data_key == "scores":
+                        plot_data = self.shared_arrs["scores"][:, self.t]
+                    elif plotter.data_key == "tr_data":
+                        plot_data = self.shared_arrs["tr_data"]
+                    else:
+                        plot_data = None
+                    plotter.update(self.t, plot_data, self.qa_state)
                 
                 self.t += 1
         finally:
             self._close_shared_memory()
     
-    def run(self):
+    def run(self) -> None:
         threading.Thread(target=self.update, daemon=True).start()
-        pn.serve(pn.Column(*(p.dmap for p in self.plotters)), start=True, show=True)
+        panels = []
+        for p in self.plotters:
+            if hasattr(p, 'dmap'):
+                panels.append(p.dmap)
+            elif hasattr(p, 'pane'):
+                panels.append(p.pane)
+        pn.serve(pn.Column(*panels), start=True, show=True)
     
-    def _close_shared_memory(self):
+    def _close_shared_memory(self) -> None:
         self.match_scores.close()
         self.match_scores.unlink()
         
