@@ -80,10 +80,12 @@ class Streamer:
                     if plotter.data_key == "scores":
                         plot_data = self.shared_arrs["scores"][:, self.t]
                     elif plotter.data_key == "tr_data":
-                        plot_data = self.shared_arrs["tr_data"]
+                        if self.qa_onsets and self.t == self.qa_onsets[-1]:
+                            plot_data = self.shared_arrs["tr_data"]
                     else:
                         plot_data = None
-                    plotter.update(self.t, plot_data, self.qa_state)
+                    if plot_data is not None:
+                        plotter.update(self.t, plot_data, self.qa_state)
                 
                 self.t += 1
         finally:
