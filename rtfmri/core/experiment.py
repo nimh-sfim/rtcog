@@ -263,7 +263,14 @@ class ESAMExperiment(Experiment):
             self.mask_img,
             self.mask_Nv
         )
-        sync_events = SyncEvents(self.mp_new_tr, self.mp_shm_ready, self.mp_evt_qa_end, self.mp_evt_hit)
+
+        sync_events = SyncEvents(
+            self.mp_new_tr,
+            self.mp_shm_ready,
+            self.mp_evt_qa_end,
+            self.mp_evt_hit,
+            self.mp_evt_end
+        )
         
         self.mp_prc_stream = Process(target=run_streamer, args=(streamer_config, sync_events))
         self.mp_prc_stream.start()
@@ -350,4 +357,4 @@ class ESAMExperiment(Experiment):
         self.shm_tr.close()
         self.shm_tr.unlink()
 
-        lf.mp_evt_end.set()
+        self.mp_evt_end.set()

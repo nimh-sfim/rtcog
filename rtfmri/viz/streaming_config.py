@@ -19,6 +19,7 @@ class SyncEvents:
     shm_ready: MPEvent
     qa_end: MPEvent
     hit: MPEvent
+    end: MPEvent
 
 @dataclass(frozen=True)
 class QAState:
