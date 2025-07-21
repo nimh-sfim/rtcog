@@ -115,12 +115,18 @@ class Streamer:
             log.error(e)
 
         finally:
-            log.info("Shutting down Panel server...")
-            if self._server:
-                self._server.stop()
-            self._close_shared_memory()
+            self._shutdown()
+            
 
-    
+    def _shutdown(self) -> None:
+        log.info("Shutting down Panel server...")
+        if self._server:
+            self._server.stop()
+        self._close_shared_memory()
+        for p in self._plotters:
+            if hasattr(p, 'close'):
+                p.close()
+
     def _close_shared_memory(self) -> None:
         self._match_scores.close()
         self._match_scores.unlink()
