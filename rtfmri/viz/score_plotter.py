@@ -13,14 +13,13 @@ class ScorePlotter:
     data_key = 'scores'
     def __init__(self, config: StreamingConfig):
         self._Nt = config.Nt
-        self._template_labels = config.template_labels
+        template_labels = config.template_labels
         self._Ntemplates = len(config.template_labels)
 
-        self._t = config.matching_opts.match_start
         self._hit_thr = config.hit_thr
 
-        self._df = pd.DataFrame(np.nan, index=np.arange(self._Nt), columns=self._template_labels)
-        self.dmap = hv.DynamicMap(self._plot, streams=[Stream.define('Next')()])
+        self._df = pd.DataFrame(np.nan, index=np.arange(self._Nt), columns=template_labels)
+        self.dmap = hv.DynamicMap(self._plot, streams=[Stream.define('Next', t=int)()])
         
         self._polys_static = []
         
@@ -29,12 +28,12 @@ class ScorePlotter:
         self._last_cooldown_shown = None
 
     def update(self, t: int, data: np.ndarray, qa_state: QAState) -> None:
-        self._t = t
         self._df.iloc[t] = data
         self._qa_state = qa_state
-        self.dmap.event()
+        if not np.isnan(self._df.iloc[t]).all():
+            self.dmap.event(t=t)
 
-    def _plot(self) -> hv.Overlay:
+    def _plot(self, t) -> hv.Overlay:
         line_plot = self._df.hvplot.line(legend='top', label='Match Scores', width=1500)
         overlays = [line_plot]
 
@@ -45,9 +44,9 @@ class ScorePlotter:
         overlays.append(self._draw_hit_markers())
 
         if self._qa_state.in_qa:
-            overlays.append(self._draw_dynamic_box())
-        elif self._qa_state.qa_offsets and self._t == self._qa_state.qa_offsets[-1]:
-            self._polys_static.append(self._draw_poly(self._qa_state.qa_onsets[-1], self._t).opts(alpha=0.2, color='blue', line_color=None))
+            overlays.append(self._draw_dynamic_box(t))
+        elif self._qa_state.qa_offsets and t == self._qa_state.qa_offsets[-1]:
+            self._polys_static.append(self._draw_poly(self._qa_state.qa_onsets[-1], t).opts(alpha=0.2, color='blue', line_color=None))
         elif self._qa_state.in_cooldown:
             if self._qa_state.cooldown_end != self._last_cooldown_shown:
                 self._polys_static.append(
@@ -60,8 +59,8 @@ class ScorePlotter:
         
         return hv.Overlay(overlays)
 
-    def _draw_dynamic_box(self) -> hv.Polygons:
-        return self._draw_poly(self._qa_state.qa_onsets[-1], self._t).opts(alpha=0.2, color='blue', line_color=None)
+    def _draw_dynamic_box(self, t) -> hv.Polygons:
+        return self._draw_poly(self._qa_state.qa_onsets[-1], t).opts(alpha=0.2, color='blue', line_color=None)
         
     def _draw_poly(self, start, end) -> hv.Polygons:
         return hv.Polygons([

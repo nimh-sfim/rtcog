@@ -1,3 +1,4 @@
+import nibabel as nib
 import pandas as pd
 import numpy as np
 import panel as pn
@@ -19,33 +20,38 @@ class MapPlotter:
         self._template_labels = config.template_labels
         self._Ntemplates = len(config.template_labels)
 
-        self._t = config.matching_opts.match_start
-
-        # self._qa_state = None
-
         self._mask_img = config.mask_img
         self._m_x, self._m_y, self._m_z = self._mask_img.header.get_data_shape()
-        self._mask_v = np.reshape(self._mask_img.get_fdata(),np.prod(self._mask_img.header.get_data_shape()), order='F')
+        self._mask_v = np.reshape(self._mask_img.get_fdata() > 0, -1, order='F')
         self._affine =  self._mask_img.affine
         
         self._brain_img = Nifti1Image(np.zeros((self._mask_img.shape)), affine=self._affine)
+        self._last_map_t = None
         
         self._fig = plt.figure(figsize=(7, 6))
         plot_stat_map(self._brain_img, display_mode='ortho', draw_cross=False, figure=self._fig, bg_img=None)
+
         self.pane = pn.pane.Matplotlib(self._fig, dpi=150, tight=True, sizing_mode='scale_both')
 
-
     def update(self, t: int, data: np.ndarray, qa_state: QAState) -> None:
-        self._t = t
-        # self._qa_state = qa_state
-       
-        if qa_state.qa_onsets and self._t == qa_state.qa_onsets[-1]:
-            print(f"[MAP] hit @ {self._t}")
-            np.save(f'{t}.map.pkl', data) # What i am comparing with rn
-            self._brain_img = self._arr_to_nifti(data)
-            self._fig.clear()
-            plot_stat_map(self._brain_img, display_mode='ortho', draw_cross=False, figure=self._fig, bg_img=None)
-            self.pane.object = self._fig
+        if qa_state.qa_onsets:
+            latest_onset = qa_state.qa_onsets[-1]
+            if self._last_map_t != latest_onset:
+                print(f'[map] sum of the data: {data.flatten().sum()}')
+                print(data)
+                print(f"[MAP] hit @ {latest_onset} (plotting at t={t})")
+                self._last_map_t = latest_onset
+                self._brain_img = self._arr_to_nifti(data)
+                nib.save(self._brain_img, f'{t}.map.nii')
+                self._fig.clear()
+                plot_stat_map(
+                    self._brain_img,
+                    display_mode='ortho',
+                    draw_cross=False,
+                    figure=self._fig,
+                    bg_img=None
+                )
+                self.pane.object = self._fig
 
     def _arr_to_nifti(self, data: np.ndarray) -> Nifti1Image:
         out = np.zeros((self._m_x * self._m_y * self._m_z,), dtype=np.float32)

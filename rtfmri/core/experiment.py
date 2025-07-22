@@ -2,8 +2,8 @@ import sys
 import os.path as osp
 from multiprocessing import Process
 from types import SimpleNamespace
+from multiprocessing import Value, Manager
 from multiprocessing.shared_memory import SharedMemory
-from multiprocessing import Value
 from ctypes import c_int
 
 import numpy as np
@@ -188,10 +188,14 @@ class ESAMExperiment(Experiment):
         self.win_length = matching_opts.win_length
         self.match_start = matching_opts.match_start
         
-        base_arr = np.zeros((self.mask_Nv,), dtype=np.float32)
+        base_arr = np.zeros((self.mask_Nv, self.Nt), dtype=np.float32)
         self.shm_tr = SharedMemory(create=True, size=base_arr.nbytes, name="tr_data")
         self.shared_tr_data = np.ndarray(base_arr.shape, dtype=base_arr.dtype, buffer=self.shm_tr.buf)
         self.shared_tr_index = Value(c_int, -1)
+        
+        manager = Manager()
+        self.shared_qa_onsets = manager.list()
+        self.shared_qa_offsets = manager.list()
 
         try:
             matcher_cls = Matcher.from_name(matching_opts.match_method)
@@ -210,12 +214,15 @@ class ESAMExperiment(Experiment):
     def compute_TR_data(self, motion, extra):
         hit_status = self.sync.hit.is_set()
         qa_end_status = self.sync.qa_end.is_set()
+        
+        self.sync.tr_index.value = self.t
 
         processed = super()._compute_TR_data_impl(motion, extra)
 
         if qa_end_status:
             self.lastQA_endTR = self.t
             self.qa_offsets.append(self.t)
+            self.shared_qa_offsets.append(self.t)
             self.sync.qa_end.clear()
             self.log.info(f'QA ended (cleared) --> updating lastQA_endTR = {self.lastQA_endTR}')
         
@@ -243,9 +250,11 @@ class ESAMExperiment(Experiment):
                     self.sync.hit.clear()
                     self.log.info(f'[t={self.t},n={self.n}] =============================================  CAP hit [{hit}]')
                     self.qa_onsets.append(self.t)
+                    self.shared_qa_onsets.append(self.t)
                     self.hits[template_labels.index(hit), self.t] = 1
                     print(f"Writing new data @ {self.t}")
-                    self.shared_tr_data[:] = processed.ravel()
+                    print(f'[experiment] sum of the data: {processed.flatten().sum()}')
+                    self.shared_tr_data[:, self.t] = processed.ravel()
                     np.save(f"writer_tr_{self.t}.npy", self.shared_tr_data.copy())
                     self.sync.hit.set()
                     self.last_hit = hit
@@ -267,7 +276,13 @@ class ESAMExperiment(Experiment):
             self.mask_Nv
         )
 
-        self.mp_prc_stream = Process(target=run_streamer, args=(streamer_config, self.sync))
+        self.mp_prc_stream = Process(target=run_streamer, args=(
+            streamer_config,
+            self.sync,
+            self.shared_qa_onsets,
+            self.shared_qa_offsets
+        ))
+
         self.mp_prc_stream.start()
 
     def write_hit_arrays(self):

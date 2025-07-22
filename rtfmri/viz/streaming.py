@@ -1,5 +1,7 @@
+import time
 import threading
 from multiprocessing.shared_memory import SharedMemory
+from multiprocessing.managers import ListProxy
 import numpy as np
 import pandas as pd
 import holoviews as hv
@@ -17,82 +19,84 @@ log = get_logger()
 hv.extension('bokeh')
 pn.extension()
 
-def run_streamer(streamer_config, sync_events) -> None:
-    streamer = Streamer(streamer_config, sync_events)
+def run_streamer(streamer_config, sync_events, qa_onsets, qa_offsets) -> None:
+    streamer = Streamer(streamer_config, sync_events, qa_onsets, qa_offsets)
     streamer.run()
 
 class Streamer:
     """Receives scores from Matcher and starts server to stream the data live"""
-    def __init__(self, config: StreamingConfig, sync_events: SyncEvents):
+    def __init__(self, config: StreamingConfig, sync_events: SyncEvents, qa_onsets: ListProxy, qa_offsets: ListProxy):
         self._sync = sync_events
         self._sync.shm_ready.wait()
+        
+        self._last_t = config.matching_opts.match_start - 1
         
         Ntemplates = len(config.template_labels)
         self._Nt = config.Nt
     
         self._match_scores = SharedMemory(name="match_scores")
-        self.tr_data = SharedMemory(name="tr_data")
+        tr_data = SharedMemory(name="tr_data")
+        self._tr_data = tr_data
 
         self._shared_arrs = {}
         self._shared_arrs["scores"] = np.ndarray((Ntemplates, self._Nt), dtype=np.float32, buffer=self._match_scores.buf)
-        self._shared_arrs["tr_data"] = np.ndarray((config.Nv,), dtype=np.float32, buffer=self.tr_data.buf)
+        self._shared_arrs["tr_data"] = np.ndarray((config.Nv, config.Nt), dtype=np.float32, buffer=tr_data.buf)
         
         self._plotters = [ScorePlotter(config), MapPlotter(config)] # Making this a list to extend in the future
 
-        self.t = config.matching_opts.match_start
         self._vols_noqa = config.matching_opts.vols_noqa
 
-        self._qa_onsets = []
-        self._qa_offsets = []
+        self._qa_onsets = qa_onsets
+        self._qa_offsets = qa_offsets
         self._in_qa = False
         self._cooldown_end = None
+        self._hit = False
 
     @property
     def qa_state(self) -> QAState:
         return QAState(
-            self._qa_onsets,
-            self._qa_offsets,
+            list(self._qa_onsets),
+            list(self._qa_offsets),
             self._in_qa,
             self.in_cooldown,
-            self._cooldown_end
+            self._cooldown_end,
+            self._hit
         )
     
     @property
     def in_cooldown(self) -> bool:
         if self._qa_offsets:
-            return self.t < self._qa_offsets[-1] + self._vols_noqa
+            return self._last_t < self._qa_offsets[-1] + self._vols_noqa
         return False
     
     def update(self) -> None:
         # Wait for new data, then update plot
         while not self._sync.end.is_set():
-            self._sync.new_tr.wait()
-            self._sync.new_tr.clear()
+            t = self._last_t + 1  # check next index
 
-            if self._sync.hit.is_set() and not self._in_qa:
-                self._qa_onsets.append(self.t)
-                self._in_qa = True
-            elif self._sync.qa_end.is_set():
-                self._qa_offsets.append(self.t)
-                self._in_qa = False
-                self._cooldown_end = self.t + self._vols_noqa
+            # Wait for new data for next TR, or sleep briefly
+            if t >= self._Nt or t > self._sync.tr_index.value:
+                time.sleep(0.01)
+                continue
+
+            # Now data for t is available, so increment and process
+            self._last_t = t
+
+            self._update_qa_state(t)
 
             # TODO: make this less bad
             for plotter in self._plotters:
+                plot_data = None
                 if plotter.data_key == "scores":
-                    plot_data = self._shared_arrs["scores"][:, self.t]
+                    plot_data = self._shared_arrs["scores"][:, t]
                 elif plotter.data_key == "tr_data":
-                    if self._qa_onsets and self.t == self._qa_onsets[-1]:
-                        print(f"Sharing new data @ {self.t}")
-                        plot_data = self._shared_arrs["tr_data"]
-                        print(f'sum of the data: {plot_data.flatten().sum()}')
-                        np.save(f"reader_tr_{self.t}.npy", plot_data.copy())
-                else:
-                    plot_data = None
+                    if self._qa_onsets and t in self._qa_onsets:
+                        print(f"Sharing new data @ {t}")
+                        plot_data = self._shared_arrs["tr_data"][:, t]
+                        print(f'[streamer] sum of the data: {plot_data.sum()}')
+                        np.save(f"reader_tr_{t}.npy", plot_data.copy())
                 if plot_data is not None:
-                    plotter.update(self.t, plot_data, self.qa_state)
-            
-            self.t += 1
+                    plotter.update(t, plot_data, self.qa_state)
 
     def run(self) -> None:
         try:
@@ -118,6 +122,14 @@ class Streamer:
         finally:
             self._shutdown()
             
+    def _update_qa_state(self, t: int) -> None:
+        self._hit = False
+        if t in self._qa_onsets and not self._in_qa:
+            self._hit = True
+            self._in_qa = True
+        elif self._qa_offsets and t in self._qa_offsets:
+            self._in_qa = False
+            self._cooldown_end = t + self._vols_noqa
 
     def _shutdown(self) -> None:
         log.info("Shutting down Panel server...")
@@ -131,5 +143,5 @@ class Streamer:
     def _close_shared_memory(self) -> None:
         self._match_scores.close()
         self._match_scores.unlink()
-        self.tr_data.close()
+        self._tr_data.close()
         
