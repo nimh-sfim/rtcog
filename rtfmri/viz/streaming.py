@@ -6,9 +6,10 @@ import holoviews as hv
 import hvplot.pandas
 import panel as pn
 
+from rtfmri.utils.sync import SyncEvents, QAState
 from rtfmri.viz.score_plotter import ScorePlotter
 from rtfmri.viz.map_plotter import MapPlotter
-from rtfmri.viz.streaming_config import StreamerConfig, SyncEvents, QAState
+from rtfmri.viz.streaming_config import StreamingConfig
 from rtfmri.utils.log import get_logger
 
 log = get_logger()
@@ -22,7 +23,7 @@ def run_streamer(streamer_config, sync_events) -> None:
 
 class Streamer:
     """Receives scores from Matcher and starts server to stream the data live"""
-    def __init__(self, config: StreamerConfig, sync_events: SyncEvents):
+    def __init__(self, config: StreamingConfig, sync_events: SyncEvents):
         self._sync = sync_events
         self._sync.shm_ready.wait()
         
@@ -82,7 +83,10 @@ class Streamer:
                     plot_data = self._shared_arrs["scores"][:, self.t]
                 elif plotter.data_key == "tr_data":
                     if self._qa_onsets and self.t == self._qa_onsets[-1]:
+                        print(f"Sharing new data @ {self.t}")
                         plot_data = self._shared_arrs["tr_data"]
+                        print(f'sum of the data: {plot_data.flatten().sum()}')
+                        np.save(f"reader_tr_{self.t}.npy", plot_data.copy())
                 else:
                     plot_data = None
                 if plot_data is not None:
@@ -110,9 +114,6 @@ class Streamer:
             )
 
             self._sync.end.wait()
-
-        except Exception as e:
-            log.error(e)
 
         finally:
             self._shutdown()

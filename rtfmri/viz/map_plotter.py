@@ -1,27 +1,27 @@
+import pandas as pd
 import numpy as np
 import panel as pn
 from nibabel.nifti1 import Nifti1Image
-from nilearn.plotting import plot_epi
 from nilearn.plotting import plot_stat_map
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
-from rtfmri.viz.streaming_config import StreamerConfig, QAState
-from rtfmri.utils.fMRI import unmask_fMRI_img
+from rtfmri.viz.streaming_config import StreamingConfig
+from rtfmri.utils.sync import QAState
 
 class MapPlotter:
     """Plot brain maps at moment of each hit"""
     data_key = "tr_data"
 
-    def __init__(self, config: StreamerConfig):
+    def __init__(self, config: StreamingConfig):
         self._Nt = config.Nt
         self._template_labels = config.template_labels
         self._Ntemplates = len(config.template_labels)
 
         self._t = config.matching_opts.match_start
 
-        self._qa_state = None
+        # self._qa_state = None
 
         self._mask_img = config.mask_img
         self._m_x, self._m_y, self._m_z = self._mask_img.header.get_data_shape()
@@ -37,11 +37,12 @@ class MapPlotter:
 
     def update(self, t: int, data: np.ndarray, qa_state: QAState) -> None:
         self._t = t
-        self._qa_state = qa_state
+        # self._qa_state = qa_state
        
-        if self._qa_state.qa_onsets and self._t == self._qa_state.qa_onsets[-1]:
+        if qa_state.qa_onsets and self._t == qa_state.qa_onsets[-1]:
+            print(f"[MAP] hit @ {self._t}")
+            np.save(f'{t}.map.pkl', data) # What i am comparing with rn
             self._brain_img = self._arr_to_nifti(data)
-            # fig = plt.figure(figsize=(8, 6))
             self._fig.clear()
             plot_stat_map(self._brain_img, display_mode='ortho', draw_cross=False, figure=self._fig, bg_img=None)
             self.pane.object = self._fig

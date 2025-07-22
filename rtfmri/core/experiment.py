@@ -3,6 +3,8 @@ import os.path as osp
 from multiprocessing import Process
 from types import SimpleNamespace
 from multiprocessing.shared_memory import SharedMemory
+from multiprocessing import Value
+from ctypes import c_int
 
 import numpy as np
 import pandas as pd
@@ -13,7 +15,7 @@ from rtfmri.preproc.pipeline import Pipeline
 from rtfmri.matching.matcher import Matcher
 from rtfmri.matching.hit_detector import HitDetector
 from rtfmri.viz.streaming import run_streamer
-from rtfmri.viz.streaming_config import StreamerConfig, SyncEvents
+from rtfmri.viz.streaming_config import StreamingConfig
 from rtfmri.utils.log import set_logger
 from rtfmri.utils.fMRI import load_fMRI_file, unmask_fMRI_img
 
@@ -29,18 +31,17 @@ class Experiment:
     ----------
     options : Options
         Configuration object containing experiment parameters (e.g., TR, number of volumes, paths).
-    mp_evt_hit : multiprocessing.Event
+    sync.hit : multiprocessing.Event
         Event used to signal a CAP hit.
-    mp_evt_end : multiprocessing.Event
+    sync.end : multiprocessing.Event
         Event used to signal the end of the experiment.
-    mp_evt_qa_end : multiprocessing.Event
+    sync.qa_end : multiprocessing.Event
         Event used to signal the end of a QA block.
     """
-    def __init__(self, options, mp_evt_hit, mp_evt_end, mp_evt_qa_end):
+    def __init__(self, options, sync):
         self.log = set_logger(options.debug, options.silent)
-        self.mp_evt_hit = mp_evt_hit # Signals a CAP hit
-        self.mp_evt_end = mp_evt_end # Signals the end of the experiment
-        self.mp_evt_qa_end = mp_evt_qa_end # Signals the end of a QA set
+
+        self.sync = sync
 
         self.ewin = None
         self.exp_type = options.exp_type
@@ -122,7 +123,7 @@ class Experiment:
         """Finalize the experiment by saving all outputs and signaling completion."""
         if save:
             self.pipe.final_steps()
-        self.mp_evt_end.set()
+        self.sync.end.set()
 
 
 class ESAMExperiment(Experiment):
@@ -163,10 +164,8 @@ class ESAMExperiment(Experiment):
     hit_detector : HitDetector
         Object that decides if a hit has occured.
     """
-    def __init__(self, options, mp_evt_hit, mp_evt_end, mp_evt_qa_end, mp_new_tr, mp_shm_ready):
-        super().__init__(options, mp_evt_hit, mp_evt_end, mp_evt_qa_end)
-        self.mp_new_tr = mp_new_tr
-        self.mp_shm_ready = mp_shm_ready
+    def __init__(self, options, sync):
+        super().__init__(options, sync)
 
         self.lastQA_endTR  = 0
         self.out_dir = options.out_dir
@@ -192,13 +191,14 @@ class ESAMExperiment(Experiment):
         base_arr = np.zeros((self.mask_Nv,), dtype=np.float32)
         self.shm_tr = SharedMemory(create=True, size=base_arr.nbytes, name="tr_data")
         self.shared_tr_data = np.ndarray(base_arr.shape, dtype=base_arr.dtype, buffer=self.shm_tr.buf)
+        self.shared_tr_index = Value(c_int, -1)
 
         try:
             matcher_cls = Matcher.from_name(matching_opts.match_method)
-            self.matcher = matcher_cls(matching_opts, options.match_path, self.Nt, self.mp_evt_end, mp_new_tr, mp_shm_ready)
+            self.matcher = matcher_cls(matching_opts, options.match_path, self.Nt, self.sync.end, sync.new_tr, sync.shm_ready)
         except ValueError as e:
             self.log.error(f"Matcher setup failed: {e}")
-            mp_evt_end.set()
+            sync.end.set()
             sys.exit(-1)
 
         self.hits = np.zeros((self.matcher.Ntemplates, self.Nt))
@@ -208,17 +208,15 @@ class ESAMExperiment(Experiment):
         self.matching_opts = matching_opts
         
     def compute_TR_data(self, motion, extra):
-        hit_status    = self.mp_evt_hit.is_set()
-        qa_end_status = self.mp_evt_qa_end.is_set()
+        hit_status = self.sync.hit.is_set()
+        qa_end_status = self.sync.qa_end.is_set()
 
         processed = super()._compute_TR_data_impl(motion, extra)
-        if self.t >= self.match_start:
-            self.shared_tr_data[:] = processed.ravel()
 
         if qa_end_status:
             self.lastQA_endTR = self.t
             self.qa_offsets.append(self.t)
-            self.mp_evt_qa_end.clear()
+            self.sync.qa_end.clear()
             self.log.info(f'QA ended (cleared) --> updating lastQA_endTR = {self.lastQA_endTR}')
         
         hit = None
@@ -242,11 +240,16 @@ class ESAMExperiment(Experiment):
                 hit = self.hit_detector.detect(self.t, template_labels, scores, self.this_motion)
         
                 if hit:
+                    self.sync.hit.clear()
                     self.log.info(f'[t={self.t},n={self.n}] =============================================  CAP hit [{hit}]')
                     self.qa_onsets.append(self.t)
                     self.hits[template_labels.index(hit), self.t] = 1
-                    self.mp_evt_hit.set()
+                    print(f"Writing new data @ {self.t}")
+                    self.shared_tr_data[:] = processed.ravel()
+                    np.save(f"writer_tr_{self.t}.npy", self.shared_tr_data.copy())
+                    self.sync.hit.set()
                     self.last_hit = hit
+
         else:
             self.log.info(f' - Time point [t={self.t}, n={self.n}] | Matching begins at t={self.match_start}')
 
@@ -255,7 +258,7 @@ class ESAMExperiment(Experiment):
         return 1
 
     def start_streaming(self):
-        streamer_config = StreamerConfig(
+        streamer_config = StreamingConfig(
             self.Nt,
             self.matcher.template_labels,
             self.hit_thr,
@@ -264,15 +267,7 @@ class ESAMExperiment(Experiment):
             self.mask_Nv
         )
 
-        sync_events = SyncEvents(
-            self.mp_new_tr,
-            self.mp_shm_ready,
-            self.mp_evt_qa_end,
-            self.mp_evt_hit,
-            self.mp_evt_end
-        )
-        
-        self.mp_prc_stream = Process(target=run_streamer, args=(streamer_config, sync_events))
+        self.mp_prc_stream = Process(target=run_streamer, args=(streamer_config, self.sync))
         self.mp_prc_stream.start()
 
     def write_hit_arrays(self):
@@ -357,4 +352,4 @@ class ESAMExperiment(Experiment):
         self.shm_tr.close()
         self.shm_tr.unlink()
 
-        self.mp_evt_end.set()
+        self.sync.end.set()

@@ -5,12 +5,13 @@ import hvplot.pandas
 import panel as pn
 from holoviews.streams import Stream
 
-from rtfmri.viz.streaming_config import StreamerConfig, QAState
+from rtfmri.utils.sync import QAState
+from rtfmri.viz.streaming_config import StreamingConfig
 
 class ScorePlotter:
     """Receives scores from Matcher to stream the data live"""
     data_key = 'scores'
-    def __init__(self, config: StreamerConfig):
+    def __init__(self, config: StreamingConfig):
         self._Nt = config.Nt
         self._template_labels = config.template_labels
         self._Ntemplates = len(config.template_labels)

@@ -8,7 +8,7 @@ from psychopy import event
 from rtfmri.utils.options import Options
 from rtfmri.utils.log import get_logger, set_logger
 from rtfmri.utils.gui import validate_likert_questions, get_experiment_info, DefaultGUI, EsamGUI
-from rtfmri.utils.core import SharedClock
+from rtfmri.utils.core import SharedClock, create_sync_events
 
 from psychopy import logging
 logging.console.setLevel(logging.ERROR)
@@ -30,21 +30,14 @@ def main():
     if opts.test_latency:
         clock = SharedClock()
         receiver_path = osp.join(opts.out_dir, f'{opts.out_prefix}_receiver_timing.pkl')
+    if opts.exp_type == "esam":
+        opts.likert_questions = validate_likert_questions(opts.q_path)
 
     # 2) Create Multi-processing infrastructure
     # ------------------------------------------
-    mp_evt_hit = mp.Event()
-    mp_evt_end = mp.Event()
-    mp_evt_qa_end = mp.Event()
+    sync = create_sync_events()
     
-    mp_new_tr = None
-    mp_shm_ready = None
-    if opts.exp_type == "esam":
-        opts.likert_questions = validate_likert_questions(opts.q_path)
-        mp_new_tr = mp.Event()
-        mp_shm_ready = mp.Event()
-
-    mp_prc_comm = mp.Process(target=comm_process, args=(opts, mp_evt_hit, mp_evt_end, mp_evt_qa_end, mp_new_tr, mp_shm_ready, clock, receiver_path))
+    mp_prc_comm = mp.Process(target=comm_process, args=(opts, sync, clock, receiver_path))
     mp_prc_comm.start()
 
     # 3) Get additional info using the GUI
@@ -58,13 +51,13 @@ def main():
             preproc_gui = DefaultGUI(exp_info, opts, clock)
 
             # 5) Keep the experiment going, until it ends
-            while not mp_evt_end.is_set():
+            while not sync.end.is_set():
                 preproc_gui.draw_resting_screen()
                 if opts.test_latency:
                     preproc_gui.poll_trigger()
                 if event.getKeys(['escape']):
                     log.info('- User pressed escape key')
-                    mp_evt_end.set()
+                    sync.end.set()
             preproc_gui.save_trigger()
 
             # 6) Close Psychopy Window
@@ -72,7 +65,7 @@ def main():
             preproc_gui.close_psychopy_infrastructure()
         else:
             # 4) In no_gui mode, wait passively for experiment to end
-            while not mp_evt_end.is_set():
+            while not sync.end.is_set():
                 time.sleep(0.1)
 
     if opts.exp_type == "esam":
@@ -82,18 +75,18 @@ def main():
     
         # 5) Wait for things to happen
         # ----------------------------
-        while not mp_evt_end.is_set():
+        while not sync.end.is_set():
             esam_gui.draw_resting_screen()
             if opts.test_latency:
                 esam_gui.poll_trigger()
             if event.getKeys(['escape']):
                 log.info('- User pressed escape key')
-                mp_evt_end.set()
-            if mp_evt_hit.is_set() and not opts.test_latency:
+                sync.end.set()
+            if sync.hit.is_set() and not opts.test_latency:
                 responses = esam_gui.run_full_QA()
                 log.info(' - Responses: %s' % str(responses))
-                mp_evt_hit.clear()
-                mp_evt_qa_end.set()
+                sync.hit.clear()
+                sync.qa_end.set()
         if opts.test_latency:
             esam_gui.save_trigger()
         
@@ -103,7 +96,7 @@ def main():
         esam_gui.close_psychopy_infrastructure()
         
 
-def comm_process(opts, mp_evt_hit, mp_evt_end, mp_evt_qa_end, mp_new_tr=None, mp_shm_ready=None, clock=None, time_path=None):
+def comm_process(opts, sync, clock=None, time_path=None):
     from rtfmri.comm.receiver_interface import CustomReceiverInterface
     from rtfmri.core.experiment import Experiment, ESAMExperiment
     
@@ -111,11 +104,11 @@ def comm_process(opts, mp_evt_hit, mp_evt_end, mp_evt_qa_end, mp_new_tr=None, mp
     log.info('- comm_process - 2) Instantiating Experiment Object...')
     if opts.exp_type == 'esam':
         log.info('This an experimental run')
-        experiment = ESAMExperiment(opts, mp_evt_hit, mp_evt_end, mp_evt_qa_end, mp_new_tr, mp_shm_ready)
+        experiment = ESAMExperiment(opts, sync)
         experiment.start_streaming() # Start panel server
         # TODO: add event to signal when server is ready before printing ready to go
     else:
-        experiment = Experiment(opts, mp_evt_hit, mp_evt_end, mp_evt_qa_end)
+        experiment = Experiment(opts, sync)
 
     # 4) Start Communications
     log.info('- comm_process - 3) Opening Communication Channel...')
@@ -154,7 +147,7 @@ def comm_process(opts, mp_evt_hit, mp_evt_end, mp_evt_qa_end, mp_new_tr=None, mp
         receiver.save_timing()
 
     if experiment.exp_type == "esam" or experiment.exp_type == "esam_test":
-        while experiment.mp_evt_hit.is_set():
+        while experiment.sync.hit.is_set():
             log.info('- comm_process - waiting for QA to end ')
             time.sleep(1)
     log.info('- comm_process - ready to end ')
