@@ -1,9 +1,11 @@
+from itertools import cycle
 import numpy as np
 import pandas as pd
 import holoviews as hv
 import hvplot.pandas
 import panel as pn
 from holoviews.streams import Stream
+from bokeh.palettes import Category10
 
 from rtfmri.utils.sync import QAState
 from rtfmri.viz.streaming_config import StreamingConfig
@@ -13,29 +15,31 @@ class ScorePlotter:
     data_key = 'scores'
     def __init__(self, config: StreamingConfig):
         self._Nt = config.Nt
-        template_labels = config.template_labels
-        self._Ntemplates = len(config.template_labels)
+        self._template_labels = config.template_labels
+        self._Ntemplates = len(self._template_labels)
 
         self._hit_thr = config.hit_thr
 
-        self._df = pd.DataFrame(np.nan, index=np.arange(self._Nt), columns=template_labels)
+        self._df = pd.DataFrame(np.nan, index=np.arange(self._Nt), columns=self._template_labels)
         self.dmap = hv.DynamicMap(self._plot, streams=[Stream.define('Next', t=int)()])
         
         self._polys_static = []
-        
+        self._no_match_poly = self._draw_poly(0, config.matching_opts.match_start).opts(color='gray', line_color=None, alpha=0.2)
         self._qa_state = None
         
         self._last_cooldown_shown = None
-
+        
+        self._colors = self._get_template_colors()
+        
     def update(self, t: int, data: np.ndarray, qa_state: QAState) -> None:
         self._df.iloc[t] = data
         self._qa_state = qa_state
         if not np.isnan(self._df.iloc[t]).all():
             self.dmap.event(t=t)
 
-    def _plot(self, t) -> hv.Overlay:
-        line_plot = self._df.hvplot.line(legend='top', label='Match Scores', width=1500)
-        overlays = [line_plot]
+    def _plot(self, t: int) -> hv.Overlay:
+        line_plot = self._df.hvplot.line(legend='top', label='Match Scores', width=1500, cmap=self._colors)
+        overlays = [line_plot, self._no_match_poly]
 
         if self._qa_state is None:
             return hv.Overlay(overlays)
@@ -59,12 +63,13 @@ class ScorePlotter:
         
         return hv.Overlay(overlays)
 
-    def _draw_dynamic_box(self, t) -> hv.Polygons:
-        return self._draw_poly(self._qa_state.qa_onsets[-1], t).opts(alpha=0.2, color='blue', line_color=None)
+    def _draw_dynamic_box(self, t: int) -> hv.Polygons:
+        return self._draw_poly(self._qa_state.qa_onsets[-1], t).opts(alpha=0.2, color='blue', )
         
-    def _draw_poly(self, start, end) -> hv.Polygons:
+    def _draw_poly(self, start: int, end: int) -> hv.Polygons:
+        end = min(end, self._Nt)
         return hv.Polygons([
-            [(start, -5), (end, -5), (end, 10), (start, 10)]
+            [(start, -5), (end, -5), (end, 5), (start, 5)]
         ])
 
     def _draw_hit_markers(self) -> hv.Scatter:
@@ -78,15 +83,23 @@ class ScorePlotter:
 
         if points:
             df_points = pd.DataFrame(points, columns=["TR", "score", "template"])
-            scatter = hv.Scatter(df_points, kdims=["TR"], vdims=["score", "template"]).opts(
+            df_points['color'] = df_points['template'].map(self._colors).fillna('gray')
+
+            return hv.Scatter(df_points, kdims=["TR"], vdims=["score", "template", "color"]).opts(
                 marker='circle',
                 alpha=0.5,
                 size=12,
                 tools=['hover'],
-                cmap='Category10'
+                color='color'
             )
-            return scatter
         else:
             return hv.Scatter([], kdims=["TR"], vdims=["score", "template"])
+    
+    def _get_template_colors(self):
+        palette = Category10[10]
+
+        # Cycle through palette if more labels than colors
+        assigned_colors = [c for _, c in zip(self._template_labels, cycle(palette))]
+        return dict(zip(self._template_labels, assigned_colors))
 
 
