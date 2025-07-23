@@ -12,7 +12,7 @@ def main():
     parser.add_argument("-i", "--in_dir", required=True, help="The input directory where the audio files are located.", dest="in_dir")
     parser.add_argument("-o", "--out_dir", required=True, help="The output directory where the transcripts will be saved.", dest="out_dir")
     parser.add_argument("-p", "--prefix", required=True, help="The prefix for the audio files.", dest="prefix")
-    parser.add_argument("--model", default="turbo", help="Whisper model to use (default: turbo).")
+    parser.add_argument("-m", "--model", default="turbo", help="Whisper model to use (default: turbo).")
 
     args = parser.parse_args()
     in_dir = args.in_dir
