@@ -1,3 +1,4 @@
+import os.path as osp
 from itertools import cycle
 import numpy as np
 import pandas as pd
@@ -30,6 +31,9 @@ class ScorePlotter:
         self._last_cooldown_shown = None
         
         self._colors = self._get_template_colors()
+        
+        self._out_prefix = config.out_prefix
+        self._out_dir = config.out_dir
         
     def update(self, t: int, data: np.ndarray, qa_state: QAState) -> None:
         self._df.iloc[t] = data
@@ -101,5 +105,15 @@ class ScorePlotter:
         # Cycle through palette if more labels than colors
         assigned_colors = [c for _, c in zip(self._template_labels, cycle(palette))]
         return dict(zip(self._template_labels, assigned_colors))
+    
+    def close(self):
+        """Save the final state of the streaming plot to an HTML file"""
+        out_html = osp.join(self._out_dir, self._out_prefix + '.dyn_report.html')
+        renderer = hv.renderer('bokeh')
 
+        # Get last time index with valid data
+        last_valid_idx = self._df.dropna(how='all').index.max()
+        final_plot = self._plot(last_valid_idx)
 
+        renderer.save(final_plot, out_html)
+        print(f'++ Dynamic Report written to disk: [{self.out_html}]')

@@ -12,3 +12,5 @@ class StreamingConfig:
     matching_opts: MatchingOpts
     mask_img: Nifti1Image
     Nv: int
+    out_dir: str
+    out_prefix: str

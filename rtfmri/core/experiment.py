@@ -171,7 +171,6 @@ class ESAMExperiment(Experiment):
         self.lastQA_endTR  = 0
         self.out_dir = options.out_dir
         self.out_prefix = options.out_prefix
-        self.outhtml = osp.join(self.out_dir,self.out_prefix+'.dyn_report')
 
         self.qa_onsets = []
         self.qa_offsets = []
@@ -271,7 +270,9 @@ class ESAMExperiment(Experiment):
             self.hit_thr,
             self.matching_opts,
             self.mask_img,
-            self.mask_Nv
+            self.mask_Nv,
+            self.out_dir,
+            self.out_prefix
         )
 
         self.mp_prc_stream = Process(target=run_streamer, args=(
@@ -292,36 +293,6 @@ class ESAMExperiment(Experiment):
         hits_path = osp.join(self.out_dir,self.out_prefix+'.hits')
         np.save(hits_path, self.hits)
         self.log.info('Saved hits info to %s' % hits_path)
-    
-    def write_dynamic_report(self):
-        """Save html file with interactive plot of match scores and hits"""
-        match_Scores_DF = pd.DataFrame(self.matcher.scores.T, columns=self.matcher.template_labels)
-        match_Scores_DF['TR'] = match_Scores_DF.index
-        match_scores_curve     = match_Scores_DF.hvplot(legend='top', label='match Scores', x='TR').opts(width=1500)
-        Threshold_line      = hv.HLine(self.hit_thr).opts(color='black', line_dash='dashed', line_width=1)
-        Hits_ToPlot = self.hits.T * self.matcher.scores.T
-        Hits_ToPlot[Hits_ToPlot==0.0] = None
-        Hits_DF = pd.DataFrame(Hits_ToPlot, columns=self.matcher.template_labels)
-        Hits_DF['TR'] = Hits_DF.index
-        Hits_Marks  = Hits_DF.hvplot(
-            legend='top', label='match Scores', 
-            x='TR', kind='scatter', marker='circle', 
-            alpha=0.5, s=100).opts(width=1500)
-
-        qa_boxes = []
-        for (on,off) in zip(self.qa_onsets,self.qa_offsets):
-            qa_boxes.append(hv.Box(x=on+((off-on)/2),y=0,spec=(off-on,10)))
-        QA_periods = hv.Polygons(qa_boxes).opts(alpha=.2, color='blue', line_color=None)
-        wait_boxes = []
-        for off in self.qa_offsets:
-            wait_boxes.append(hv.Box(x=off+(self.vols_noqa/2),y=0,spec=(self.vols_noqa,10)))
-        WAIT_periods = hv.Polygons(wait_boxes).opts(alpha=.2, color='cyan', line_color=None)
-        plot_layout = (match_scores_curve * Threshold_line * Hits_Marks * QA_periods * WAIT_periods).opts(title=f'Experimental Run Results: {self.out_prefix}, {self.match_method}')
-        renderer    = hv.renderer('bokeh')
-        renderer.save(plot_layout, self.outhtml)
-        self.log.info('Dynamic Report written to disk: [%s.html]' % self.outhtml)
-        self.log.info('qa_onsets:  %s' % str(self.qa_onsets))
-        self.log.info('qa_offsets: %s' % str(self.qa_offsets))
     
     def write_hit_maps(self):
         """Write out the maps associated with the hits"""
@@ -359,7 +330,6 @@ class ESAMExperiment(Experiment):
 
         # TODO: move hit saving to HitDetector?
         self.write_hit_arrays()
-        self.write_dynamic_report()
         self.write_hit_maps()
         self.write_qa()
         self.shm_tr.close()
