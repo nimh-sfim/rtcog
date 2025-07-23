@@ -3,7 +3,6 @@ import threading
 from multiprocessing.shared_memory import SharedMemory
 from multiprocessing.managers import ListProxy
 import numpy as np
-import pandas as pd
 import holoviews as hv
 import hvplot.pandas
 import panel as pn
@@ -91,9 +90,7 @@ class Streamer:
                     plot_data = self._shared_arrs["scores"][:, t]
                 elif plotter.data_key == "tr_data":
                     if self._qa_onsets and t in self._qa_onsets:
-                        print(f"Sharing new data @ {t}")
                         plot_data = self._shared_arrs["tr_data"][:, t]
-                        print(f'[streamer] sum of the data: {plot_data.sum()}')
                         np.save(f"reader_tr_{t}.npy", plot_data.copy())
                 if plot_data is not None:
                     plotter.update(t, plot_data, self.qa_state)

@@ -1,7 +1,6 @@
 import sys
 import os.path as osp
 from multiprocessing import Process
-from types import SimpleNamespace
 from multiprocessing import Value, Manager
 from multiprocessing.shared_memory import SharedMemory
 from ctypes import c_int
@@ -13,6 +12,8 @@ import hvplot.pandas
 
 from rtfmri.preproc.pipeline import Pipeline
 from rtfmri.matching.matcher import Matcher
+from rtfmri.matching.matching_opts import MatchingOpts
+from rtfmri.matching.hit_opts import HitOpts
 from rtfmri.matching.hit_detector import HitDetector
 from rtfmri.viz.streaming import run_streamer
 from rtfmri.viz.streaming_config import StreamingConfig
@@ -178,8 +179,8 @@ class ESAMExperiment(Experiment):
         self.qa_offsets_path = osp.join(self.out_dir,self.out_prefix+'.qa_offsets.txt')
         
         # Convert dicts into a objects that allow dot notation
-        matching_opts = SimpleNamespace(**options.matching)
-        hit_opts = SimpleNamespace(**options.hits)
+        matching_opts = MatchingOpts(**options.matching)
+        hit_opts = HitOpts(**options.hits)
 
         self.hit_thr = options.hit_thr
 
@@ -248,14 +249,11 @@ class ESAMExperiment(Experiment):
         
                 if hit:
                     self.sync.hit.clear()
-                    self.log.info(f'[t={self.t},n={self.n}] =============================================  CAP hit [{hit}]')
+                    self.log.info(f'[t={self.t},n={self.n}] ==========================================  Template hit [{hit}]')
                     self.qa_onsets.append(self.t)
                     self.shared_qa_onsets.append(self.t)
                     self.hits[template_labels.index(hit), self.t] = 1
-                    print(f"Writing new data @ {self.t}")
-                    print(f'[experiment] sum of the data: {processed.flatten().sum()}')
                     self.shared_tr_data[:, self.t] = processed.ravel()
-                    np.save(f"writer_tr_{self.t}.npy", self.shared_tr_data.copy())
                     self.sync.hit.set()
                     self.last_hit = hit
 

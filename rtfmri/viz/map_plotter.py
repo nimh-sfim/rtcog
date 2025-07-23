@@ -1,3 +1,4 @@
+import warnings
 import nibabel as nib
 import pandas as pd
 import numpy as np
@@ -29,7 +30,10 @@ class MapPlotter:
         self._last_map_t = None
         
         self._fig = plt.figure(figsize=(7, 6))
-        plot_stat_map(self._brain_img, display_mode='ortho', draw_cross=False, figure=self._fig, bg_img=None)
+
+        with warnings.catch_warnings(): # Ignore nilearn warnings
+            warnings.simplefilter("ignore", UserWarning)
+            plot_stat_map(self._brain_img, display_mode='ortho', draw_cross=False, figure=self._fig, bg_img=None)
 
         self.pane = pn.pane.Matplotlib(self._fig, dpi=150, tight=True, sizing_mode='scale_both')
 
@@ -37,12 +41,8 @@ class MapPlotter:
         if qa_state.qa_onsets:
             latest_onset = qa_state.qa_onsets[-1]
             if self._last_map_t != latest_onset:
-                print(f'[map] sum of the data: {data.flatten().sum()}')
-                print(data)
-                print(f"[MAP] hit @ {latest_onset} (plotting at t={t})")
                 self._last_map_t = latest_onset
                 self._brain_img = self._arr_to_nifti(data)
-                nib.save(self._brain_img, f'{t}.map.nii')
                 self._fig.clear()
                 plot_stat_map(
                     self._brain_img,
