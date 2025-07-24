@@ -116,4 +116,4 @@ class ScorePlotter:
         final_plot = self._plot(last_valid_idx)
 
         renderer.save(final_plot, out_html)
-        print(f'++ Dynamic Report written to disk: [{self.out_html}]')
+        print(f'++ Dynamic Report written to disk: [{out_html}]')
