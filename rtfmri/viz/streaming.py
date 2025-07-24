@@ -1,7 +1,7 @@
 import time
 import threading
 from multiprocessing.shared_memory import SharedMemory
-from multiprocessing.managers import ListProxy
+from multiprocessing.managers import ListProxy, DictProxy
 import numpy as np
 import holoviews as hv
 import hvplot.pandas
@@ -10,6 +10,7 @@ import panel as pn
 from rtfmri.utils.sync import SyncEvents, QAState
 from rtfmri.viz.score_plotter import ScorePlotter
 from rtfmri.viz.map_plotter import MapPlotter
+from rtfmri.viz.response_plotter import ResponsePlotter
 from rtfmri.viz.streaming_config import StreamingConfig
 from rtfmri.utils.log import get_logger
 
@@ -18,13 +19,13 @@ log = get_logger()
 hv.extension('bokeh')
 pn.extension()
 
-def run_streamer(streamer_config, sync_events, qa_onsets, qa_offsets) -> None:
-    streamer = Streamer(streamer_config, sync_events, qa_onsets, qa_offsets)
+def run_streamer(streamer_config, sync_events, qa_onsets, qa_offsets, responses) -> None:
+    streamer = Streamer(streamer_config, sync_events, qa_onsets, qa_offsets, responses)
     streamer.run()
 
 class Streamer:
     """Receives scores from Matcher and starts server to stream the data live"""
-    def __init__(self, config: StreamingConfig, sync_events: SyncEvents, qa_onsets: ListProxy, qa_offsets: ListProxy):
+    def __init__(self, config: StreamingConfig, sync_events: SyncEvents, qa_onsets: ListProxy, qa_offsets: ListProxy, responses: DictProxy):
         self._sync = sync_events
         self._sync.shm_ready.wait()
         
@@ -41,7 +42,7 @@ class Streamer:
         self._shared_arrs["scores"] = np.ndarray((Ntemplates, self._Nt), dtype=np.float32, buffer=self._match_scores.buf)
         self._shared_arrs["tr_data"] = np.ndarray((config.Nv, config.Nt), dtype=np.float32, buffer=tr_data.buf)
         
-        self._plotters = [ScorePlotter(config), MapPlotter(config)] # Making this a list to extend in the future
+        self._plotters = [ScorePlotter(config), MapPlotter(config), ResponsePlotter(config, responses)]
 
         self._vols_noqa = config.matching_opts.vols_noqa
 
@@ -91,8 +92,10 @@ class Streamer:
                 elif plotter.data_key == "tr_data":
                     if self._qa_onsets and t in self._qa_onsets:
                         plot_data = self._shared_arrs["tr_data"][:, t]
-                        np.save(f"reader_tr_{t}.npy", plot_data.copy())
-                if plot_data is not None:
+
+                if plotter.data_key == "responses" and self._qa_offsets:
+                    plotter.update(t, None, self.qa_state)
+                elif plot_data is not None:
                     plotter.update(t, plot_data, self.qa_state)
 
     def run(self) -> None:
@@ -134,8 +137,7 @@ class Streamer:
             self._server.stop()
         self._close_shared_memory()
         for p in self._plotters:
-            if hasattr(p, 'close'):
-                p.close()
+            p.close()
 
     def _close_shared_memory(self) -> None:
         self._match_scores.close()

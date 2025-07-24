@@ -151,7 +151,7 @@ class DefaultGUI:
 
 
 class EsamGUI(DefaultGUI):
-    def __init__(self, expInfo, opts, clock=None):
+    def __init__(self, expInfo, opts, shared_responses, clock=None):
         super().__init__(expInfo, opts, clock)
         self.hitID = 1
 
@@ -164,6 +164,7 @@ class EsamGUI(DefaultGUI):
         self.recorder = Recorder(channels=1)
 
         self.responses = {}
+        self._shared_responses = shared_responses
 
         # Recording Screen
         self.rec_inst = [
@@ -280,7 +281,7 @@ class EsamGUI(DefaultGUI):
                     elif key == self.key_right and current_pos < ticks[-1]:
                         current_pos += 1
                     elif key == self.key_select:
-                        rating = current_pos
+                        rating = current_pos / len(ticks)
                         break
                     elif key in ['escape', 'q']:
                         self.ewin.close()
@@ -314,10 +315,13 @@ class EsamGUI(DefaultGUI):
         # 4) Do the Likert questionnaire
         resp_dict = self.draw_likert_questions(self.likert_order)
 
-        # 5) Write results to file
+        # 5) Prepare results
         resp_timestr = time.strftime('%Y%m%d-%H%M%S')
         resp_path = osp.join(self.out_dir, f'{self.out_prefix}.{resp_timestr}.LikertResponses{str(self.hitID).zfill(3)}.txt')
         
+        self._shared_responses.clear()
+        self._shared_responses.update(resp_dict)
+
         self.responses[resp_path] = resp_dict
         
         self.hitID += 1
