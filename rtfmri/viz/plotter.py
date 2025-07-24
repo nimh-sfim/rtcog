@@ -1,5 +1,4 @@
 import numpy as np
-from numpy import ndarray
 
 from rtfmri.utils.sync import QAState
 from rtfmri.viz.streaming_config import StreamingConfig

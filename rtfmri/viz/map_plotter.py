@@ -25,7 +25,7 @@ class MapPlotter(Plotter):
         self._brain_img = Nifti1Image(np.zeros((self._mask_img.shape)), affine=self._affine)
         self._last_map_t = None
         
-        self._fig = plt.figure(figsize=(7, 6))
+        self._fig = plt.figure(figsize=(5, 4))
 
         with warnings.catch_warnings(): # Ignore nilearn warnings
             warnings.simplefilter("ignore", UserWarning)

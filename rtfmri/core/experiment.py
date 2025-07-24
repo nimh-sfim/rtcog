@@ -259,11 +259,9 @@ class ESAMExperiment(Experiment):
         else:
             self.log.info(f' - Time point [t={self.t}, n={self.n}] | Matching begins at t={self.match_start}')
 
-
-        
         return 1
 
-    def start_streaming(self):
+    def start_streaming(self, shared_responses):
         streamer_config = StreamingConfig(
             self.Nt,
             self.matcher.template_labels,
@@ -279,7 +277,8 @@ class ESAMExperiment(Experiment):
             streamer_config,
             self.sync,
             self.shared_qa_onsets,
-            self.shared_qa_offsets
+            self.shared_qa_offsets,
+            shared_responses
         ))
 
         self.mp_prc_stream.start()
