@@ -1,6 +1,4 @@
 import warnings
-import nibabel as nib
-import pandas as pd
 import numpy as np
 import panel as pn
 from nibabel.nifti1 import Nifti1Image
@@ -10,17 +8,15 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
 from rtfmri.viz.streaming_config import StreamingConfig
+from rtfmri.viz.plotter import Plotter
 from rtfmri.utils.sync import QAState
 
-class MapPlotter:
+class MapPlotter(Plotter):
     """Plot brain maps at moment of each hit"""
     data_key = "tr_data"
 
     def __init__(self, config: StreamingConfig):
-        self._Nt = config.Nt
-        self._template_labels = config.template_labels
-        self._Ntemplates = len(config.template_labels)
-
+        super().__init__(config)
         self._mask_img = config.mask_img
         self._m_x, self._m_y, self._m_z = self._mask_img.header.get_data_shape()
         self._mask_v = np.reshape(self._mask_img.get_fdata() > 0, -1, order='F')

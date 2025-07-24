@@ -10,15 +10,13 @@ from bokeh.palettes import Category10
 
 from rtfmri.utils.sync import QAState
 from rtfmri.viz.streaming_config import StreamingConfig
+from rtfmri.viz.plotter import Plotter
 
-class ScorePlotter:
+class ScorePlotter(Plotter):
     """Receives scores from Matcher to stream the data live"""
     data_key = 'scores'
     def __init__(self, config: StreamingConfig):
-        self._Nt = config.Nt
-        self._template_labels = config.template_labels
-        self._Ntemplates = len(self._template_labels)
-
+        super().__init__(config)
         self._hit_thr = config.hit_thr
 
         self._df = pd.DataFrame(np.nan, index=np.arange(self._Nt), columns=self._template_labels)
