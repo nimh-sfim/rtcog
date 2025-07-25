@@ -281,7 +281,7 @@ class EsamGUI(DefaultGUI):
                     elif key == self.key_right and current_pos < ticks[-1]:
                         current_pos += 1
                     elif key == self.key_select:
-                        rating = current_pos / len(ticks)
+                        rating = current_pos
                         break
                     elif key in ['escape', 'q']:
                         self.ewin.close()
