@@ -106,7 +106,7 @@ class ScorePlotter(Plotter):
     
     def close(self):
         """Save the final state of the streaming plot to an HTML file"""
-        out_html = osp.join(self._out_dir, self._out_prefix + '.dyn_report.html')
+        out_html = osp.join(self._out_dir, self._out_prefix + '.dyn_report')
         renderer = hv.renderer('bokeh')
 
         # Get last time index with valid data
@@ -114,4 +114,4 @@ class ScorePlotter(Plotter):
         final_plot = self._plot(last_valid_idx)
 
         renderer.save(final_plot, out_html)
-        print(f'++ Dynamic Report written to disk: [{out_html}]')
+        print(f'++ Dynamic Report written to disk: [{out_html}.html]')
