@@ -1,10 +1,6 @@
 import sys
-from types import SimpleNamespace
 import os.path as osp
-import multiprocessing as mp
-
 import numpy as np
-import pandas as pd
 
 sys.path.insert(0, osp.abspath(osp.join(osp.dirname(__file__), '../../../')))
 
@@ -78,7 +74,6 @@ class Pipeline:
         self.motion_estimates = []
         
         self.save_orig = options.save_orig
-        # self.save_all = options.save_all
 
         self.out_dir = options.out_dir
         self.out_prefix = options.out_prefix
@@ -107,11 +102,6 @@ class Pipeline:
             log.error(f'pipeline.processed_tr has incorrect shape. Expected: {self.Nv, 1}. Actual: {value.shape}')
             sys.exit(-1)
         self._processed_tr = value
-    
-    def __del__(self):
-        if hasattr(self, 'pool') and self.pool is not None:
-            self.pool.close()
-            self.pool.join()
     
     def build_steps(self):
         """Build the pipeline"""

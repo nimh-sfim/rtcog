@@ -122,6 +122,7 @@ class PreprocStep:
         
 
 class EMAStep(PreprocStep):
+    """Exponential moving average"""
     def __init__(self, save, suffix='.pp_EMA.nii', ema_th=0.98):
         super().__init__(save, suffix)
         self.EMA_th = ema_th
@@ -135,6 +136,7 @@ class EMAStep(PreprocStep):
     
 
 class iGLMStep(PreprocStep):
+    """Incremental generalized linear model"""
     def __init__(self, save, suffix='.pp_iGLM.nii', iGLM_polort=2, iGLM_motion=True):
         super().__init__(save, suffix)
         self.iGLM_polort = iGLM_polort
@@ -190,6 +192,7 @@ class iGLMStep(PreprocStep):
 
 
 class KalmanStep(PreprocStep):
+    """Kalman filter for low pass filtering, spike removal, and signal smoothing"""
     def __init__(self, save, suffix='.pp_LPfilter.nii', n_cores=10, mask_Nv=None):
         super().__init__(save, suffix)
         self.welford_S = None
@@ -249,6 +252,7 @@ class KalmanStep(PreprocStep):
 
 
 class SmoothStep(PreprocStep):
+    """Smoothing with Gaussian filter"""
     def __init__(self, save=False, suffix='.pp_Smooth.nii', fwhm=4):
         super().__init__(save, suffix)
         self.fwhm = fwhm
@@ -260,6 +264,7 @@ class SmoothStep(PreprocStep):
 
     
 class SnormStep(PreprocStep):
+    """Spatial normalization"""
     def __init__(self, save=False, suffix='.pp_Zscore.nii'):
         super().__init__(save, suffix)
 
