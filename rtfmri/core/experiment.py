@@ -11,6 +11,7 @@ import holoviews as hv
 import hvplot.pandas
 
 from rtfmri.preproc.pipeline import Pipeline
+from rtfmri.preproc.step_types import StepType
 from rtfmri.matching.matcher import Matcher
 from rtfmri.matching.matching_opts import MatchingOpts
 from rtfmri.matching.hit_opts import HitOpts
@@ -177,7 +178,6 @@ class ESAMExperiment(Experiment):
         self.qa_onsets_path  = osp.join(self.out_dir,self.out_prefix+'.qa_onsets.txt')
         self.qa_offsets_path = osp.join(self.out_dir,self.out_prefix+'.qa_offsets.txt')
         
-        # Convert dicts into a objects that allow dot notation
         matching_opts = MatchingOpts(**options.matching)
         hit_opts = HitOpts(**options.hits)
 
@@ -185,7 +185,6 @@ class ESAMExperiment(Experiment):
 
         self.vols_noqa = matching_opts.vols_noqa
         self.match_method = matching_opts.match_method
-        self.win_length = matching_opts.win_length
         self.match_start = matching_opts.match_start
         
         base_arr = np.zeros((self.mask_Nv, self.Nt), dtype=np.float32)
@@ -283,6 +282,12 @@ class ESAMExperiment(Experiment):
 
         self.mp_prc_stream.start()
 
+    def get_enabled_step_config(self, step_name):
+        for step_cfg in self.pipe.step_opts:
+            if step_cfg.get("name", "").lower() == step_name.lower() and step_cfg.get("enabled", False):
+                return step_cfg
+        return None
+
     def write_hit_arrays(self):
         """Save match scores and hit arrays"""
         match_scores_path = osp.join(self.out_dir,self.out_prefix+f'.{self.match_method}_scores')
@@ -302,8 +307,9 @@ class ESAMExperiment(Experiment):
                 if this_template_hits > 0: # There were hits for this particular template
                     hit_ID = 1
                     for vol in Hits_DF[Hits_DF[template]==True].index:
-                        if self.matcher.do_win == True:
-                            this_template_vols = vol-np.arange(self.win_length+self.hit_detector.nconsec_vols-1)
+                        if (cfg := self.get_enabled_step_config(StepType.WINDOWING.value)): # If windowing is enabled
+                            win_length = cfg.get("win_length", 4) # win_length is 4 by default if not present in config
+                            this_template_vols = vol-np.arange(win_length+self.hit_detector.nconsec_vols-1)
                         else:
                             this_template_vols = vol-np.arange(self.hit_detector.nconsec_vols)
                         out_file = osp.join(self.out_dir, self.out_prefix + '.Hit_'+template+'_'+str(hit_ID).zfill(2)+'.nii')

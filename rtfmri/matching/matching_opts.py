@@ -5,5 +5,3 @@ class MatchingOpts:
     match_method: str
     match_start: int
     vols_noqa: int
-    do_win: bool
-    win_length: int

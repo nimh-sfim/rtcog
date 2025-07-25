@@ -13,6 +13,8 @@ log = get_logger()
 
 class Matcher:
     """Base class for matching processed TR data to given templates"""
+    registry = {} # Holds all available matching classes
+
     def __init__(self, match_opts, match_path, Nt, mp_evt_end, mp_new_tr, mp_shm_ready):
         self.match_start = match_opts.match_start # First volume to do decoding on
         self.Nt = Nt
@@ -23,10 +25,6 @@ class Matcher:
         self.mp_new_tr = mp_new_tr
         self.mp_shm_ready = mp_shm_ready
 
-        self.do_win = match_opts.do_win
-    
-    registry = {} # Holds all available matching classes
-        
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
 
