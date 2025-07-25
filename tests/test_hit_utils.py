@@ -1,12 +1,16 @@
 import pytest
 import numpy as np
 
-from rtfmri.paths import CAP_labels
-from rtfmri.utils.svr_methods import is_hit_rt01
+from rtfmri.matching.hit_utils import is_hit_rt01
+
+@pytest.fixture
+def labels():
+    return ['VPol','DMN','SMot','Audi','ExCn','rFPa','lFPa']
 
 
-def test_is_hit_rt01_two_above_thr(caplog):
+def test_is_hit_rt01_two_above_thr(labels, caplog):
     """Two templates meet criteria for match, so must return None"""
+    labels = labels
     svrscores = np.array([
         [0.0, 0.14],
         [0.2, 0.4],
@@ -20,12 +24,13 @@ def test_is_hit_rt01_two_above_thr(caplog):
     hit_thr = 0.5
     nconsec_vols = 2
     
-    assert not is_hit_rt01(t, CAP_labels, svrscores, hit_thr, nconsec_vols)
+    assert not is_hit_rt01(t, labels, svrscores, hit_thr, nconsec_vols)
     assert f' === is_hit_rt01 - nmatches 2' in caplog.text
   
 
-def test_is_hit_rt01_one_match(caplog):
+def test_is_hit_rt01_one_match(labels, caplog):
     """One template meets criteria for match"""
+    labels = labels
     svrscores = np.array([
         [0.0, 0.14],
         [0.2, 0.4],
@@ -39,12 +44,13 @@ def test_is_hit_rt01_one_match(caplog):
     hit_thr = 0.5
     nconsec_vols = 2
     
-    assert is_hit_rt01(t, CAP_labels, svrscores, hit_thr, nconsec_vols) == 'Audi'
+    assert is_hit_rt01(t, labels, svrscores, hit_thr, nconsec_vols) == 'Audi'
     assert f' === is_hit_rt01 - nmatches 1' in caplog.text
 
     
-def test_is_hit_rt01_no_match(caplog):
+def test_is_hit_rt01_no_match(labels, caplog):
     """Nothing is above the threshold"""
+    labels = labels
     svrscores = np.array([
         [0.0, 0.14],
         [0.2, 0.4],
@@ -58,12 +64,13 @@ def test_is_hit_rt01_no_match(caplog):
     hit_thr = 0.5
     nconsec_vols = 2
     
-    assert not is_hit_rt01(t, CAP_labels, svrscores, hit_thr, nconsec_vols)
+    assert not is_hit_rt01(t, labels, svrscores, hit_thr, nconsec_vols)
     assert f' === is_hit_rt01 - nmatches 0' in caplog.text
 
     
-def test_is_hit_rt01_no_match_by_nconsec(caplog):
-    """One template is above threshold, but only for this TR"""
+def test_is_hit_rt01_no_match_by_nconsec(labels, caplog):
+    """One CAP is above threshold, but only for this TR"""
+    labels = labels
     svrscores = np.array([
         [0.0, 0.14],
         [0.2, 0.4],
@@ -77,7 +84,7 @@ def test_is_hit_rt01_no_match_by_nconsec(caplog):
     hit_thr = 0.5
     nconsec_vols = 2
     
-    assert not is_hit_rt01(t, CAP_labels, svrscores, hit_thr, nconsec_vols)
+    assert not is_hit_rt01(t, labels, svrscores, hit_thr, nconsec_vols)
     assert f' === is_hit_rt01 - nmatches 1' in caplog.text
 
 
