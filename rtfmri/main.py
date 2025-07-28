@@ -1,6 +1,5 @@
 import sys
 import os.path as osp
-import logging
 import multiprocessing as mp
 import time
 
@@ -52,8 +51,6 @@ def main():
             time.sleep(0.1)
     
     comm_proc.join()
-
-
 
 
 if __name__ == "__main__":

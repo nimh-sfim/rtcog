@@ -52,7 +52,7 @@ def comm_process(opts, sync, shared_responses=None, clock=None, time_path=None):
     if opts.test_latency:
         receiver.save_timing()
 
-    if experiment.exp_type == "esam" or experiment.exp_type == "esam_test":
+    if experiment.exp_type == "esam" and not opts.no_gui:
         while experiment.sync.hit.is_set():
             log.info('waiting for QA to end ')
             time.sleep(1)
