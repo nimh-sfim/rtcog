@@ -5,6 +5,13 @@ from multiprocessing import Event, Value
 from ctypes import c_int
 
 from rtfmri.utils.sync import SyncEvents
+from rtfmri.utils.gui import DefaultGUI, EsamGUI
+from rtfmri.utils.log import get_logger
+
+from psychopy import logging
+logging.console.setLevel(logging.ERROR)
+
+log = get_logger()
 
 def file_exists(path):
       if not osp.isfile(path):
@@ -21,6 +28,16 @@ def create_sync_events():
         end=Event(),
         tr_index=Value(c_int, -1)
     )
+    
+def run_gui(opts, exp_info, sync, clock=None, shared_responses=None):
+    if opts.exp_type == "preproc":
+        gui = DefaultGUI(exp_info, opts, clock)
+    elif opts.exp_type == "esam":
+        gui = EsamGUI(exp_info, opts, shared_responses, clock)
+    else:
+        raise ValueError(f"Unknown exp_type: {opts.exp_type}")
+    
+    gui.run(sync)
 
 class SharedClock:
       def __init__(self):

@@ -45,12 +45,7 @@ class Experiment:
 
         self.sync = sync
 
-        self.ewin = None
         self.exp_type = options.exp_type
-        self.no_proc_chair = options.no_proc_chair
-        self.screen_size = [512, 288]
-        self.fullscreen = options.fullscreen
-        self.screen = options.screen
 
         self.n = 0 # Counter for number of volumes pre-processed (Start = 1)
         self.t = -1 # Counter for number of received volumes (Start = 0

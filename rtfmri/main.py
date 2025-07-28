@@ -3,15 +3,13 @@ import os.path as osp
 import logging
 import multiprocessing as mp
 import time
-from psychopy import event
 
 from rtfmri.utils.options import Options
 from rtfmri.utils.log import get_logger, set_logger
-from rtfmri.utils.gui import validate_likert_questions, get_experiment_info, DefaultGUI, EsamGUI
-from rtfmri.utils.core import SharedClock, create_sync_events
+from rtfmri.utils.gui import validate_likert_questions, get_experiment_info
+from rtfmri.utils.core import SharedClock, create_sync_events, run_gui
 
-from psychopy import logging
-logging.console.setLevel(logging.ERROR)
+from rtfmri.utils.log import get_logger
 
 log = get_logger()
 
@@ -40,65 +38,20 @@ def main():
     # ------------------------------------------
     sync = create_sync_events()
     
-    mp_prc_comm = mp.Process(target=comm_process, args=(opts, sync, shared_responses, clock, receiver_path))
-    mp_prc_comm.start()
+    comm_proc = mp.Process(target=comm_process, args=(opts, sync, shared_responses, clock, receiver_path))
+    comm_proc.start()
 
     # 3) Get additional info using the GUI
     # ------------------------------------
     if not opts.no_gui:
         exp_info = get_experiment_info(opts)
-
-    if opts.exp_type == "preproc":
-        if not opts.no_gui:
-            # 4) Start GUI
-            preproc_gui = DefaultGUI(exp_info, opts, clock)
-
-            # 5) Keep the experiment going, until it ends
-            while not sync.end.is_set():
-                preproc_gui.draw_resting_screen()
-                if opts.test_latency:
-                    preproc_gui.poll_trigger()
-                if event.getKeys(['escape']):
-                    log.info('- User pressed escape key')
-                    sync.end.set()
-            preproc_gui.save_trigger()
-
-            # 6) Close Psychopy Window
-            # ------------------------
-            preproc_gui.close_psychopy_infrastructure()
-        else:
-            # 4) In no_gui mode, wait passively for experiment to end
-            while not sync.end.is_set():
-                time.sleep(0.1)
-
-    if opts.exp_type == "esam":
-        # 4) Start GUI
-        # ------------
-        
-        esam_gui = EsamGUI(exp_info, opts, shared_responses, clock)
-    
-        # 5) Wait for things to happen
-        # ----------------------------
+        run_gui(opts, exp_info, sync, clock, shared_responses)
+    else:
         while not sync.end.is_set():
-            esam_gui.draw_resting_screen()
-            if opts.test_latency:
-                esam_gui.poll_trigger()
-            if event.getKeys(['escape']):
-                log.info('- User pressed escape key')
-                sync.end.set()
-            if sync.hit.is_set() and not opts.test_latency:
-                responses = esam_gui.run_full_QA()
-                log.info(' - Responses: %s' % str(responses))
-                sync.hit.clear()
-                sync.qa_end.set()
-        if opts.test_latency:
-            esam_gui.save_trigger()
-        
-        # 6) Close Psychopy Window
-        # ------------------------
-        esam_gui.save_likert_files()
-        esam_gui.close_psychopy_infrastructure()
-        
+            time.sleep(0.1)
+    
+    comm_proc.join()
+
 
 def comm_process(opts, sync, shared_responses=None, clock=None, time_path=None):
     from rtfmri.comm.receiver_interface import CustomReceiverInterface

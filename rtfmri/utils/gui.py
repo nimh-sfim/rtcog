@@ -104,6 +104,7 @@ class DefaultGUI:
             TextStim(win=self.ewin, text='X', pos=(0,0))
         ]
         
+        self.test_latency = opts.test_latency
         self.clock = clock
         self.trigger_path = osp.join(opts.out_dir, f'{opts.out_prefix}_trigger_timing.pkl')
         self.triggers = []
@@ -148,6 +149,19 @@ class DefaultGUI:
         self.ewin.close()
         psychopy_logging.flush()
         core.quit()
+    
+    def run(self, sync):
+        while not sync.end.is_set():
+            self.draw_resting_screen()
+            if self.test_latency:
+                self.poll_trigger()
+            if event.getKeys(['escape']):
+                log.info('- User pressed escape key')
+                sync.end.set()
+        
+        if self.test_latency:
+            self.save_trigger()
+        self.close_psychopy_infrastructure()
 
 
 class EsamGUI(DefaultGUI):
@@ -339,3 +353,21 @@ class EsamGUI(DefaultGUI):
                 log.debug(f'Likert responses written to {resp_path}')
         if self.responses:
             log.info(f'All likert responses saved')
+            
+    def run(self, sync):
+        while not sync.end.is_set():
+            self.draw_resting_screen()
+            if self.test_latency:
+                self.poll_trigger()
+            if event.getKeys(['escape']):
+                log.info('- User pressed escape key')
+                sync.end.set()
+            if sync.hit.is_set() and not self.test_latency:
+                responses = self.run_full_QA()
+                log.info(' - Responses: %s' % str(responses))
+                sync.hit.clear()
+                sync.qa_end.set()
+        
+        if self.test_latency:
+            self.save_trigger()
+        self.close_psychopy_infrastructure()
