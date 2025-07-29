@@ -10,6 +10,7 @@ class SyncEvents:
     end: MPEvent
     new_tr: MPEvent
     shm_ready: MPEvent
+    server_ready: MPEvent
     tr_index: Synchronized
 
 @dataclass(frozen=True)

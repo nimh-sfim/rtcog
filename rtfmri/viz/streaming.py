@@ -116,6 +116,7 @@ class Streamer:
                 threaded=True,
                 port=5006
             )
+            self._sync.server_ready.set()
 
             self._sync.end.wait()
 

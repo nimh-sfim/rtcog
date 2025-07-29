@@ -26,6 +26,7 @@ def create_sync_events():
         qa_end=Event(),
         hit=Event(),
         end=Event(),
+        server_ready=Event(),
         tr_index=Value(c_int, -1)
     )
     
