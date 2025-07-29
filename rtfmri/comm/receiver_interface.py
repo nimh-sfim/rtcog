@@ -30,6 +30,7 @@ if module_test_lib.num_import_failures(testlibs): sys.exit(1)
 from realtime_receiver import ReceiverInterface
 from afnipy import lib_realtime as RT
 
+    
 class CustomReceiverInterface(ReceiverInterface):
     def __init__(self, port=None, show_data=False, verb=0, auto_save=True, clock=None, out_path=None):
         super().__init__()
@@ -79,9 +80,6 @@ class CustomReceiverInterface(ReceiverInterface):
         if rv:
             log.error('** process 1 TR: read data failure')
             return rv
-        log.debug('len(motion): ' + str(len(self.RTI.motion)))
-        log.debug('len(extras): ' + str(len(self.RTI.extras)))
-        log.debug(self.RTI.extras[0:10])
 
         # if callback is registered
         data = None
@@ -150,3 +148,25 @@ class CustomReceiverInterface(ReceiverInterface):
         with open(self.out_path, 'wb') as f:
             pickle.dump(self.timing, f)
         log.info(f'Timing saved to {self.out_path}')
+        
+class MinimalReceiverInterface(CustomReceiverInterface):
+    """Receiver interface without any data computation. Used for latency testing."""
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.timing = {"recv": []}
+
+    def process_one_TR(self):
+        """Overridden to only track recv time, not proc time."""
+        log.debug("++ Entering MinimalReceiverInterface.process_one_TR()")
+
+        rv = self.RTI.read_TR_data()
+        if self.clock and not rv:
+            recv_time = self.clock.now()
+            self.timing["recv"].append(recv_time)
+            print(f"Recv @ {recv_time:.3f}", flush=True)
+
+        if rv:
+            log.error('** process 1 TR: read data failure')
+            return rv
+
+        return 0  # Always continue; no data computation
