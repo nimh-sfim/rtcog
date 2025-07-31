@@ -154,6 +154,7 @@ class MinimalReceiverInterface(CustomReceiverInterface):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.timing = {"recv": []}
+        self.t = 1
 
     def process_one_TR(self):
         """Overridden to only track recv time, not proc time."""
@@ -163,7 +164,8 @@ class MinimalReceiverInterface(CustomReceiverInterface):
         if self.clock and not rv:
             recv_time = self.clock.now()
             self.timing["recv"].append(recv_time)
-            print(f"Recv @ {recv_time:.3f}", flush=True)
+            print(f"Recv @ {recv_time:.3f}            - Time point [t={self.t}]", flush=True)
+        self.t += 1
 
         if rv:
             log.error('** process 1 TR: read data failure')
