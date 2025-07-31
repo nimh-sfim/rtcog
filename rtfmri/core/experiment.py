@@ -65,7 +65,7 @@ class Experiment:
             self.mask_Nv = int(np.sum(self.mask_img.get_fdata()))
             self.log.debug(f'  Experiment_init_ - Number of Voxels in user-provided mask: {self.mask_Nv}')
 
-        self.pipe = Pipeline(options, self.Nt, self.mask_Nv, self.mask_img, self.exp_type)        
+        self.pipe = Pipeline(options, self.Nt, self.mask_Nv, self.mask_img)        
         
 
     def _compute_TR_data_impl(self, motion, extra):

@@ -1,12 +1,12 @@
 import sys
 import os.path as osp
 import numpy as np
-
-sys.path.insert(0, osp.abspath(osp.join(osp.dirname(__file__), '../../../')))
+from nibabel.nifti1 import Nifti1Image
 
 from rtfmri.preproc.preproc_steps import PreprocStep
 from rtfmri.preproc.step_types import StepType
 from rtfmri.utils.exceptions import VolumeOverflowError
+from rtfmri.utils.options import Options
 from rtfmri.utils.log import get_logger
 from rtfmri.utils.fMRI import unmask_fMRI_img
 from rtfmri.paths import OUTPUT_DIR
@@ -15,59 +15,64 @@ log = get_logger()
 
 class Pipeline:
     """
-    Real-time fMRI preprocessing pipeline.
+    Realtime fMRI preprocessing pipeline.
 
     This class handles the initialization and execution of a customizable
-    real-time fMRI preprocessing pipeline. Operates on a TR-by-TR basis.
-
-    Parameters
-    ----------
-    options : Options
-        Configuration object containing flags for which steps to run and what to save.
-    Nt : int
-        Number of TRs expected in the session.
-    mask_Nv : int
-        Number of voxels in the brain mask.
-    mask_img : nibabel.Nifti1Image, optional
-        Binary brain mask used for reshaping and spatial operations.
-    exp_type : str, optional
-        Type of experiment being conducted (used for downstream logic).
+    realtime fMRI preprocessing pipeline. Operates on a TR-by-TR basis.
 
     Attributes
     ----------
-    steps : list
-        List of preprocessing steps initialized from STEP_REGISTRY.
-    Data_FromAFNI : np.ndarray
-        Original incoming data from AFNI (Nv, Nt).
-    Data_EMA : np.ndarray
-        Data after EMA filtering.
-    Data_iGLM : np.ndarray
-        Data after iGLM nuisance regression.
-    Data_kalman : np.ndarray
-        Data after Kalman filtering.
-    Data_smooth : np.ndarray
-        Data after spatial smoothing.
-    Data_norm : np.ndarray
-        Data after spatial Z-scoring.
-    Data_processed : np.ndarray
-        Final processed data.
+    Nt : int
+        Total number of expected volumes (TRs) in the session.
+    mask_Nv : int
+        Number of voxels in the brain mask.
+    mask_img : nibabel.Nifti1Image or None
+        Brain mask image used.
+    Nv : int
+        Number of voxels in the data. Equal to mask_Nv.
+    steps : list of PreprocStep
+        Initialized preprocessing step objects.
+    run_funcs : list of callable
+        Preprocessing functions to apply to each TR during processing.
     motion_estimates : list
-        Motion parameters across volumes.
-    pool : multiprocessing.Pool
-        Pool for parallel Kalman filtering (if enabled).
-    nuisance_labels : list
-        Labels for nuisance regressors (e.g., motion and polynomial terms).
-    legendre_pols : np.ndarray
-        Legendre polynomial regressors for detrending.
+        Flattened list of motion parameters across volumes.
+    Data_FromAFNI : np.ndarray or None
+        Raw input data from AFNI with shape (Nv, Nt).
+    Data_processed : np.ndarray or None
+        Fully processed data with shape (Nv, Nt).
+    processed_tr : np.ndarray
+        Last processed TR as a column vector (Nv, 1).
+    out_dir : str
+        Directory where outputs will be written.
+    out_prefix : str
+        Filename prefix for output files.
+    save_orig : bool
+        Whether to save the original, unprocessed incoming volumes.
+    snapshot : bool
+        Whether to save a debug snapshot of internal variables.
     """
-    def __init__(self, options, Nt, mask_Nv, mask_img=None, exp_type=None):
+    def __init__(self, options: Options, Nt: int, mask_Nv: int, mask_img: Nifti1Image = None):
+        """
+        Initialize the Pipeline object and prepare for real-time fMRI processing.
+
+        Parameters
+        ----------
+        options : Options
+            Parsed configuration object with pipeline flags and settings.
+        Nt : int
+            Total number of TRs expected during the session.
+        mask_Nv : int
+            Number of voxels included in the brain mask.
+        mask_img : nibabel.Nifti1Image, optional
+            Brain mask used. 
+        """
         self.t = None
         self.n = None
 
         self.Nt = Nt
         self.mask_Nv = mask_Nv
         self.mask_img = mask_img
-        self.exp_type = exp_type
+        self.Nv = 0
 
         self._processed_tr = np.zeros((self.mask_Nv,1))
 
@@ -80,7 +85,7 @@ class Pipeline:
         
         self.snapshot = options.snapshot
 
-        self.Data_FromAFNI = None # np.array [Nv,Nt] for incoming data
+        self.Data_FromAFNI = None # np.array (Nv,Nt) for incoming data
         self.Data_processed = None
 
         self.step_registry = PreprocStep.registry
@@ -90,21 +95,40 @@ class Pipeline:
         self.run_funcs = [step.run for step in self.steps]
 
     @property
-    def processed_tr(self):
+    def processed_tr(self) -> np.ndarray:
+        """np.ndarray: Last processed TR as a column vector of shape (Nv, 1)."""
         return self._processed_tr
     
     @processed_tr.setter
-    def processed_tr(self, value):
+    def processed_tr(self, value: np.ndarray) -> None:
+        """
+        Setter for processed_tr, ensuring correct shape and type.
+
+        Parameters
+        ----------
+        value : np.ndarray
+            Column vector of shape (Nv, 1) representing the processed TR.
+
+        Raises
+        ------
+        SystemExit
+            If the input is not a NumPy array or has the wrong shape.
+        """
         if not isinstance(value, np.ndarray):
             log.error(f"pipeline.processed_tr must be a numpy array, but is of type {type(value)}")
             sys.exit(-1)
-        if value.shape != (self.Nv, 1):
-            log.error(f'pipeline.processed_tr has incorrect shape. Expected: {self.Nv, 1}. Actual: {value.shape}')
+        if value.shape != (self.mask_Nv, 1):
+            log.error(f'pipeline.processed_tr has incorrect shape. Expected: {self.mask_Nv, 1}. Actual: {value.shape}')
             sys.exit(-1)
         self._processed_tr = value
     
-    def build_steps(self):
-        """Build the pipeline"""
+    def build_steps(self) -> None:
+        """
+        Construct the list of preprocessing steps based on user options.
+
+        This method uses the registered step types in `PreprocStep.registry`
+        and only instantiates steps that are marked as "enabled" in the config.
+        """
         self.steps = []
         for step in self.step_opts:
             name = step["name"].lower()
@@ -125,56 +149,101 @@ class Pipeline:
             self.steps.append(StepClass(save=save, **kwargs))
         log.info(f"Steps used: {', '.join([step.name for step in self.steps])}")
 
-    def process_first_volume(self, this_t_data):
-        """Create empty structures"""
-        self.Nv = len(this_t_data)
-        log.info('Number of Voxels Nv=%d' % self.Nv)
+    def process_first_volume(self, this_t_data: np.ndarray) -> None:
+        """
+        Initialize processing pipeline on the first volume.
 
+        Parameters
+        ----------
+        this_t_data : np.ndarray
+            A 1D array of data for the first TR, with length equal to the number of voxels.
+
+        Raises
+        ------
+        SystemExit
+            If the number of voxels in `this_t_data` does not match the expected mask size.
+        """
+        self.Nv = len(this_t_data)
         if self.mask_Nv != self.Nv:
             log.error(f'Discrepancy across masks [data Nv = {self.Nv}, mask Nv = {self.mask_Nv}]')
             sys.exit(-1)
 
         self.Data_FromAFNI = np.zeros((self.Nv, self.Nt))
-        self.Data_FromAFNI[:, self.t] = this_t_data
-        log.debug(f'[t={self.t},n={self.n}] Init - Data_FromAFNI.shape {self.Data_FromAFNI.shape}')
-    
-        self.Data_processed = np.zeros((self.Nv, self.Nt)) # Final output
-        
+        self.Data_processed = np.zeros((self.Nv, self.Nt))
+        self._processed_tr = np.zeros((self.Nv, 1))
+
         for step in self.steps:
             step.start_step(self)
 
-        return 1
-    
-    def process(self, t, n, motion, this_t_data):
-        """Run full pipeline on a single TR"""  
+    def process(self, t: int, n: int, motion: list[float], this_t_data: np.ndarray) -> np.ndarray | None:
+        """
+        Run full processing pipeline on a single TR.
+
+        Parameters
+        ----------
+        t : int
+            Time index for current volume.
+        n : int
+            Index used to determine whether this volume is discarded (0) or kept (non-zero).
+        motion : list or array-like
+            Motion parameters for the current volume.
+        this_t_data : np.ndarray
+            A 1D array of voxel data for the current time point.
+
+        Returns
+        -------
+        np.ndarray or None
+            The processed data for the current time point as a column vector,
+            or `None` if the volume is discarded.
+
+        Raises
+        ------
+        VolumeOverflowError
+            If the time index exceeds the expected number of time points.
+        """
         self.t = t
         self.n = n
         self.motion = motion
 
-        if self.t == 0:
-            return self.process_first_volume(this_t_data)
-        if self.n == 0:
-            self.Data_FromAFNI[:, self.t] = this_t_data
-            return 1
-        
+        if t == 0:
+            self.process_first_volume(this_t_data)
+
+        # Store raw data
         try:
             self.Data_FromAFNI[:, self.t] = this_t_data
         except IndexError:
             raise VolumeOverflowError()
 
+        # Skip processing during discard volumes
+        if self.n == 0:
+            return None
+
+        # Start with raw data
+        self.processed_tr = this_t_data[:, np.newaxis]
+
+        # Run pipeline steps to update data
         for func in self.run_funcs:
             self.processed_tr[:] = func(self)
-        
+
+        # Save output
         self.Data_processed[:, self.t] = self.processed_tr[:, 0]
 
         return self.processed_tr
 
-    def final_steps(self):
+
+    def final_steps(self) -> None:
+        """
+        Run finalization steps after all volumes are processed.
+
+        This includes saving motion estimates, writing processed NIfTI files, 
+        and optionally saving a snapshot of internal variables for testing/debugging.
+        """
         self.save_motion_estimates()
 
         if self.mask_img is None:
+            # TODO: decide if I should require mask_img or not, since I do upstream in Options, so would have to adjust that
             log.warning(' final_steps = No additional outputs generated due to lack of mask.')
-            return 1
+            return
         
         log.debug(' final_steps - About to write outputs to disk.')
         self.save_nifti_files()
@@ -193,7 +262,12 @@ class Pipeline:
             np.savez(snap_path, **var_dict) 
             log.info(f'Snapshot saved to OUTPUT_DIR at {snap_path}')
         
-    def save_motion_estimates(self):
+    def save_motion_estimates(self) -> None:
+        """
+        Flatten and save motion estimates to disk.
+
+        Output file is saved to: `self.out_dir/self.out_prefix + '.Motion.1D'`
+        """
         self.motion_estimates = [item for sublist in self.motion_estimates for item in sublist]
         log.info(f'motion_estimates length is {len(self.motion_estimates)}')
         self.motion_estimates = np.reshape(self.motion_estimates,newshape=(int(len(self.motion_estimates)/6),6))
@@ -205,7 +279,13 @@ class Pipeline:
         )
         log.info(f'Motion estimates saved to disk: [{motion_path}]')
 
-    def save_nifti_files(self):
+    def save_nifti_files(self) -> None:
+        """
+        Save processed and (optionally) original fMRI data to NIfTI format.
+
+        Files are saved using `unmask_fMRI_img`, reconstructing full brain volumes
+        from masked data and writing to: `self.out_dir/self.out_prefix + <suffix>`
+        """
         out_vars   = [self.Data_processed]
         out_labels = ['.pp_Final.nii']
 
