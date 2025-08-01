@@ -3,6 +3,14 @@ import logging
 log = logging.getLogger("GENERAL")
 
 def get_logger():
+    """
+    Configure and return logger with both console and file handlers.
+
+    Returns
+    -------
+    logging.Logger
+        The configured logger instance.
+    """
     if not log.handlers:
         log_fmt = logging.Formatter('[%(levelname)s - %(filename)s]: %(message)s')
 
@@ -17,6 +25,16 @@ def get_logger():
     return log
 
 def set_logger(debug=False, silent=False):
+    """
+    Set the logging level.
+
+    Parameters
+    ----------
+    debug : bool
+        Whether to set the logging level to DEBUG.
+    silent : bool
+        Whether to silence all but CRITICAL messages.
+    """
     if debug:
         log.setLevel(logging.DEBUG)
     elif silent:

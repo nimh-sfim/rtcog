@@ -20,7 +20,7 @@ hv.extension('bokeh')
 pn.extension()
 
 def run_streamer(streamer_config, sync_events, qa_onsets, qa_offsets, responses) -> None:
-    """Instantiate streamer object and start thread"""
+    """Instantiate streamer object and start thread."""
     streamer = Streamer(streamer_config, sync_events, qa_onsets, qa_offsets, responses)
     streamer.run()
 
@@ -30,6 +30,7 @@ class Streamer:
 
     This class receives shared memory updates and streams the data live using
     Panel-based visualizations. It streams three plots:
+
         - ScorePlotter (match scores)
         - MapPlotter (activation maps)
         - ResponsePlotter (behavioral responses)

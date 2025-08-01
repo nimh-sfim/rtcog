@@ -1,3 +1,11 @@
+"""
+Main entry point for the rtfMRI pipeline.
+
+This script initializes configuration options, sets up inter-process
+communication, launches a GUI if enabled, and starts the communication
+process responsible for receiving scanner data or simulation input.
+"""
+
 import sys
 import os.path as osp
 import multiprocessing as mp
@@ -9,11 +17,17 @@ from rtfmri.utils.gui import validate_likert_questions, get_experiment_info
 from rtfmri.utils.core import SharedClock, create_sync_events, run_gui
 from rtfmri.comm.comm_process import comm_process
 
-from rtfmri.utils.log import get_logger
-
 log = get_logger()
 
 def main():
+    """
+    Main control flow for the rtfMRI experiment.
+
+    - Parses command-line arguments and YAML config
+    - Sets up shared memory and synchronization
+    - Launches the communication subprocess
+    - Optionally opens a PsychoPy GUI for experiment interaction
+    """
     # 1) Read Input Parameters: port, fullscreen, etc..
     # ------------------------------------------
     opts = Options.from_cli()

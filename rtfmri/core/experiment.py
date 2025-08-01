@@ -112,12 +112,34 @@ class Experiment:
         return self.pipe.process(self.t, self.n, self.this_motion, this_t_data)
 
     def compute_TR_data(self, motion, extra):
+        """
+        Public wrapper for TR processing with logging.
+
+        Parameters
+        ----------
+        motion : list of list[float]
+            6 motion parameters per TR.
+        extra : list of list[float]
+            Voxel-wise time series.
+
+        Returns
+        -------
+        int
+            Always returns 1 (for compatibility with callback interface).
+        """
         self._compute_TR_data_impl(motion, extra)
         self.log.info(f' - Time point [t={self.t}, n={self.n}]')
         return 1
     
     def end_run(self, save=True):
-        """Finalize the experiment by saving all outputs and signaling completion."""
+        """
+        Finalize experiment and optionally save outputs.
+
+        Parameters
+        ----------
+        save : bool
+            Whether to save final outputs (default: True).
+        """
         if save:
             self.pipe.final_steps()
         self.sync.end.set()
@@ -125,41 +147,32 @@ class Experiment:
 
 class ESAMExperiment(Experiment):
     """
-    Class for running a real-time fMRI experiment in Experience Sampling (ESAM) mode.
+    Real-time fMRI experiment class supporting experience sampling (ESAM) mode.
 
-    This class extends `Experiment` to support online template matching and GUI presentation.
+    Extends `Experiment` with template matching, hit detection, QA state tracking,
+    and dynamic Panel-based GUI streaming.
+
+    Parameters
+    ----------
+    options : Options
+        Experiment configuration options.
+    sync : SyncEvents
+        Multiprocessing event signals for synchronization.
 
     Attributes
     ----------
     lastQA_endTR : int
-        The TR index of the last time a QA block ended.
-    
-    vols_noqa : int
-        Number of volumes to skip after QA ends before hit detection resumes.
-
-    outhtml : str
-        Path to the dynamic HTML report output.
-
-    qa_onsets : list of int
-        List of TRs where QA blocks began.
-
-    qa_offsets : list of int
-        List of TRs where QA blocks ended.
-
-    qa_onsets_path : str
-        Path where QA onsets will be saved.
-
-    qa_offsets_path : str
-        Path where QA offsets will be saved.
-
-    matcher : SVRMatcher
-        Object that performs spatial pattern matching with templates.
-
+        Most recent QA offset TR.
+    matcher : Matcher
+        Template matcher instance.
+    shared_tr_data : np.ndarray
+        Shared memory array for matched volumes.
+    shared_qa_onsets : ListProxy
+        Shared list of QA onsets.
+    shared_qa_offsets : ListProxy
+        Shared list of QA offsets.
     hits : np.ndarray
-        2D array tracking detected hits [template x time].
-
-    hit_detector : HitDetector
-        Object that decides if a hit has occured.
+        Hit detection matrix [template x TR].
     """
     def __init__(self, options, sync):
         super().__init__(options, sync)
@@ -206,6 +219,21 @@ class ESAMExperiment(Experiment):
         self.matching_opts = matching_opts
         
     def compute_TR_data(self, motion, extra):
+        """
+        Process one TR in ESAM mode with template matching and hit detection.
+
+        Parameters
+        ----------
+        motion : list of list[float]
+            6 motion parameters per TR.
+        extra : list of list[float]
+            Voxel-wise time series.
+
+        Returns
+        -------
+        int
+            Always returns 1.
+        """
         hit_status = self.sync.hit.is_set()
         qa_end_status = self.sync.qa_end.is_set()
         
@@ -256,6 +284,14 @@ class ESAMExperiment(Experiment):
         return 1
 
     def start_streaming(self, shared_responses):
+        """
+        Launch background Panel streaming server for real-time visualization.
+
+        Parameters
+        ----------
+        shared_responses : DictProxy
+            Shared-memory dictionary for real-time participant responses.
+        """
         streamer_config = StreamingConfig(
             self.Nt,
             self.matcher.template_labels,
@@ -278,6 +314,19 @@ class ESAMExperiment(Experiment):
         self.mp_prc_stream.start()
 
     def get_enabled_step_config(self, step_name):
+        """
+        Return config dict for enabled pipeline step by name.
+
+        Parameters
+        ----------
+        step_name : str
+            Name of the step (e.g., "windowing").
+
+        Returns
+        -------
+        dict or None
+            Step config dictionary if enabled, otherwise None.
+        """
         for step_cfg in self.pipe.step_opts:
             if step_cfg.get("name", "").lower() == step_name.lower() and step_cfg.get("enabled", False):
                 return step_cfg
@@ -315,7 +364,7 @@ class ESAMExperiment(Experiment):
                         hit_ID += 1
     
     def write_qa(self):
-        """Write out QA_Onsets and QA_Offsets"""
+        """Save QA onsets and offsets to plain-text files."""
         with open(self.qa_onsets_path,'w') as file:
             for onset in self.qa_onsets:
                 file.write("%i\n" % onset)
@@ -324,7 +373,14 @@ class ESAMExperiment(Experiment):
                 file.write("%i\n" % offset)
 
     def end_run(self, save=True):
-        """Finalize the experiment by saving all outputs and signaling completion."""
+        """
+        Finalize the experiment, including file output and memory cleanup.
+
+        Parameters
+        ----------
+        save : bool
+            Whether to save final output files (default: True).
+        """
         if save:
             self.pipe.final_steps()
 

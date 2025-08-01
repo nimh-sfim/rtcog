@@ -33,7 +33,7 @@ log_ch.setLevel(logging.INFO)
 log.addHandler(log_ch)
 
 def validate_likert_questions(q_path):
-    """Make sure the questions provided are valid"""
+    """Ensure the questions provided are valid."""
     if not q_path:
             log.error('Path to Likert questions was not provided. Program will exit.')
             sys.exit(-1)
@@ -80,6 +80,20 @@ def get_experiment_info(opts):
     return expInfo
 
 class DefaultGUI:
+    """
+    Default GUI class for real-time fMRI experiments using PsychoPy.
+
+    Displays a resting instruction screen and optionally collects TR trigger timings.
+
+    Parameters
+    ----------
+    expInfo : dict
+        Dictionary with display options, e.g., fullscreen and screen type.
+    opts : Options
+        Configuration options for the experiment run.
+    clock : SharedClock, optional
+        Clock object for precise timestamping of trigger events.
+    """
     def __init__(self, expInfo, opts, clock=None):
         self.out_dir    = opts.out_dir
         self.out_prefix = opts.out_prefix
@@ -111,6 +125,14 @@ class DefaultGUI:
         
    
     def _create_experiment_window(self):
+        """
+        Create and return the PsychoPy experiment window.
+
+        Returns
+        -------
+        psychopy.visual.Window
+            The experiment display window.
+        """
         return Window(
             fullscr=self.fscreen, screen=self.screen, size=(1920,1080),
             winType='pyglet', allowGUI=True, allowStencil=False,
@@ -119,15 +141,32 @@ class DefaultGUI:
         )
     
     def _draw_stims(self, stims, flip=True):
+        """
+        Draw and optionally flip a list of stimuli.
+
+        Parameters
+        ----------
+        stims : list
+            List of PsychoPy stimulus objects to draw.
+        flip : bool
+            Whether to flip the window after drawing (default: True).
+        """
         for stim in stims:
             stim.draw()
         if flip:
             self.ewin.flip()
 
     def draw_resting_screen(self):
+        """
+        Display the default resting instruction screen.
+        """
         self._draw_stims(self.default_inst)
     
     def poll_trigger(self):
+        """
+        Listen for trigger keys ('t') and escape key.
+        Records timestamps for triggers and allows early termination via `esc`.
+        """
         keys = event.getKeys(['t', 'escape'])
         now = self.clock.now()
         for key in keys:
@@ -139,18 +178,32 @@ class DefaultGUI:
                 self.close_psychopy_infrastructure()
 
     def save_trigger(self):
+        """
+        Save collected trigger timestamps to disk.
+        """
         with open(self.trigger_path, 'wb') as f:
             pickle.dump(self.triggers, f)
         print(f'Timing saved to {self.trigger_path}')
 
     def close_psychopy_infrastructure(self):
-        log.info(' - close_psychopy_infrastructure - Function called.')
+        """
+        Cleanly close the PsychoPy display window and exit the experiment.
+        """
+        log.info('Closing psychopy window...')
         self.ewin.flip()
         self.ewin.close()
         psychopy_logging.flush()
         core.quit()
     
     def run(self, sync):
+        """
+        Run the GUI loop until experiment ends.
+
+        Parameters
+        ----------
+        sync : SyncEvents
+            Multiprocessing event signals to monitor for ending the run.
+        """
         while not sync.end.is_set():
             self.draw_resting_screen()
             if self.test_latency:
@@ -165,6 +218,23 @@ class DefaultGUI:
 
 
 class EsamGUI(DefaultGUI):
+    """
+    GUI class for Experience Sampling (ESAM) fMRI experiments.
+
+    Extends `DefaultGUI` to provide oral recording and Likert-style questionnaires
+    after a template "hit".
+
+    Parameters
+    ----------
+    expInfo : dict
+        Experiment info with screen and key configurations.
+    opts : Options
+        Configuration options for the experiment run.
+    shared_responses : multiprocessing.Manager().dict
+        Shared dictionary for returning participant responses.
+    clock : SharedClock, optional
+        Clock for timing events during latency testing.
+    """
     def __init__(self, expInfo, opts, shared_responses, clock=None):
         super().__init__(expInfo, opts, clock)
         self.hitID = 1
@@ -224,6 +294,12 @@ class EsamGUI(DefaultGUI):
         }
 
     def record_oral_descr(self):
+        """
+        Record the participant’s oral description after a hit.
+
+        Displays recording screen and plays a sound cue.
+        Saves audio to a WAV file.
+        """
         event.clearEvents()
         self._draw_stims(self.rec_inst + [self.rec_chair])
         playsound(osp.join(RESOURCES_DIR, 'bike_bell.wav'))
@@ -250,14 +326,33 @@ class EsamGUI(DefaultGUI):
             rec_file.stop_recording()
     
     def draw_ack_recording_screen(self):
+        """
+        Display a confirmation screen after recording completes.
+        """
         self._draw_stims(self.mic_ack_rec)
         sleep(1)
         
     def draw_likert_instructions(self):
+        """
+        Show instructions before presenting the Likert questions.
+        """
         self._draw_stims(self.likert_qa_inst)
         event.waitKeys()
 
     def draw_likert_questions(self, order=None):
+        """
+        Display a sequence of Likert-style questions for participant response.
+
+        Parameters
+        ----------
+        order : list of int, optional
+            Order in which to present the questions. Defaults to sequential.
+
+        Returns
+        -------
+        dict
+            Dictionary of {question_name: (rating, rt)} for each response.
+        """
         responses = {}
         if order is None:
             order = range(len(self.likert_questions))
@@ -317,6 +412,14 @@ class EsamGUI(DefaultGUI):
 
 
     def run_full_QA(self):
+        """
+        Run the full QA block: record voice, show Likert questions, and save results.
+
+        Returns
+        -------
+        dict
+            Dictionary of Likert responses for this QA instance.
+        """
         # 1) Play beep and record oral description
         self.record_oral_descr()
         
@@ -343,6 +446,9 @@ class EsamGUI(DefaultGUI):
         return resp_dict
     
     def save_likert_files(self):
+        """
+        Write all stored Likert response dictionaries to individual text files.
+        """
         for resp_path, resp_dict in self.responses.items():
             with open (resp_path, 'w') as f:
                 w = csv.writer(f)
@@ -355,6 +461,14 @@ class EsamGUI(DefaultGUI):
             log.info(f'All likert responses saved')
             
     def run(self, sync):
+        """
+        Run the full GUI loop, including QA triggering and exit conditions.
+
+        Parameters
+        ----------
+        sync : SyncEvents
+            Shared event signals for experiment control.
+        """
         while not sync.end.is_set():
             self.draw_resting_screen()
             if self.test_latency:

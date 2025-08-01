@@ -5,6 +5,9 @@ from multiprocessing.sharedctypes import Synchronized
 
 @dataclass(frozen=True)
 class SyncEvents:
+    """
+    Container for multiprocessing synchronization primitives used in experiment.
+    """
     hit: MPEvent
     qa_end: MPEvent
     end: MPEvent
@@ -15,6 +18,9 @@ class SyncEvents:
 
 @dataclass(frozen=True)
 class QAState:
+    """
+    Represents the current state of a QA trial during the experiment.
+    """
     qa_onsets: List[int]
     qa_offsets: List[int]
     in_qa: bool

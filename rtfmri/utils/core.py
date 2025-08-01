@@ -14,12 +14,13 @@ logging.console.setLevel(logging.ERROR)
 log = get_logger()
 
 def file_exists(path):
-      if not osp.isfile(path):
-         raise FileNotFoundError(f"File not found: {path}")
-      return path
+    """Check if file exists."""
+    if not osp.isfile(path):
+        raise FileNotFoundError(f"File not found: {path}")
+    return path
 
 def create_sync_events():
-    """Create multiprocessing infrastructure"""
+    """Create multiprocessing infrastructure."""
     return SyncEvents(
         new_tr=Event(),
         shm_ready=Event(),
@@ -31,6 +32,7 @@ def create_sync_events():
     )
     
 def run_gui(opts, exp_info, sync, clock=None, shared_responses=None):
+    """Instantiate GUI and run for the duration of the experiment."""
     if opts.exp_type == "preproc":
         gui = DefaultGUI(exp_info, opts, clock)
     elif opts.exp_type == "esam":
@@ -41,11 +43,34 @@ def run_gui(opts, exp_info, sync, clock=None, shared_responses=None):
     gui.run(sync)
 
 class SharedClock:
-      def __init__(self):
-          self._start_time = time.perf_counter()
+    """
+    Minimal clock for tracking elapsed time across processes.
+
+    This clock is initialized at instantiation and provides a method for
+    retrieving the current time relative to that start point.
+
+    Attributes
+    ----------
+    _start_time : float
+        The absolute time (in seconds) when the clock was created, based on `time.perf_counter()`.
+    """
+    def __init__(self):
+        """
+        Initialize the SharedClock and store the current time as the reference start point.
+        """
+        self._start_time = time.perf_counter()
       
-      def now(self):
-          return time.perf_counter() - self._start_time
+    def now(self):
+        """
+        Get the current time relative to the clock's start time.
+
+        Returns
+        -------
+        float
+            Elapsed time in seconds since the clock was initialized.
+        """
+        return time.perf_counter() - self._start_time
       
 def euclidean_norm(nums):
-     return math.sqrt(sum(x**2 for x in nums))
+    """Compute the Euclidean norm of a list or iterable of numbers."""
+    return math.sqrt(sum(x**2 for x in nums))

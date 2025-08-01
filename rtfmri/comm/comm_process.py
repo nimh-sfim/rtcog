@@ -7,6 +7,27 @@ from rtfmri.core.experiment import Experiment, ESAMExperiment
 log = get_logger()
 
 def comm_process(opts, sync, shared_responses=None, clock=None, time_path=None):
+    """
+    Main communication process handling experiment setup and data reception.
+
+    Parameters
+    ----------
+    opts : Options
+        Configuration options for the experiment run.
+    sync : SyncEvents
+        Synchronization events object for interprocess signaling.
+    shared_responses : DictProxy, optional
+        Shared dictionary for storing participant responses (default is None).
+    clock : SharedClock, optional
+        Optional timing object for latency measurements (default is None).
+    time_path : str, optional
+        Optional path for saving timing data (default is None).
+
+    Returns
+    -------
+    int
+        Return code indicating success (0) or failure (1).
+    """
     log.info('2) Instantiating Experiment Object...')
     if opts.exp_type == 'esam':
         log.info('This an experimental run')

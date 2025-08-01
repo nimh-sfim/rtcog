@@ -13,7 +13,7 @@ from rtfmri.utils.sync import QAState
 
 class MapPlotter(Plotter):
     """
-    Plot brain activation maps when each QA onset (or 'hit') occurs.
+    Plot brain activation maps when each 'hit' occurs.
 
     This class generates brain plots using data masked by a mask image.
     It updates the plot only when a new QA onset is detected.

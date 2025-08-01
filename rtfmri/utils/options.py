@@ -9,31 +9,66 @@ class Options:
      """
      Configuration object for the real-time fMRI pipeline.
 
-     This class loads configuration options from a dictionary (typically parsed 
-     from a YAML file) and exposes them as attributes.
-
-     Parameters
-     ----------
-     config : dict
-        Dictionary of configuration options.
+     Loads configuration from a YAML file and/or command-line arguments,
+     and exposes them as attributes for easy access throughout the experiment code.
 
      Attributes
      ----------
-     (dynamically assigned based on contents of `config`)
+     (Dynamically assigned)
+          All configuration keys are stored as object attributes.
      """
      def __init__(self, config):
-         self.__dict__.update(config)
+          """
+          Initialize the Options object with a given config dictionary.
 
+          Parameters
+          ----------
+          config : dict
+               Dictionary containing configuration keys and values.
+          """
+          self.__dict__.update(config)
 
      @staticmethod
      def load_yaml(path):
+          """
+          Load configuration from a YAML file.
+
+          Parameters
+          ----------
+          path : str
+               Path to the YAML configuration file.
+
+          Returns
+          -------
+          dict
+               Parsed YAML content as a dictionary.
+          """
           with open(path, 'r') as file:
              config = yaml.safe_load(file)
           return config
      
      @classmethod
      def parse_cli_args(cls, argv=None):
-          """Load config file if given, and override with any other options provided"""
+          """
+          Parse command-line arguments to load and optionally override config options.
+
+          Parameters
+          ----------
+          argv : list or None
+               Command-line arguments.
+
+          Returns
+          -------
+          dict
+               Merged configuration from YAML and CLI overrides.
+
+          Raises
+          ------
+          FileNotFoundError
+               If the specified YAML config file cannot be found.
+          SystemExit
+               If required arguments are missing.
+          """
           config = {}
           pre_parser = argparse.ArgumentParser(add_help=False)
           pre_parser.add_argument("-c", "--config", dest="config_path", help="yaml file containing experiment options", required=True)
@@ -115,13 +150,39 @@ class Options:
 
      @classmethod
      def from_yaml(cls, path):
-          """Provide just a yaml file with all the options already set. Used primarily for testing."""
+          """
+          Create an Options object from a YAML file.
+
+          Useful for testing purposes.
+
+          Parameters
+          ----------
+          path : str
+               Path to the YAML configuration file.
+
+          Returns
+          -------
+          Options
+               An instance populated with the file contents.
+          """
           config = cls.load_yaml(path)
           return cls(config)
      
      @classmethod
      def from_cli(cls, argv=None):
-          """Provide a yaml file with --config/-c, with option to override some options via CLI arguments."""
+          """
+          Create an Options object from CLI arguments (with YAML config as base).
+
+          Parameters
+          ----------
+          argv : list or None
+               Command-line arguments.
+
+          Returns
+          -------
+          Options
+               An instance with merged YAML and CLI arguments.
+          """
           config = cls.parse_cli_args(argv)
           return cls(config) 
      
@@ -129,6 +190,10 @@ class Options:
           return f"Options:\n{yaml.dump(self.__dict__, sort_keys=False)}"
 
      def save_config(self):
+          """
+          Save the current configuration to a YAML file in the output directory.
+          The filename will include the out_prefix (e.g., `Run01_Options.yaml`).
+          """
           out_path = osp.join(self.out_dir, f'{self.out_prefix}_Options.yaml')
           with open(out_path, 'w') as file:
                yaml.safe_dump(self.__dict__, file, sort_keys=False)

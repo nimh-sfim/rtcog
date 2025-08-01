@@ -1,3 +1,10 @@
+"""
+Directory structure definitions for the rtcog software package.
+
+This module defines key absolute paths used throughout the codebase.
+All paths are constructed relative to the location of this file.
+"""
+
 import os.path as osp
 
 CODE_DIR = osp.dirname(osp.realpath(__file__))
