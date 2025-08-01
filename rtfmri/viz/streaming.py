@@ -20,11 +20,33 @@ hv.extension('bokeh')
 pn.extension()
 
 def run_streamer(streamer_config, sync_events, qa_onsets, qa_offsets, responses) -> None:
+    """Instantiate streamer object and start thread"""
     streamer = Streamer(streamer_config, sync_events, qa_onsets, qa_offsets, responses)
     streamer.run()
 
 class Streamer:
-    """Receives scores from Matcher and starts server to stream the data live"""
+    """
+    Streamer for realtime fMRI data visualization.
+
+    This class receives shared memory updates and streams the data live using
+    Panel-based visualizations. It streams three plots:
+        - ScorePlotter (match scores)
+        - MapPlotter (activation maps)
+        - ResponsePlotter (behavioral responses)
+
+    Parameters
+    ----------
+    config : StreamingConfig
+        Configuration object containing information about the fMRI session.
+    sync_events : SyncEvents
+        Object that handles interprocess synchronization flags and signals.
+    qa_onsets : ListProxy
+        Shared list storing the TR indices of QA onsets (trial starts).
+    qa_offsets : ListProxy
+        Shared list storing the TR indices of QA offsets (trial ends).
+    responses : DictProxy
+        Shared dictionary containing responses collected during the experiment.
+    """
     def __init__(self, config: StreamingConfig, sync_events: SyncEvents, qa_onsets: ListProxy, qa_offsets: ListProxy, responses: DictProxy):
         self._sync = sync_events
         self._sync.shm_ready.wait()
@@ -54,6 +76,14 @@ class Streamer:
 
     @property
     def qa_state(self) -> QAState:
+        """
+        Construct and return the current QAState.
+
+        Returns
+        -------
+        QAState
+            An object encapsulating current trial timing state.
+        """
         return QAState(
             list(self._qa_onsets),
             list(self._qa_offsets),
@@ -65,12 +95,24 @@ class Streamer:
     
     @property
     def in_cooldown(self) -> bool:
+        """
+        Check whether the streamer is currently in a post-trial cooldown period.
+
+        Returns
+        -------
+        bool
+            True if in cooldown, False otherwise.
+        """
         if self._qa_offsets:
             return self._last_t < self._qa_offsets[-1] + self._vols_noqa
         return False
     
     def update(self) -> None:
-        # Wait for new data, then update plot
+        """
+        Method run in a background thread to stream new data.
+
+        Waits for new TRs and passes the appropriate data to each plotter.
+        """
         while not self._sync.end.is_set():
             t = self._last_t + 1  # check next index
 
@@ -99,6 +141,9 @@ class Streamer:
                     plotter.update(t, plot_data, self.qa_state)
 
     def run(self) -> None:
+        """
+        Start the background update thread and launch the Panel visualization server.
+        """
         try:
             threading.Thread(target=self.update, daemon=True).start()
 
@@ -124,6 +169,14 @@ class Streamer:
             self._shutdown()
             
     def _update_qa_state(self, t: int) -> None:
+        """
+        Update internal QA state based on the current TR.
+
+        Parameters
+        ----------
+        t : int
+            Current TR index.
+        """
         self._hit = False
         if t in self._qa_onsets and not self._in_qa:
             self._hit = True
@@ -133,6 +186,9 @@ class Streamer:
             self._cooldown_end = t + self._vols_noqa
 
     def _shutdown(self) -> None:
+        """
+        Stop the server, close shared memory, and shut down all plotters.
+        """
         log.info("Shutting down Panel server...")
         if self._server:
             self._server.stop()
@@ -141,6 +197,9 @@ class Streamer:
             p.close()
 
     def _close_shared_memory(self) -> None:
+        """
+        Close and unlink shared memory segments.
+        """
         self._match_scores.close()
         self._match_scores.unlink()
         self._tr_data.close()
