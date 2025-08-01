@@ -133,7 +133,11 @@ class Options:
                if v is not None:
                     config[k] = v
           
-          required_args = ['exp_type', 'mask_path', 'nvols', 'out_dir', 'out_prefix']
+          if 'exp_type' not in config:
+               print(f"++ ERROR: Please specify experiment type with -e/-exp_type.")
+               sys.exit(-1)
+
+          required_args = ['mask_path', 'nvols', 'out_dir', 'out_prefix']
           if config['exp_type'] == 'esam':
                required_args.extend(['match_path', 'hit_thr'])
 
