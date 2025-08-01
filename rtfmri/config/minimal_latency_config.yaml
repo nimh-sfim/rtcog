@@ -1,0 +1,11 @@
+# General options
+debug: false # set logger level to debug
+silent: false # set logger level to warning
+tcp_port: 53214
+show_data: false
+tr: 1.0
+
+# Testing option2
+test_latency: true
+
+exp_type: preproc
