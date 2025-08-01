@@ -14,6 +14,7 @@ python test_scanner_latency.py --out_dir <output_directory> --out_prefix <output
 
 - After starting the script, click into the GUI window so it has focus.
 - The timing of`t` keystrokes and data receipt will be logged and saved.
+- Press `esc` in GUI to end experiment.
 
 ## `test_keystrokes.py`
 
