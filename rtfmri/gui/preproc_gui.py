@@ -12,7 +12,7 @@ from rtfmri.gui.base_gui import BaseGUI
 
 log = get_logger()
 
-class DefaultGUI(BaseGUI):
+class PreprocGUI(BaseGUI):
     """
     Default GUI class for real-time fMRI experiments using PsychoPy.
 
@@ -27,7 +27,7 @@ class DefaultGUI(BaseGUI):
     clock : SharedClock, optional
         Clock object for precise timestamping of trigger events.
     """
-    def __init__(self, expInfo, opts, clock=None):
+    def __init__(self, expInfo, opts, clock=None, **kwargs):
         self.out_dir    = opts.out_dir
         self.out_prefix = opts.out_prefix
 

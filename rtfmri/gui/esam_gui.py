@@ -12,11 +12,11 @@ prefs.hardware['keyboard'] = 'pygame'
 from rtfmri.utils.recorder import Recorder
 from rtfmri.utils.core import get_logger
 from rtfmri.paths import RESOURCES_DIR
-from rtfmri.gui.default_gui import DefaultGUI
+from rtfmri.gui.preproc_gui import PreprocGUI
 
 log = get_logger()
 
-class EsamGUI(DefaultGUI):
+class EsamGUI(PreprocGUI):
     """
     GUI class for Experience Sampling (ESAM) fMRI experiments.
 
@@ -34,7 +34,7 @@ class EsamGUI(DefaultGUI):
     clock : SharedClock, optional
         Clock for timing events during latency testing.
     """
-    def __init__(self, expInfo, opts, shared_responses, clock=None):
+    def __init__(self, *, expInfo, opts, clock=None, shared_responses, **kwargs):
         super().__init__(expInfo, opts, clock)
         self.hitID = 1
 

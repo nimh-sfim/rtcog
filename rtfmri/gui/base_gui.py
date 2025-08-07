@@ -2,16 +2,6 @@ from abc import ABC, abstractmethod
 from psychopy.visual import Window
 
 class BaseGUI(ABC):
-    registry = {}
-
-    def __init_subclass__(cls, **kwargs):
-        super().__init_subclass__(**kwargs)
-        # Skip abstract or helper base classes
-        if cls.__name__ == "BaseGUI" or cls.__name__.startswith("_"):
-            return
-
-        BaseGUI.registry[cls.__name__] = cls
-
     def _create_experiment_window(self) -> Window:
         """
         Create and return the PsychoPy experiment window.
@@ -47,11 +37,6 @@ class BaseGUI(ABC):
     @abstractmethod
     def draw_resting_screen(self) -> None:
         """Draw the default resting screen (e.g., crosshair + text)."""
-        pass
-
-    @abstractmethod
-    def run_full_QA(self) -> dict:
-        """Run a full QA interaction and return responses."""
         pass
 
     @abstractmethod

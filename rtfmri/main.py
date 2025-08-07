@@ -13,9 +13,10 @@ import time
 
 from rtfmri.utils.options import Options
 from rtfmri.utils.log import get_logger, set_logger
-from rtfmri.utils.gui import validate_likert_questions, get_experiment_info
-from rtfmri.utils.core import SharedClock, create_sync_events, run_gui
+from rtfmri.gui.gui_utils import get_experiment_info, validate_likert_questions
+from rtfmri.utils.core import SharedClock, create_sync_events
 from rtfmri.comm.comm_process import comm_process
+from rtfmri.experiment_registry import EXPERIMENT_REGISTRY
 
 log = get_logger()
 
@@ -36,34 +37,50 @@ def main():
     print(opts)
 
     set_logger(debug=opts.debug, silent=opts.silent)
+    
+    sync = create_sync_events()
         
     shared_responses = None
-    clock = None
-    receiver_path = None
-    if opts.test_latency:
-        clock = SharedClock()
-        receiver_path = osp.join(opts.out_dir, f'{opts.out_prefix}_receiver_timing.pkl')
+    clock = SharedClock() if opts.test_latency else None
+    receiver_path = osp.join(opts.out_dir, f'{opts.out_prefix}_receiver_timing.pkl') if opts.test_latency else None
+    
+    if opts.exp_type not in EXPERIMENT_REGISTRY:
+        raise ValueError(f"Unsupported experiment type: {opts.exp_type}")
+
+    gui_class = EXPERIMENT_REGISTRY[opts.exp_type]["gui"]
+    action_class = EXPERIMENT_REGISTRY[opts.exp_type]["action"]
+    
+    # TODO: move this out of main
     if opts.exp_type == "esam":
         opts.likert_questions = validate_likert_questions(opts.q_path)
         manager = mp.Manager()
         shared_responses = manager.dict({q["name"]: (None, None) for q in opts.likert_questions})
 
-    # 2) Create Multi-processing infrastructure
+    gui = None
+    if not opts.no_gui:
+        exp_info = get_experiment_info(opts)
+        gui_kwargs = {
+            "expInfo": exp_info,
+            "opts": opts,
+            "clock": clock,
+            "shared_responses": shared_responses,
+        }
+        gui = gui_class(**gui_kwargs)
+
+
+    action = action_class(sync, gui)
+
+    # 2) Start communication process
     # ------------------------------------------
-    sync = create_sync_events()
-    
     comm_proc = mp.Process(target=comm_process, args=(opts, sync, shared_responses, clock, receiver_path))
     comm_proc.start()
 
-    # 3) Get additional info using the GUI
+    # 3) Run experiment
     # ------------------------------------
-    if not opts.no_gui:
-        exp_info = get_experiment_info(opts)
-        run_gui(opts, exp_info, sync, clock, shared_responses)
-    else:
-        while not sync.end.is_set():
-            time.sleep(0.1)
+    action.run()
     
+    # 4) Wait for communication process to complete
+    # ------------------------------------
     comm_proc.join()
 
 

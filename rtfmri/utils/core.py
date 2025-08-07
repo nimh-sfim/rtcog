@@ -5,7 +5,6 @@ from multiprocessing import Event, Value
 from ctypes import c_int
 
 from rtfmri.utils.sync import SyncEvents
-from rtfmri.utils.gui import DefaultGUI, EsamGUI
 from rtfmri.utils.log import get_logger
 
 from psychopy import logging
@@ -31,17 +30,6 @@ def create_sync_events():
         tr_index=Value(c_int, -1)
     )
     
-def run_gui(opts, exp_info, sync, clock=None, shared_responses=None):
-    """Instantiate GUI and run for the duration of the experiment."""
-    if opts.exp_type == "preproc":
-        gui = DefaultGUI(exp_info, opts, clock)
-    elif opts.exp_type == "esam":
-        gui = EsamGUI(exp_info, opts, shared_responses, clock)
-    else:
-        raise ValueError(f"Unknown exp_type: {opts.exp_type}")
-    
-    gui.run(sync)
-
 class SharedClock:
     """
     Minimal clock for tracking elapsed time across processes.
