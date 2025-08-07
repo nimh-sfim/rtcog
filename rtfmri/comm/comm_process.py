@@ -2,11 +2,10 @@ import time
 
 from rtfmri.utils.log import get_logger
 from rtfmri.comm.receiver_interface import CustomReceiverInterface
-from rtfmri.core.experiment import Experiment, ESAMExperiment
 
 log = get_logger()
 
-def comm_process(opts, sync, shared_responses=None, clock=None, time_path=None):
+def comm_process(opts, sync, exp_class, shared_responses=None, clock=None, time_path=None):
     """
     Main communication process handling experiment setup and data reception.
 
@@ -16,6 +15,8 @@ def comm_process(opts, sync, shared_responses=None, clock=None, time_path=None):
         Configuration options for the experiment run.
     sync : SyncEvents
         Synchronization events object for interprocess signaling.
+    exp_class : ???
+        The experiment class to be instantiated.
     shared_responses : DictProxy, optional
         Shared dictionary for storing participant responses (default is None).
     clock : SharedClock, optional
@@ -29,13 +30,11 @@ def comm_process(opts, sync, shared_responses=None, clock=None, time_path=None):
         Return code indicating success (0) or failure (1).
     """
     log.info('2) Instantiating Experiment Object...')
+    experiment = exp_class(opts, sync)
+    # TODO: move this somewhere else
     if opts.exp_type == 'esam':
         log.info('This an experimental run')
-        experiment = ESAMExperiment(opts, sync)
         experiment.start_streaming(shared_responses) # Start panel server
-        # TODO: add event to signal when server is ready before printing ready to go
-    else:
-        experiment = Experiment(opts, sync)
 
     # 4) Start Communications
     log.info('3) Opening Communication Channel...')
