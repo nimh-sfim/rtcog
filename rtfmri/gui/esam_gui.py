@@ -1,221 +1,20 @@
-import sys
-import pickle
-from time import sleep
 import time
 import os.path as osp
 import csv
-import logging
-import json
 from playsound import playsound
 
-from psychopy import core, event, gui, data
-from psychopy.hardware import keyboard
-from psychopy import logging as psychopy_logging
-from psychopy.visual import TextStim, Window, ImageStim
+from psychopy import core, event
+from psychopy.visual import TextStim, ImageStim
 from psychopy.visual.slider import Slider 
 from psychopy import prefs
 prefs.hardware['keyboard'] = 'pygame'
 
 from rtfmri.utils.recorder import Recorder
+from rtfmri.utils.core import get_logger
 from rtfmri.paths import RESOURCES_DIR
+from rtfmri.gui.default_gui import DefaultGUI
 
-# Patch for dependency issues
-import numpy as np
-if not hasattr(np, 'product'):
-    np.product = np.prod
-
-log = logging.getLogger("experiment_qa")
-log.setLevel(logging.INFO)
-log_fmt = logging.Formatter('[%(levelname)s - experiment_qa]: %(message)s')
-log_ch = logging.StreamHandler()
-log_ch.setFormatter(log_fmt)
-log_ch.setLevel(logging.INFO)
-log.addHandler(log_ch)
-
-def validate_likert_questions(q_path):
-    """Ensure the questions provided are valid."""
-    if not q_path:
-            log.error('Path to Likert questions was not provided. Program will exit.')
-            sys.exit(-1)
-    if not osp.isfile(q_path): # If not file, assume in RESOURCES_DIR
-        fname = q_path + ".json" if not q_path.endswith(".json") else q_path 
-        q_path = osp.join(RESOURCES_DIR, fname)
-    try:
-        with open(q_path, 'r') as f:
-            return json.load(f)
-    except json.JSONDecodeError:
-        log.error(f'The question file at {q_path} is not a valid JSON.')
-        sys.exit(-1)
-    except Exception as e:
-        log.error(f'Error loading questions at {q_path}: {e}')
-        sys.exit(-1)
-
-def get_avail_keyboards():
-    available_keyboards = keyboard.getKeyboards()
-    available_keyboards_labels = []
-    for kb in available_keyboards:
-        if kb['product'] == '': 
-            available_keyboards_labels.append('Laptop Keyboard')
-        else:
-            available_keyboards_labels.append(kb['product'])
-    return available_keyboards, available_keyboards_labels
-
-def get_experiment_info(opts):
-    available_keyboards, available_keyboards_labels = get_avail_keyboards()
-    expInfo = {
-        'prefix':      opts.out_prefix,
-        'out_dir':     opts.out_dir,
-        'keyboard':    available_keyboards_labels,
-        'screen':      ['Laptop','External'],
-        'fullScreen':  ['Yes','No'],
-        'leftKey':     '3',
-        'rightKey':    '1',
-        'acceptKey':   '2',
-        'triggerKey':  '5'
-    }
-    dlg = gui.DlgFromDict(dictionary=expInfo, sortKeys=False, title='rtCAPs Thought Sampling')
-    if dlg.OK == False:
-        core.quit()  # user pressed cancel
-    expInfo['date'] = data.getDateStr()
-    return expInfo
-
-class DefaultGUI:
-    """
-    Default GUI class for real-time fMRI experiments using PsychoPy.
-
-    Displays a resting instruction screen and optionally collects TR trigger timings.
-
-    Parameters
-    ----------
-    expInfo : dict
-        Dictionary with display options, e.g., fullscreen and screen type.
-    opts : Options
-        Configuration options for the experiment run.
-    clock : SharedClock, optional
-        Clock object for precise timestamping of trigger events.
-    """
-    def __init__(self, expInfo, opts, clock=None):
-        self.out_dir    = opts.out_dir
-        self.out_prefix = opts.out_prefix
-
-        if expInfo['fullScreen'] == 'Yes':
-            self.fscreen = True
-        else:
-            self.fscreen = False
-
-        if expInfo['screen'] == 'Laptop':
-            self.screen = 0
-        if expInfo['screen'] == 'External':
-            self.screen = 1
-
-        self.ewin = self._create_experiment_window()
-        
-        # Default Screen
-        self.default_inst = [
-            TextStim(win=self.ewin, text='Fixate on crosshair', pos=(0.0,0.42)),
-            TextStim(win=self.ewin, text='Let your mind wander freely', pos=(0.0,0.3)),
-            TextStim(win=self.ewin, text='Do not sleep', pos=(0.0,-0.3)),
-            TextStim(win=self.ewin, text='X', pos=(0,0))
-        ]
-        
-        self.test_latency = opts.test_latency
-        self.clock = clock
-        self.trigger_path = osp.join(opts.out_dir, f'{opts.out_prefix}_trigger_timing.pkl')
-        self.triggers = []
-        
-   
-    def _create_experiment_window(self):
-        """
-        Create and return the PsychoPy experiment window.
-
-        Returns
-        -------
-        psychopy.visual.Window
-            The experiment display window.
-        """
-        return Window(
-            fullscr=self.fscreen, screen=self.screen, size=(1920,1080),
-            winType='pyglet', allowGUI=True, allowStencil=False,
-            color=[0,0,0], colorSpace='rgb', blendMode='avg',
-            useFBO=True, units='norm'
-        )
-    
-    def _draw_stims(self, stims, flip=True):
-        """
-        Draw and optionally flip a list of stimuli.
-
-        Parameters
-        ----------
-        stims : list
-            List of PsychoPy stimulus objects to draw.
-        flip : bool
-            Whether to flip the window after drawing (default: True).
-        """
-        for stim in stims:
-            stim.draw()
-        if flip:
-            self.ewin.flip()
-
-    def draw_resting_screen(self):
-        """
-        Display the default resting instruction screen.
-        """
-        self._draw_stims(self.default_inst)
-    
-    def poll_trigger(self):
-        """
-        Listen for trigger keys ('t') and escape key.
-        Records timestamps for triggers and allows early termination via `esc`.
-        """
-        keys = event.getKeys(['t', 'escape'])
-        now = self.clock.now()
-        for key in keys:
-            if key == 't':
-                self.triggers.append((now))
-                print(f"Trig @ {now:.3f}            - Time point [t={len(self.triggers)}]", flush=True)
-            elif key == 'escape':
-                self.save_trigger()
-                self.close_psychopy_infrastructure()
-
-    def save_trigger(self):
-        """
-        Save collected trigger timestamps to disk.
-        """
-        with open(self.trigger_path, 'wb') as f:
-            pickle.dump(self.triggers, f)
-        print(f'Timing saved to {self.trigger_path}')
-
-    def close_psychopy_infrastructure(self):
-        """
-        Cleanly close the PsychoPy display window and exit the experiment.
-        """
-        log.info('Closing psychopy window...')
-        self.ewin.flip()
-        self.ewin.close()
-        psychopy_logging.flush()
-        core.quit()
-    
-    def run(self, sync):
-        """
-        Run the GUI loop until experiment ends.
-
-        Parameters
-        ----------
-        sync : SyncEvents
-            Multiprocessing event signals to monitor for ending the run.
-        """
-        while not sync.end.is_set():
-            self.draw_resting_screen()
-            if self.test_latency:
-                self.poll_trigger()
-            if event.getKeys(['escape']):
-                log.info('- User pressed escape key')
-                sync.end.set()
-        
-        if self.test_latency:
-            self.save_trigger()
-        self.close_psychopy_infrastructure()
-
+log = get_logger()
 
 class EsamGUI(DefaultGUI):
     """
@@ -330,7 +129,7 @@ class EsamGUI(DefaultGUI):
         Display a confirmation screen after recording completes.
         """
         self._draw_stims(self.mic_ack_rec)
-        sleep(1)
+        time.sleep(1)
         
     def draw_likert_instructions(self):
         """
@@ -460,28 +259,3 @@ class EsamGUI(DefaultGUI):
         if self.responses:
             log.info(f'All likert responses saved')
             
-    def run(self, sync):
-        """
-        Run the full GUI loop, including QA triggering and exit conditions.
-
-        Parameters
-        ----------
-        sync : SyncEvents
-            Shared event signals for experiment control.
-        """
-        while not sync.end.is_set():
-            self.draw_resting_screen()
-            if self.test_latency:
-                self.poll_trigger()
-            if event.getKeys(['escape']):
-                log.info('- User pressed escape key')
-                sync.end.set()
-            if sync.hit.is_set() and not self.test_latency:
-                responses = self.run_full_QA()
-                log.info(' - Responses: %s' % str(responses))
-                sync.hit.clear()
-                sync.qa_end.set()
-        
-        if self.test_latency:
-            self.save_trigger()
-        self.close_psychopy_infrastructure()
