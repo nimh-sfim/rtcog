@@ -115,7 +115,7 @@ class Streamer:
         Waits for new TRs and passes the appropriate data to each plotter.
         """
         while not self._sync.end.is_set():
-            t = self._last_t + 1  # check next index
+            t = self._last_t + 1
 
             # Wait for new data for next TR, or sleep briefly
             if t >= self._Nt or t > self._sync.tr_index.value:
@@ -124,22 +124,19 @@ class Streamer:
 
             # Now data for t is available, so increment and process
             self._last_t = t
-
             self._update_qa_state(t)
 
-            # TODO: make this less bad
             for plotter in self._plotters:
-                plot_data = None
-                if plotter.data_key == "scores":
-                    plot_data = self._shared_arrs["scores"][:, t]
-                elif plotter.data_key == "tr_data":
-                    if self._qa_onsets and t in self._qa_onsets:
-                        plot_data = self._shared_arrs["tr_data"][:, t]
+                if not plotter.should_update(t, self.qa_state):
+                    continue
 
-                if plotter.data_key == "responses" and self._qa_offsets:
-                    plotter.update(t, None, self.qa_state)
-                elif plot_data is not None:
-                    plotter.update(t, plot_data, self.qa_state)
+                data = None
+                key = plotter.data_key
+                if key in self._shared_arrs:
+                    data = self._shared_arrs[key][:, t]
+                
+                plotter.update(t, data, self.qa_state)
+
 
     def run(self) -> None:
         """

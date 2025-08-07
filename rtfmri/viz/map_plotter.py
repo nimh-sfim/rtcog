@@ -49,6 +49,23 @@ class MapPlotter(Plotter):
             plot_stat_map(self._brain_img, display_mode='ortho', draw_cross=False, figure=self._fig, bg_img=None)
 
         self.pane = pn.pane.Matplotlib(self._fig, dpi=150, tight=True, sizing_mode='scale_both')
+    
+    def should_update(self, t: int, qa_state: QAState) -> bool:
+        """
+        Whether or not the plot should be updated.
+        
+        Parameters
+        ----------
+        t : int
+            Current TR.
+        qa_state : QAState
+            QA-related metadata for the current TR.
+        Returns
+        ----------
+        bool
+            Whether the plot should be updated.
+        """
+        return t in qa_state.qa_onsets
 
     def update(self, t: int, data: np.ndarray, qa_state: QAState) -> None:
         """

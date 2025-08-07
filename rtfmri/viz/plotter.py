@@ -16,7 +16,7 @@ class Plotter:
         Identifier for the type of data this plotter displays.
     """
 
-    data_key = ""
+    data_key: str = None
 
     def __init__(self, config: StreamingConfig):
         """
@@ -30,6 +30,24 @@ class Plotter:
         self._Nt = config.Nt
         self._template_labels = config.template_labels
         self._Ntemplates = len(self._template_labels)
+
+    def should_update(self, t: int, qa_state: QAState) -> bool:
+        """
+        Whether or not the plot should be updated. By default, it will always
+        update.
+
+        Parameters
+        ----------
+        t : int
+            Current TR.
+        qa_state : QAState
+            QA-related metadata for the current TR.
+        Returns
+        ----------
+        bool
+            Whether the plot should be updated.
+        """
+        return True
 
     def update(self, t: int, data: np.ndarray, qa_state: QAState) -> None:
         """

@@ -38,6 +38,26 @@ class ResponsePlotter(Plotter):
 
         self._last_response_t = None
     
+    def should_update(self, t, qa_state):
+        """
+        Whether or not the plot should be updated.
+        
+        Parameters
+        ----------
+        t : int
+            Current TR.
+        qa_state : QAState
+            QA-related metadata for the current TR.
+        Returns
+        ----------
+        bool
+            Whether the plot should be updated.
+        """
+        if not qa_state.qa_offsets:
+            return False
+        latest_offset = qa_state.qa_offsets[-1]
+        return self._last_response_t != latest_offset
+
     def update(self, t: int, data: np.ndarray, qa_state: QAState) -> None:
         """
         Update the response DataFrame with the latest responses if a new one is available.
@@ -52,11 +72,10 @@ class ResponsePlotter(Plotter):
             Object holding QA-related state information.
         """
         latest_offset = qa_state.qa_offsets[-1]
-        if self._last_response_t != latest_offset:
-            self._last_response_t = latest_offset
-            new_row = {qname: self._responses.get(qname, (None, None))[0] for qname in self._df.columns}
-            self._df = pd.concat([self._df, pd.DataFrame([new_row])], ignore_index=True)
-            self.pane.object = self._df
+        self._last_response_t = latest_offset
+        new_row = {qname: self._responses.get(qname, (None, None))[0] for qname in self._df.columns}
+        self._df = pd.concat([self._df, pd.DataFrame([new_row])], ignore_index=True)
+        self.pane.object = self._df
 
                 
         
