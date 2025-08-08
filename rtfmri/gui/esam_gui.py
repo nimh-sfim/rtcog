@@ -25,8 +25,6 @@ class EsamGUI(PreprocGUI):
 
     Parameters
     ----------
-    expInfo : dict
-        Experiment info with screen and key configurations.
     opts : Options
         Configuration options for the experiment run.
     shared_responses : multiprocessing.Manager().dict
@@ -34,20 +32,20 @@ class EsamGUI(PreprocGUI):
     clock : SharedClock, optional
         Clock for timing events during latency testing.
     """
-    def __init__(self, *, expInfo, opts, clock=None, shared_responses, **kwargs):
-        super().__init__(expInfo, opts, clock)
+    def __init__(self, *, opts, clock=None, shared_responses, **kwargs):
+        super().__init__(opts, clock=clock)
         self.hitID = 1
 
-        self.key_left   = expInfo['leftKey']
-        self.key_right  = expInfo['rightKey']
-        self.key_select = expInfo['acceptKey']
+        self.key_left   = self.exp_info['leftKey']
+        self.key_right  = self.exp_info['rightKey']
+        self.key_select = self.exp_info['acceptKey']
         self.red_color = [0.4, -0.9, -0.9]
         self.likert_order = None
 
         self.recorder = Recorder(channels=1)
 
         self.responses = {}
-        self._shared_responses = shared_responses
+        self.shared_responses = shared_responses
 
         # Recording Screen
         self.rec_inst = [
@@ -235,8 +233,8 @@ class EsamGUI(PreprocGUI):
         resp_timestr = time.strftime('%Y%m%d-%H%M%S')
         resp_path = osp.join(self.out_dir, f'{self.out_prefix}.{resp_timestr}.LikertResponses{str(self.hitID).zfill(3)}.txt')
         
-        self._shared_responses.clear()
-        self._shared_responses.update(resp_dict)
+        self.shared_responses.clear()
+        self.shared_responses.update(resp_dict)
 
         self.responses[resp_path] = resp_dict
         

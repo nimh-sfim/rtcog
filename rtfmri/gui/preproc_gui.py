@@ -8,6 +8,7 @@ from psychopy import prefs
 prefs.hardware['keyboard'] = 'pygame'
 
 from rtfmri.utils.core import get_logger
+from rtfmri.gui.gui_utils import get_experiment_info
 from rtfmri.gui.base_gui import BaseGUI
 
 log = get_logger()
@@ -20,25 +21,24 @@ class PreprocGUI(BaseGUI):
 
     Parameters
     ----------
-    expInfo : dict
-        Dictionary with display options, e.g., fullscreen and screen type.
     opts : Options
         Configuration options for the experiment run.
     clock : SharedClock, optional
         Clock object for precise timestamping of trigger events.
     """
-    def __init__(self, expInfo, opts, clock=None, **kwargs):
+    def __init__(self, opts, *, clock=None, **kwargs):
+        self.exp_info = get_experiment_info(opts)
         self.out_dir    = opts.out_dir
         self.out_prefix = opts.out_prefix
 
-        if expInfo['fullScreen'] == 'Yes':
+        if self.exp_info['fullScreen'] == 'Yes':
             self.fscreen = True
         else:
             self.fscreen = False
 
-        if expInfo['screen'] == 'Laptop':
+        if self.exp_info['screen'] == 'Laptop':
             self.screen = 0
-        if expInfo['screen'] == 'External':
+        if self.exp_info['screen'] == 'External':
             self.screen = 1
 
         self.ewin = self._create_experiment_window()
@@ -68,6 +68,7 @@ class PreprocGUI(BaseGUI):
         Listen for trigger keys ('t') and escape key.
         Records timestamps for triggers and allows early termination via `esc`.
         """
+        # TODO: get trigger key from init
         keys = event.getKeys(['t', 'escape'])
         now = self.clock.now()
         for key in keys:

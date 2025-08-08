@@ -39,7 +39,7 @@ steps:
     win_length: 4
 
 # Experiment/GUI Options
-no_gui: false
+no_action: false
 no_proc_chair: false # no crosshair
 fullscreen: false
 screen: 1

@@ -112,7 +112,7 @@ class Options:
           
           parser_exp = parser.add_argument_group('Experiment/GUI Options')
           parser_exp.add_argument("-e","--exp_type", help="Type of Experimental Run", type=str, choices=['preproc','esam', 'esam_test'])
-          parser_exp.add_argument("--no_gui", help="Do not open psychopy window. Only applies to pre-processing experiment type", action="store_true", dest='no_gui', default=None)
+          parser_exp.add_argument("--no_action", help="Do not perform any action (ex. GUI)", action="store_true", dest='no_action', default=None)
           parser_exp.add_argument("--no_proc_chair", help="Hide crosshair during preprocessing run", action="store_true", dest='no_proc_chair', default=None)
           parser_exp.add_argument("--fscreen", help="Use full screen for Experiment", action="store_true", dest="fullscreen", default=None)
           parser_exp.add_argument("--screen", help="Monitor to use", action="store", dest="screen",type=int)

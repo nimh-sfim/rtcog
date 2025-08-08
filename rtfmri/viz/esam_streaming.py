@@ -65,7 +65,9 @@ class ESAMStreamer:
         self._shared_arrs["scores"] = np.ndarray((Ntemplates, self._Nt), dtype=np.float32, buffer=self._match_scores.buf)
         self._shared_arrs["tr_data"] = np.ndarray((config.Nv, config.Nt), dtype=np.float32, buffer=tr_data.buf)
         
-        self._plotters = [ScorePlotter(config), MapPlotter(config), ResponsePlotter(config, responses)]
+        self._plotters = [ScorePlotter(config), MapPlotter(config)]
+        if responses is not None:
+            self._plotters.append(ResponsePlotter(config, responses))
 
         self._vols_noqa = config.matching_opts.vols_noqa
 

@@ -1,9 +1,8 @@
 """
-Main entry point for the rtfMRI pipeline.
+Main entry point for the rtcog pipeline.
 
-This script initializes configuration options, sets up inter-process
-communication, launches a GUI if enabled, and starts the communication
-process responsible for receiving scanner data or simulation input.
+This script starts the communication process responsible for receiving scanner data
+and sets up a controller for responding to experiment state if given.
 """
 
 import sys
@@ -12,9 +11,10 @@ import multiprocessing as mp
 
 from rtfmri.utils.options import Options
 from rtfmri.utils.log import get_logger, set_logger
-from rtfmri.gui.gui_utils import get_experiment_info, validate_likert_questions
 from rtfmri.utils.core import SharedClock, create_sync_events
 from rtfmri.comm.comm_process import comm_process
+from rtfmri.controller.controller import Controller
+from rtfmri.controller.action_series import LatencyTestActionSeries, ESAMActionSeries
 from rtfmri.experiment_registry import EXPERIMENT_REGISTRY
 
 log = get_logger()
@@ -26,7 +26,7 @@ def main():
     - Parses command-line arguments and YAML config
     - Sets up shared memory and synchronization
     - Launches the communication subprocess
-    - Optionally opens a PsychoPy GUI for experiment interaction
+    - Optionally creates a controller for experiment interaction
     """
     # 1) Read Input Parameters: port, fullscreen, etc..
     # ------------------------------------------
@@ -39,45 +39,39 @@ def main():
     
     sync = create_sync_events()
         
-    shared_responses = None
-    clock = SharedClock() if opts.test_latency else None
-    receiver_path = osp.join(opts.out_dir, f'{opts.out_prefix}_receiver_timing.pkl') if opts.test_latency else None
-    
     if opts.exp_type not in EXPERIMENT_REGISTRY:
         raise ValueError(f"Unsupported experiment type: {opts.exp_type}")
 
     exp_class = EXPERIMENT_REGISTRY[opts.exp_type]["experiment"]
-    gui_class = EXPERIMENT_REGISTRY[opts.exp_type]["gui"]
-    controller_class = EXPERIMENT_REGISTRY[opts.exp_type]["controller"]
+    action_class = EXPERIMENT_REGISTRY.get(opts.exp_type, {}).get("action", None)
     
-    # TODO: move this out of main
-    if opts.exp_type == "esam":
-        opts.likert_questions = validate_likert_questions(opts.q_path)
-        manager = mp.Manager()
-        shared_responses = manager.dict({q["name"]: (None, None) for q in opts.likert_questions})
+    controller = None
+    shared_responses = None
+    clock = None
+    receiver_path = None
 
-    gui = None
-    if not opts.no_gui:
-        exp_info = get_experiment_info(opts)
-        gui_kwargs = {
-            "expInfo": exp_info,
-            "opts": opts,
-            "clock": clock,
-            "shared_responses": shared_responses,
-        }
-        gui = gui_class(**gui_kwargs)
+    if action_class and not opts.no_action:
+        if opts.test_latency:
+            receiver_path = osp.join(opts.out_dir, f'{opts.out_prefix}_receiver_timing.pkl')
+            clock = SharedClock()
+            action_class = LatencyTestActionSeries
+            action = action_class(sync, opts, clock=clock, receiver_path=receiver_path)
+        else:
+            action = action_class(sync, opts)
+        controller = Controller(sync, action)
 
-
-    controller = controller_class(sync, gui)
+        if isinstance(action, ESAMActionSeries):
+            shared_responses = action.gui.shared_responses
 
     # 2) Start communication process
     # ------------------------------------------
     comm_proc = mp.Process(target=comm_process, args=(opts, sync, exp_class, shared_responses, clock, receiver_path))
     comm_proc.start()
 
-    # 3) Run experiment
+    # 3) Run controller
     # ------------------------------------
-    controller.run()
+    if controller:
+        controller.run()
     
     # 4) Wait for communication process to complete
     # ------------------------------------
