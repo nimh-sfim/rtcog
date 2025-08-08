@@ -21,10 +21,10 @@ pn.extension()
 
 def run_streamer(streamer_config, sync_events, qa_onsets, qa_offsets, responses) -> None:
     """Instantiate streamer object and start thread."""
-    streamer = Streamer(streamer_config, sync_events, qa_onsets, qa_offsets, responses)
+    streamer = ESAMStreamer(streamer_config, sync_events, qa_onsets, qa_offsets, responses)
     streamer.run()
 
-class Streamer:
+class ESAMStreamer:
     """
     Streamer for realtime fMRI data visualization.
 

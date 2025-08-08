@@ -14,7 +14,7 @@ from rtfmri.matching.matcher import Matcher
 from rtfmri.matching.matching_opts import MatchingOpts
 from rtfmri.matching.hit_opts import HitOpts
 from rtfmri.matching.hit_detector import HitDetector
-from rtfmri.viz.streaming import run_streamer
+from rtfmri.viz.esam_streaming import run_streamer
 from rtfmri.viz.streaming_config import StreamingConfig
 from rtfmri.utils.fMRI import  unmask_fMRI_img
 
