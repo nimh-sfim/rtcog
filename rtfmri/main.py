@@ -9,7 +9,6 @@ process responsible for receiving scanner data or simulation input.
 import sys
 import os.path as osp
 import multiprocessing as mp
-import time
 
 from rtfmri.utils.options import Options
 from rtfmri.utils.log import get_logger, set_logger
@@ -49,7 +48,7 @@ def main():
 
     exp_class = EXPERIMENT_REGISTRY[opts.exp_type]["experiment"]
     gui_class = EXPERIMENT_REGISTRY[opts.exp_type]["gui"]
-    action_class = EXPERIMENT_REGISTRY[opts.exp_type]["action"]
+    controller_class = EXPERIMENT_REGISTRY[opts.exp_type]["controller"]
     
     # TODO: move this out of main
     if opts.exp_type == "esam":
@@ -69,7 +68,7 @@ def main():
         gui = gui_class(**gui_kwargs)
 
 
-    action = action_class(sync, gui)
+    controller = controller_class(sync, gui)
 
     # 2) Start communication process
     # ------------------------------------------
@@ -78,7 +77,7 @@ def main():
 
     # 3) Run experiment
     # ------------------------------------
-    action.run()
+    controller.run()
     
     # 4) Wait for communication process to complete
     # ------------------------------------

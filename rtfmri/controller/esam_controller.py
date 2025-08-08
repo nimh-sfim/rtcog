@@ -2,11 +2,11 @@ import time
 from psychopy import event
 
 from rtfmri.utils.log import get_logger
-from rtfmri.action.experiment_action import ExperimentAction
+from rtfmri.controller.experiment_controller import ExperimentController
 
 log = get_logger()
 
-class ESAMExperimentAction(ExperimentAction):
+class ESAMController(ExperimentController):
     def __init__(self, sync, gui=None):
         super().__init__(sync, gui)
 

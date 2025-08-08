@@ -180,7 +180,7 @@ The string "custom" automatically maps to your CustomMatcher class.
 | Component      | Role                                                                                        |
 | -------------- | ------------------------------------------------------------------------------------------- |
 | Experiment     | Defines how each fMRI volume is processed                                                   |
-| Action         | Orchestrates the experiment runtime by responding to events and optionally updating the GUI |
+| Controller     | Orchestrates the experiment runtime by responding to events and optionally updating the GUI |
 | GUI (optional) | Presents stimuli and collects participant responses via Psychopy                            |
 
 If you’re designing a custom experiment, such as an online neurofeedback protocol or novel stimulus design, you can create your own experiment plugin by implementing or extending these components.
@@ -194,18 +194,18 @@ Because preprocessing and template matching are fully configurable via the confi
 - `PreprocExperiment`: Basic real-time fMRI preprocessing.
 - `ESAMExperiment`: Extends `PreprocExperiment` to support online template matching, participant response collection, and real-time data visualization.
 
-#### The Action Class
+#### The Controller Class
 
-The `Action` class is the controller for your experiment. It gives you access to synchronization flags via the `SyncEvents` object (the `self.sync` attribute), allowing you to update the GUI, log events, or trigger feedback based on experiment state:
+The `Controller` class is the controller for your experiment. It gives you access to synchronization flags via the `SyncEvents` object (the `self.sync` attribute), allowing you to update the GUI, log events, or trigger feedback based on experiment state:
 
-- `end`: Signals the end of the experiment.
+- `end`: Signals the end of the experiment
 - `hit`: Triggered when a TR sufficiently matches a template (ESAM only)
 - `qa_end`: Marks the end of a question/response block (ESAM only)
 
 Example for an ESAM experiment:
 
 ```python
-class MyAction(ESAMExperimentAction):
+class MyController(ESAMController):
     def _run(self):
         if self.sync.hit.is_set():
             self.gui.show_custom_prompt()
@@ -245,7 +245,7 @@ To make your experiment available to `rtcog`, register it in `rtfmri/experiment_
 ```python
 "my_custom_experiment": {
     "experiment": ESAMExperiment, # Or PreprocExperiment
-    "action": MyAction,
+    "controller" MyController,
     "gui": MyGUI,                 # Optional
 }
 ```
