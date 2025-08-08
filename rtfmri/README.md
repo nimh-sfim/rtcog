@@ -82,7 +82,7 @@ steps:
     save: false
 ```
 
-The string "custom" will automatically map to your CustomStep class.
+The string "custom" will automatically map to your `CustomStep` class.
 
 ### 3. (Optional) Registering with StepTypes
 
@@ -95,7 +95,7 @@ class StepType(Enum):
   CUSTOM = 'custom'
 ```
 
-Then in pipeline.py:
+Then in `pipeline.py`:
 
 ```python
 if StepType.CUSTOM.value in self.steps:
@@ -165,6 +165,94 @@ matching:
 ```
 
 The string "custom" automatically maps to your CustomMatcher class.
+
+---
+
+### Creating your own experiment plugin
+
+`rtcog` includes two built-in experiment types:
+
+- Preproc: Performs basic real-time fMRI preprocessing.
+- ESAM (Experience Sampling): Builds on Preproc to support template matching, response collection, and dynamic real-time data streaming.
+
+#### Plugin Components
+
+| Component      | Role                                                                                        |
+| -------------- | ------------------------------------------------------------------------------------------- |
+| Experiment     | Defines how each fMRI volume is processed                                                   |
+| Action         | Orchestrates the experiment runtime by responding to events and optionally updating the GUI |
+| GUI (optional) | Presents stimuli and collects participant responses via Psychopy                            |
+
+If you’re designing a custom experiment, such as an online neurofeedback protocol or novel stimulus design, you can create your own experiment plugin by implementing or extending these components.
+
+#### The Experiment Class
+
+The `Experiment` handles how each TR is processed.
+
+Because preprocessing and template matching are fully configurable via the config file or subclassing `PreprocStep`, `Matcher`, and/or `HitDetector`, subclassing `Experiment` is not recommended. Most use cases can simply reuse one of the following:
+
+- `PreprocExperiment`: Basic real-time fMRI preprocessing.
+- `ESAMExperiment`: Extends `PreprocExperiment` to support online template matching, participant response collection, and real-time data visualization.
+
+#### The Action Class
+
+The `Action` class is the controller for your experiment. It gives you access to synchronization flags via the `SyncEvents` object (the `self.sync` attribute), allowing you to update the GUI, log events, or trigger feedback based on experiment state:
+
+- `end`: Signals the end of the experiment.
+- `hit`: Triggered when a TR sufficiently matches a template (ESAM only)
+- `qa_end`: Marks the end of a question/response block (ESAM only)
+
+Example for an ESAM experiment:
+
+```python
+class MyAction(ESAMExperimentAction):
+    def _run(self):
+        if self.sync.hit.is_set():
+            self.gui.show_custom_prompt()
+            self.sync.hit.clear()
+            self.sync.qa_end.set()
+```
+
+#### The GUI Class (Optional)
+
+The GUI defines what the participant sees and interacts with. You can present:
+
+- Visual prompts
+- Trial feedback
+- Questions or rating scales
+- Audio/voice recording
+- Or anything else that Psychopy supports
+
+You can inherit from:
+
+| Class        | Description                                                     |
+| ------------ | --------------------------------------------------------------- |
+| `BaseGUI`    | Blank starting point                                            |
+| `PreprocGUI` | Displays a fixation cross and general instructions              |
+| `EsamGUI`    | Adds voice recording, question prompts, and response collection |
+
+```python
+class MyGUI(EsamGUI):
+    def show_custom_prompt(self):
+        stim = TextStim(win=self.ewin, text='Hello', pos=(0.0,0.06), bold=True),
+        self._draw_stims(stim)
+```
+
+#### Registering Your Custom Experiment
+
+To make your experiment available to `rtcog`, register it in `rtfmri/experiment_registry.py`:
+
+```python
+"my_custom_experiment": {
+    "experiment": ESAMExperiment, # Or PreprocExperiment
+    "action": MyAction,
+    "gui": MyGUI,                 # Optional
+}
+```
+
+Now, you can pass the name of your experiment when running `rtcog` and it will look it up in the registry: `-exp_type my_custom_experiment`
+
+---
 
 ## Transcribing
 
