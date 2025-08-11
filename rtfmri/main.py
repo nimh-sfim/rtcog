@@ -55,7 +55,7 @@ def main():
             receiver_path = osp.join(opts.out_dir, f'{opts.out_prefix}_receiver_timing.pkl')
             clock = SharedClock()
             action_class = LatencyTestActionSeries
-            action = action_class(sync, opts, clock=clock, receiver_path=receiver_path)
+            action = action_class(sync, opts, clock=clock)
         else:
             action = action_class(sync, opts)
         controller = Controller(sync, action)

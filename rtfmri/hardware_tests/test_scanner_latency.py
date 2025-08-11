@@ -9,10 +9,11 @@ import multiprocessing as mp
 from rtfmri.paths import CONFIG_DIR
 from rtfmri.utils.options import Options
 from rtfmri.utils.log import get_logger, set_logger
-from rtfmri.utils.gui import get_experiment_info
-from rtfmri.utils.core import SharedClock, create_sync_events, run_gui
+from rtfmri.utils.core import SharedClock, create_sync_events
 from rtfmri.hardware_tests.hardware_utils import get_opts
 from rtfmri.comm.receiver_interface import MinimalReceiverInterface
+from rtfmri.controller.controller import Controller
+from rtfmri.controller.action_series import LatencyTestActionSeries
 
 log = get_logger()
 
@@ -34,8 +35,10 @@ def main():
     comm_proc = mp.Process(target=minimal_comm_process, args=(opts, clock, receiver_path))
     comm_proc.start()
     
-    exp_info = get_experiment_info(opts)
-    run_gui(opts, exp_info, sync, clock)
+    action = LatencyTestActionSeries(sync, opts, clock=clock)
+    controller = Controller(sync, action)
+
+    controller.run()
 
     comm_proc.join()
 

@@ -76,8 +76,8 @@ class ESAMActionSeries(PreprocActionSeries):
 
     
 class LatencyTestActionSeries(PreprocActionSeries):
-    def __init__(self, sync, opts, clock, receiver_path):
-        super().__init__(sync, opts=opts, clock=clock, receiver_path=receiver_path)
+    def __init__(self, sync, opts, clock):
+        super().__init__(sync, opts=opts, clock=clock)
     
     def on_loop(self):
         self.gui.poll_trigger()
