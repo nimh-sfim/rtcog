@@ -36,15 +36,8 @@ Scripts/AfniProc/.ipynb_checkpoints/Untitled-checkpoint.ipynb
 testing.ipynb
 
 # Old stuff
-rtcaps/60min_Preproc/
-rtcaps/Realtime_Scanner/Not_Used/
-rtcaps/bin/profile*txt
-rtcaps/bin/tj
-rtcaps/bin/deprecated/
-rtcaps/bin/data/
-rtcaps/profiles/
-rtcaps/resources/likert_instr.png
-rtcaps/resources/forps_1x4d_pic.png
+rtcaps/
+afni_plugin/
 
 # Config and Hidden files
 .vscode/
