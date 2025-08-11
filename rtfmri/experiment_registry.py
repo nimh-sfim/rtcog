@@ -1,14 +1,14 @@
-from rtfmri.experiment.preproc_experiment import PreprocExperiment
-from rtfmri.experiment.esam_experiment import ESAMExperiment
+from rtfmri.processor.preproc_processor import PreprocProcessor
+from rtfmri.processor.esam_processor import ESAMProcessor
 from rtfmri.controller.action_series import PreprocActionSeries, ESAMActionSeries
 
 EXPERIMENT_REGISTRY = {
     "preproc": {
-        "experiment": PreprocExperiment,
+        "processor": PreprocProcessor,
         "action": PreprocActionSeries,
     },
     "esam": {
-        "experiment": ESAMExperiment,
+        "processor": ESAMProcessor,
         "action": ESAMActionSeries,
     },
 }

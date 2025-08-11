@@ -164,7 +164,7 @@ class MinimalReceiverInterface(CustomReceiverInterface):
         if self.clock and not rv:
             recv_time = self.clock.now()
             self.timing["recv"].append(recv_time)
-            print(f"Recv @ {recv_time:.3f}            - Time point [t={self.t}]", flush=True)
+            print(f"Recv @ {recv_time:.3f}                 - Time point [t={self.t}]", flush=True)
         self.t += 1
 
         if rv:

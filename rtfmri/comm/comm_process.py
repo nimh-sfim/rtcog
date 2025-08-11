@@ -5,7 +5,7 @@ from rtfmri.comm.receiver_interface import CustomReceiverInterface
 
 log = get_logger()
 
-def comm_process(opts, sync, exp_class, shared_responses=None, clock=None, time_path=None):
+def comm_process(opts, sync, proc_class, shared_responses=None, clock=None, time_path=None):
     """
     Main communication process handling experiment setup and data reception.
 
@@ -15,8 +15,8 @@ def comm_process(opts, sync, exp_class, shared_responses=None, clock=None, time_
         Configuration options for the experiment run.
     sync : SyncEvents
         Synchronization events object for interprocess signaling.
-    exp_class : ???
-        The experiment class to be instantiated.
+    proc_class : obj
+        The processor class to be instantiated.
     shared_responses : DictProxy, optional
         Shared dictionary for storing participant responses (default is None).
     clock : SharedClock, optional
@@ -29,12 +29,12 @@ def comm_process(opts, sync, exp_class, shared_responses=None, clock=None, time_
     int
         Return code indicating success (0) or failure (1).
     """
-    log.info('2) Instantiating Experiment Object...')
-    experiment = exp_class(opts, sync)
+    log.info('2) Instantiating Processor Object...')
+    processor = proc_class(opts, sync)
     # TODO: move this somewhere else
     if opts.exp_type == 'esam':
         log.info('This an experimental run')
-        experiment.start_streaming(shared_responses) # Start panel server
+        processor.start_streaming(shared_responses) # Start panel server
 
     # 4) Start Communications
     log.info('3) Opening Communication Channel...')
@@ -57,8 +57,8 @@ def comm_process(opts, sync, exp_class, shared_responses=None, clock=None, time_
     receiver.set_signal_handlers()
 
     # 6) set receiver callback
-    receiver.compute_TR_data  = experiment.compute_TR_data
-    receiver.final_steps      = experiment.end_run
+    receiver.compute_TR_data  = processor.compute_TR_data
+    receiver.final_steps      = processor.end_run
 
     # 7) prepare for incoming connections
     log.info('5) Prepare for Incoming Connections...')
@@ -73,8 +73,8 @@ def comm_process(opts, sync, exp_class, shared_responses=None, clock=None, time_
         receiver.save_timing()
 
     # TODO: refactor
-    if experiment.exp_type == "esam" and not opts.no_action:
-        while experiment.sync.hit.is_set():
+    if processor.exp_type == "esam" and not opts.no_action:
+        while processor.sync.hit.is_set():
             log.info('waiting for QA to end ')
             time.sleep(1)
     log.info('ready to end ')

@@ -177,40 +177,59 @@ The string "custom" automatically maps to your CustomMatcher class.
 
 #### Plugin Components
 
-| Component      | Role                                                                                        |
-| -------------- | ------------------------------------------------------------------------------------------- |
-| Experiment     | Defines how each fMRI volume is processed                                                   |
-| Controller     | Orchestrates the experiment runtime by responding to events and optionally updating the GUI |
-| GUI (optional) | Presents stimuli and collects participant responses via Psychopy                            |
+| Component                | Role                                       |
+| ------------------------ | ------------------------------------------ |
+| Processor                | Defines how each fMRI volume is processed  |
+| ActionSeries (Optional)  | Performs actions based on experiment state |
 
 If you’re designing a custom experiment, such as an online neurofeedback protocol or novel stimulus design, you can create your own experiment plugin by implementing or extending these components.
 
-#### The Experiment Class
+#### The Processor Class
 
-The `Experiment` handles how each TR is processed.
+The `Processor` handles how each TR is processed.
 
-Because preprocessing and template matching are fully configurable via the config file or subclassing `PreprocStep`, `Matcher`, and/or `HitDetector`, subclassing `Experiment` is not recommended. Most use cases can simply reuse one of the following:
+Because preprocessing and template matching are fully configurable via the config file or subclassing `PreprocStep`, `Matcher`, and/or `HitDetector`, subclassing `Processor` is not recommended. Most use cases can simply reuse one of the following:
 
-- `PreprocExperiment`: Basic real-time fMRI preprocessing.
-- `ESAMExperiment`: Extends `PreprocExperiment` to support online template matching, participant response collection, and real-time data visualization.
+- `PreprocProcessor`: Basic real-time fMRI preprocessing.
+- `ESAMProcessor`: Extends `PreprocProcessor` to support online template matching, participant response collection, and real-time data visualization.
 
-#### The Controller Class
+#### The ActionSeries Class (Optional)
 
-The `Controller` class is the controller for your experiment. It gives you access to synchronization flags via the `SyncEvents` object (the `self.sync` attribute), allowing you to update the GUI, log events, or trigger feedback based on experiment state:
+The `ActionSeries` class responds to the state of the experiment. By extending `BaseActionSeries`, you can implement your own custom logic for what should occur at each stage of the experiment:
 
-- `end`: Signals the end of the experiment
-- `hit`: Triggered when a TR sufficiently matches a template (ESAM only)
-- `qa_end`: Marks the end of a question/response block (ESAM only)
+- `on_start()`: The beginning of the experiment
+- `on_loop()`: Main experiment loop
+- `on_hit()`: Triggered when a TR sufficiently matches a template (ESAM only)
+- `on_end()`: The end of the experiment
+
+`ActionSeries` are optional. If you don't provide one, the experiment will simply run without performing any additional actions. You can also pass `--no_action` when running `rtcog` to prevent your `ActionSeries` from running.
+
+`rtcog` by default comes with two action series:
+
+- `PreprocActionSeries`: Displays a basic GUI until the experiment ends
+- `ESAMActionSeries`: Also collects voice recording and question responses at each hit
+
+If you have a GUI, it should be owned by your `ActionSeries` so it can be updated throughout the experiment.
 
 Example for an ESAM experiment:
 
 ```python
-class MyController(ESAMController):
-    def _run(self):
-        if self.sync.hit.is_set():
-            self.gui.show_custom_prompt()
-            self.sync.hit.clear()
-            self.sync.qa_end.set()
+class MyActionSeries(BaseActionSeries):
+    def __init__(self):
+        gui = MyGUI(opts=opts)
+        super().__init__(sync, opts=opts, gui=gui)
+        
+    def on_start(self):
+        startup_function()
+        self.gui.draw_resting_screen()
+    def on_loop(self):
+        poll_for_escape_key()
+    def on_hit(self):
+        self.gui.show_custom_prompt()
+        apply_stimulation()
+    def on_end(self):
+        teardown_function()
+        self.gui.close_psychopy_infrastructure()
 ```
 
 #### The GUI Class (Optional)
@@ -234,23 +253,23 @@ You can inherit from:
 ```python
 class MyGUI(EsamGUI):
     def show_custom_prompt(self):
-        stim = TextStim(win=self.ewin, text='Hello', pos=(0.0,0.06), bold=True),
-        self._draw_stims(stim)
+        self._draw_stims(self._custom_stim)
 ```
+
+Make sure to instantiate your `GUI` as an attribute of your `ActionSeries`.
 
 #### Registering Your Custom Experiment
 
-To make your experiment available to `rtcog`, register it in `rtfmri/experiment_registry.py`:
+To make your processor available to `rtcog`, register it in `rtfmri/experiment_registry.py`:
 
 ```python
 "my_custom_experiment": {
-    "experiment": ESAMExperiment, # Or PreprocExperiment
-    "controller" MyController,
-    "gui": MyGUI,                 # Optional
+    "processor": ESAMProcessor, # Or PreprocProcessor
+    "action" MyActionSeries     # Optional
 }
 ```
 
-Now, you can pass the name of your experiment when running `rtcog` and it will look it up in the registry: `-exp_type my_custom_experiment`
+Now, you can pass the name of your experiment when running `rtcog` and it will look it up in the registry: `--exp_type my_custom_experiment`
 
 ---
 

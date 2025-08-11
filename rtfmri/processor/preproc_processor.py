@@ -5,12 +5,12 @@ from rtfmri.preproc.pipeline import Pipeline
 from rtfmri.utils.log import set_logger
 from rtfmri.utils.fMRI import load_fMRI_file
 
-class PreprocExperiment:
+class PreprocProcessor:
     """
-    Class representing a real-time fMRI experiment.
+    Class representing a real-time fMRI processor.
 
-    This class handles the setup of the experiment, initialization of the preprocessing
-    pipeline, and the management of incoming data from the scanner.
+    This class handles the setup of the data processing stream, initialization of the
+    preprocessing pipeline, and the management of incoming data from the scanner.
 
     Parameters
     ----------
@@ -41,12 +41,12 @@ class PreprocExperiment:
         self.this_motion = None
 
         if options.mask_path is None:
-            self.log.error('  Experiment_init_ - No mask was provided!')
+            self.log.error('No mask was provided!')
             sys.exit(-1)
         else:
             self.mask_img  = load_fMRI_file(options.mask_path)
             self.mask_Nv = int(np.sum(self.mask_img.get_fdata()))
-            self.log.debug(f'  Experiment_init_ - Number of Voxels in user-provided mask: {self.mask_Nv}')
+            self.log.debug(f'Number of Voxels in user-provided mask: {self.mask_Nv}')
 
         self.pipe = Pipeline(options, self.Nt, self.mask_Nv, self.mask_img)        
         

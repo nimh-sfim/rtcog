@@ -8,7 +8,7 @@ from ctypes import c_int
 import numpy as np
 import pandas as pd
 
-from rtfmri.experiment.preproc_experiment import PreprocExperiment
+from rtfmri.processor.preproc_processor import PreprocProcessor
 from rtfmri.preproc.step_types import StepType
 from rtfmri.matching.matcher import Matcher
 from rtfmri.matching.matching_opts import MatchingOpts
@@ -19,11 +19,11 @@ from rtfmri.viz.streaming_config import StreamingConfig
 from rtfmri.utils.fMRI import  unmask_fMRI_img
 
 
-class ESAMExperiment(PreprocExperiment):
+class ESAMProcessor(PreprocProcessor):
     """
-    Real-time fMRI experiment class supporting experience sampling (ESAM) mode.
+    Real-time fMRI processor class supporting experience sampling (ESAM) mode.
 
-    Extends `Experiment` with template matching, hit detection, QA state tracking,
+    Extends `Processor` with template matching, hit detection, QA state tracking,
     and dynamic Panel-based GUI streaming.
 
     Parameters
@@ -217,6 +217,7 @@ class ESAMExperiment(PreprocExperiment):
         self.log.info('Saved hits info to %s' % hits_path)
     
     def write_hit_maps(self):
+        # TODO: move this somewhere
         """Write out the maps associated with the hits"""
         if self.exp_type == "esam" or self.exp_type == "esam_test":
             Hits_DF = pd.DataFrame(self.hits.T, columns=self.matcher.template_labels)
