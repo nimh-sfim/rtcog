@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import List
 
-from rtfmri.viz.plotter import Plotter
+from rtcog.viz.plotter import Plotter
 
 class BaseStreamer(ABC):
     """

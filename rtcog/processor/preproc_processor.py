@@ -1,9 +1,9 @@
 import sys
 import numpy as np
 
-from rtfmri.preproc.pipeline import Pipeline
-from rtfmri.utils.log import set_logger
-from rtfmri.utils.fMRI import load_fMRI_file
+from rtcog.preproc.pipeline import Pipeline
+from rtcog.utils.log import set_logger
+from rtcog.utils.fMRI import load_fMRI_file
 
 class PreprocProcessor:
     """

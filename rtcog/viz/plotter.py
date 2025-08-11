@@ -1,7 +1,7 @@
 import numpy as np
 
-from rtfmri.utils.sync import QAState
-from rtfmri.viz.streaming_config import StreamingConfig
+from rtcog.utils.sync import QAState
+from rtcog.viz.streaming_config import StreamingConfig
 
 class Plotter:
     """

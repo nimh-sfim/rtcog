@@ -9,10 +9,10 @@ from psychopy.visual.slider import Slider
 from psychopy import prefs
 prefs.hardware['keyboard'] = 'pygame'
 
-from rtfmri.utils.recorder import Recorder
-from rtfmri.utils.core import get_logger
-from rtfmri.paths import RESOURCES_DIR
-from rtfmri.gui.preproc_gui import PreprocGUI
+from rtcog.utils.recorder import Recorder
+from rtcog.utils.core import get_logger
+from rtcog.paths import RESOURCES_DIR
+from rtcog.gui.preproc_gui import PreprocGUI
 
 log = get_logger()
 

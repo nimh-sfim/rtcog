@@ -3,9 +3,9 @@ requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "rtfmri"
+name = "rtcog"
 version = "3.0.0.dev0"
-description = "Realtime fMRI utilities"
+description = "real-time fMRI monitoring of brain activity and cognitive processes"
 readme = "README.md"
 requires-python = ">=3.10"
 
@@ -15,7 +15,7 @@ authors = [
 ]
 
 [project.scripts]
-rtfmri = "rtfmri.main:main"
+rtcog = "rtcog.main:main"
 
 [tool.setuptools.packages.find]
 where = ["."]

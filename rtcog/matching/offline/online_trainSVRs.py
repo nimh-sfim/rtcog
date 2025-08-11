@@ -17,8 +17,8 @@ sys.path.insert(0, osp.abspath(osp.join(osp.dirname(__file__), '..')))
 from tqdm import tqdm
 tqdm().pandas()
 
-from rtfmri.matching.offline.training import SVRtrainer
-from rtfmri.utils.core import file_exists
+from rtcog.matching.offline.training import SVRtrainer
+from rtcog.utils.core import file_exists
 # -------------------------------------------------------------------------------------
 
 def processProgramOptions (self, options=None):

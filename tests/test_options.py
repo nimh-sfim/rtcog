@@ -2,8 +2,8 @@ import os.path as osp
 import pytest
 import pprint
 
-from rtfmri.utils.options import Options
-from rtfmri.paths import CONFIG_DIR
+from rtcog.utils.options import Options
+from rtcog.paths import CONFIG_DIR
 
 def test_from_yaml():
     path = osp.join(CONFIG_DIR, 'default_config.yaml')

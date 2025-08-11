@@ -1,7 +1,7 @@
 import time
 
-from rtfmri.utils.log import get_logger
-from rtfmri.comm.receiver_interface import CustomReceiverInterface
+from rtcog.utils.log import get_logger
+from rtcog.comm.receiver_interface import CustomReceiverInterface
 
 log = get_logger()
 

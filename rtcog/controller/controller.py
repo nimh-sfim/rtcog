@@ -1,5 +1,5 @@
-from rtfmri.utils.sync import SyncEvents
-from rtfmri.controller.action_series import BaseActionSeries
+from rtcog.utils.sync import SyncEvents
+from rtcog.controller.action_series import BaseActionSeries
 
 class Controller:
     def __init__(self, sync: SyncEvents, action_series: BaseActionSeries):

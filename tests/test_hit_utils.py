@@ -1,7 +1,7 @@
 import pytest
 import numpy as np
 
-from rtfmri.matching.hit_utils import is_hit_rt01
+from rtcog.matching.hit_utils import is_hit_rt01
 
 @pytest.fixture
 def labels():

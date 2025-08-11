@@ -1,7 +1,7 @@
 from math import sqrt
-from rtfmri.matching.hit_utils import is_hit_rt01
+from rtcog.matching.hit_utils import is_hit_rt01
 
-from rtfmri.utils.log import get_logger
+from rtcog.utils.log import get_logger
 
 log = get_logger()
 

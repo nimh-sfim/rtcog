@@ -7,7 +7,7 @@ import traceback
 import pickle
 
 sys.path.append('..')
-from rtfmri.utils.exceptions import VolumeOverflowError
+from rtcog.utils.exceptions import VolumeOverflowError
 
 import logging
 log = logging.getLogger(__name__)

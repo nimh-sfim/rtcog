@@ -7,9 +7,9 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
-from rtfmri.viz.streaming_config import StreamingConfig
-from rtfmri.viz.plotter import Plotter
-from rtfmri.utils.sync import QAState
+from rtcog.viz.streaming_config import StreamingConfig
+from rtcog.viz.plotter import Plotter
+from rtcog.utils.sync import QAState
 
 class MapPlotter(Plotter):
     """

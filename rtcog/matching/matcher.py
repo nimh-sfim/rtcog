@@ -5,8 +5,8 @@ from multiprocessing.shared_memory import SharedMemory
 
 import numpy as np
 
-from rtfmri.utils.log import get_logger
-from rtfmri.matching.matching_utils import rt_svrscore_vol, rt_maskscore_vol
+from rtcog.utils.log import get_logger
+from rtcog.matching.matching_utils import rt_svrscore_vol, rt_maskscore_vol
 
 log = get_logger()
 

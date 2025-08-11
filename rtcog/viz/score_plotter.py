@@ -8,9 +8,9 @@ import panel as pn
 from holoviews.streams import Stream
 from bokeh.palettes import Category10
 
-from rtfmri.utils.sync import QAState
-from rtfmri.viz.streaming_config import StreamingConfig
-from rtfmri.viz.plotter import Plotter
+from rtcog.utils.sync import QAState
+from rtcog.viz.streaming_config import StreamingConfig
+from rtcog.viz.plotter import Plotter
 
 class ScorePlotter(Plotter):
     """Receives scores from Matcher to stream the data live"""

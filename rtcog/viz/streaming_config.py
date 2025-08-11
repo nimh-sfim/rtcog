@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from typing import List
 from nibabel.nifti1 import Nifti1Image
 
-from rtfmri.matching.matching_opts import MatchingOpts
+from rtcog.matching.matching_opts import MatchingOpts
 
 @dataclass(frozen=True)
 class StreamingConfig:

@@ -7,12 +7,12 @@ import holoviews as hv
 import hvplot.pandas
 import panel as pn
 
-from rtfmri.utils.sync import SyncEvents, QAState
-from rtfmri.viz.score_plotter import ScorePlotter
-from rtfmri.viz.map_plotter import MapPlotter
-from rtfmri.viz.response_plotter import ResponsePlotter
-from rtfmri.viz.streaming_config import StreamingConfig
-from rtfmri.utils.log import get_logger
+from rtcog.utils.sync import SyncEvents, QAState
+from rtcog.viz.score_plotter import ScorePlotter
+from rtcog.viz.map_plotter import MapPlotter
+from rtcog.viz.response_plotter import ResponsePlotter
+from rtcog.viz.streaming_config import StreamingConfig
+from rtcog.utils.log import get_logger
 
 log = get_logger()
 

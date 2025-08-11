@@ -1,4 +1,4 @@
-# rtfMRI
+# rtcog
 
 ## Installation
 
@@ -31,7 +31,7 @@ pip install .
 
 ### 1. Update config
 
-This package relies on options specified in a yaml file to run. We've provided you with a default setup at `rtfmri/config/default_config.yaml` which you can customize to your setup. Please note that the order of preprocessing steps is preserved, so any changes to that will affect the pipeline.
+This package relies on options specified in a yaml file to run. We've provided you with a default setup at `rtcog/config/default_config.yaml` which you can customize to your setup. Please note that the order of preprocessing steps is preserved, so any changes to that will affect the pipeline.
 
 ### 2. Real-Time Scanner Setup
 
@@ -45,7 +45,7 @@ You can easily extend the real-time fMRI preprocessing pipeline by defining a ne
 
 ### 1. **Create your step class**
 
-In `rtfmri/preproc/preproc_steps.py`, define a new class that inherits from `PreprocStep`. Your class must implement the following method:
+In `rtcog/preproc/preproc_steps.py`, define a new class that inherits from `PreprocStep`. Your class must implement the following method:
 
 - `_run(self, pipeline)`: **required**  
   This is where you apply your preprocessing logic. It operates on `pipeline.processed_tr` (a NumPy array of shape `(N_voxels, 1)`) and returns transformed data.
@@ -116,7 +116,7 @@ You can easily add your own matching method by defining a new step as a subclass
 
 ### 1. **Create your matcher class**
 
-In `rtfmri/matching/matching_methods.py` (or wherever appropriate), define a new class that inherits from Matcher. Your class must implement the following elements in `__init__`:
+In `rtcog/matching/matching_methods.py` (or wherever appropriate), define a new class that inherits from Matcher. Your class must implement the following elements in `__init__`:
 
 - Load any models or templates.
 - Set the following attributes:
@@ -260,7 +260,7 @@ Make sure to instantiate your `GUI` as an attribute of your `ActionSeries`.
 
 #### Registering Your Custom Experiment
 
-To make your processor available to `rtcog`, register it in `rtfmri/experiment_registry.py`:
+To make your processor available to `rtcog`, register it in `rtcog/experiment_registry.py`:
 
 ```python
 "my_custom_experiment": {
@@ -288,5 +288,5 @@ The first time you run the script it will have to download the model, which take
 To run the script:
 
 ```bash
-python rtfmri/matching/transcribe.py -i <input_dir> -o <output_dir> -p <input_prefix> -m <model>
+python rtcog/matching/transcribe.py -i <input_dir> -o <output_dir> -p <input_prefix> -m <model>
 ```

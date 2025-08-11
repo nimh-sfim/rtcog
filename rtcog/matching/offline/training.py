@@ -17,7 +17,7 @@ import panel as pn
 from bokeh.palettes import Category10_7
 tqdm().pandas()
 
-from rtfmri.utils.fMRI import load_fMRI_file, mask_fMRI_img
+from rtcog.utils.fMRI import load_fMRI_file, mask_fMRI_img
 
 import logging
 log     = logging.getLogger("training")

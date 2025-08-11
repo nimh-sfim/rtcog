@@ -1,6 +1,6 @@
-from rtfmri.processor.preproc_processor import PreprocProcessor
-from rtfmri.processor.esam_processor import ESAMProcessor
-from rtfmri.controller.action_series import PreprocActionSeries, ESAMActionSeries
+from rtcog.processor.preproc_processor import PreprocProcessor
+from rtcog.processor.esam_processor import ESAMProcessor
+from rtcog.controller.action_series import PreprocActionSeries, ESAMActionSeries
 
 EXPERIMENT_REGISTRY = {
     "preproc": {

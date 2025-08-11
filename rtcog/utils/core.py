@@ -4,8 +4,8 @@ import math
 from multiprocessing import Event, Value
 from ctypes import c_int
 
-from rtfmri.utils.sync import SyncEvents
-from rtfmri.utils.log import get_logger
+from rtcog.utils.sync import SyncEvents
+from rtcog.utils.log import get_logger
 
 from psychopy import logging
 logging.console.setLevel(logging.ERROR)

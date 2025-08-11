@@ -8,8 +8,8 @@ import hvplot.pandas
 import panel as pn
 import matplotlib.pyplot as plt
 
-from rtfmri.utils.fMRI import load_fMRI_file, mask_fMRI_img
-from rtfmri.utils.core import file_exists
+from rtcog.utils.fMRI import load_fMRI_file, mask_fMRI_img
+from rtcog.utils.core import file_exists
 
 import logging
 log     = logging.getLogger("offline_mask")

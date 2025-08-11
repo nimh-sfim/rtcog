@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 import nibabel as nib
 
-from rtfmri.paths import DATA_DIR
+from rtcog.paths import DATA_DIR
 
 def pytest_addoption(parser):
     parser.addoption(

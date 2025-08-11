@@ -3,7 +3,7 @@ import sys
 import argparse
 import yaml
 
-from rtfmri.utils.core import file_exists
+from rtcog.utils.core import file_exists
 
 class Options:
      """

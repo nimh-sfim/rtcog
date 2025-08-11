@@ -8,15 +8,15 @@ from ctypes import c_int
 import numpy as np
 import pandas as pd
 
-from rtfmri.processor.preproc_processor import PreprocProcessor
-from rtfmri.preproc.step_types import StepType
-from rtfmri.matching.matcher import Matcher
-from rtfmri.matching.matching_opts import MatchingOpts
-from rtfmri.matching.hit_opts import HitOpts
-from rtfmri.matching.hit_detector import HitDetector
-from rtfmri.viz.esam_streaming import run_streamer
-from rtfmri.viz.streaming_config import StreamingConfig
-from rtfmri.utils.fMRI import  unmask_fMRI_img
+from rtcog.processor.preproc_processor import PreprocProcessor
+from rtcog.preproc.step_types import StepType
+from rtcog.matching.matcher import Matcher
+from rtcog.matching.matching_opts import MatchingOpts
+from rtcog.matching.hit_opts import HitOpts
+from rtcog.matching.hit_detector import HitDetector
+from rtcog.viz.esam_streaming import run_streamer
+from rtcog.viz.streaming_config import StreamingConfig
+from rtcog.utils.fMRI import  unmask_fMRI_img
 
 
 class ESAMProcessor(PreprocProcessor):

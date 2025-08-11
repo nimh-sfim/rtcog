@@ -6,14 +6,14 @@ import sys
 import os.path as osp
 import multiprocessing as mp
 
-from rtfmri.paths import CONFIG_DIR
-from rtfmri.utils.options import Options
-from rtfmri.utils.log import get_logger, set_logger
-from rtfmri.utils.core import SharedClock, create_sync_events
-from rtfmri.hardware_tests.hardware_utils import get_opts
-from rtfmri.comm.receiver_interface import MinimalReceiverInterface
-from rtfmri.controller.controller import Controller
-from rtfmri.controller.action_series import LatencyTestActionSeries
+from rtcog.paths import CONFIG_DIR
+from rtcog.utils.options import Options
+from rtcog.utils.log import get_logger, set_logger
+from rtcog.utils.core import SharedClock, create_sync_events
+from rtcog.hardware_tests.hardware_utils import get_opts
+from rtcog.comm.receiver_interface import MinimalReceiverInterface
+from rtcog.controller.controller import Controller
+from rtcog.controller.action_series import LatencyTestActionSeries
 
 log = get_logger()
 

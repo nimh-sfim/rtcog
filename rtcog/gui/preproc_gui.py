@@ -7,9 +7,9 @@ from psychopy.visual import TextStim
 from psychopy import prefs
 prefs.hardware['keyboard'] = 'pygame'
 
-from rtfmri.utils.core import get_logger
-from rtfmri.gui.gui_utils import get_experiment_info
-from rtfmri.gui.base_gui import BaseGUI
+from rtcog.utils.core import get_logger
+from rtcog.gui.gui_utils import get_experiment_info
+from rtcog.gui.base_gui import BaseGUI
 
 log = get_logger()
 

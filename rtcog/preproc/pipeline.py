@@ -3,13 +3,13 @@ import os.path as osp
 import numpy as np
 from nibabel.nifti1 import Nifti1Image
 
-from rtfmri.preproc.preproc_steps import PreprocStep
-from rtfmri.preproc.step_types import StepType
-from rtfmri.utils.exceptions import VolumeOverflowError
-from rtfmri.utils.options import Options
-from rtfmri.utils.log import get_logger
-from rtfmri.utils.fMRI import unmask_fMRI_img
-from rtfmri.paths import OUTPUT_DIR
+from rtcog.preproc.preproc_steps import PreprocStep
+from rtcog.preproc.step_types import StepType
+from rtcog.utils.exceptions import VolumeOverflowError
+from rtcog.utils.options import Options
+from rtcog.utils.log import get_logger
+from rtcog.utils.fMRI import unmask_fMRI_img
+from rtcog.paths import OUTPUT_DIR
 
 log = get_logger()
 

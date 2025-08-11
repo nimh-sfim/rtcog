@@ -1,8 +1,8 @@
 import sys
 
-from rtfmri.utils.gui import DefaultGUI, get_experiment_info
-from rtfmri.utils.core import SharedClock
-from rtfmri.hardware_tests.hardware_utils import get_opts
+from rtcog.utils.gui import DefaultGUI, get_experiment_info
+from rtcog.utils.core import SharedClock
+from rtcog.hardware_tests.hardware_utils import get_opts
 
 
 

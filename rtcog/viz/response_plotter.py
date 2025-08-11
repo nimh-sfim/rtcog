@@ -3,9 +3,9 @@ import pandas as pd
 import panel as pn
 from multiprocessing.managers import DictProxy
 
-from rtfmri.utils.sync import QAState
-from rtfmri.viz.streaming_config import StreamingConfig
-from rtfmri.viz.plotter import Plotter
+from rtcog.utils.sync import QAState
+from rtcog.viz.streaming_config import StreamingConfig
+from rtcog.viz.plotter import Plotter
 
 class ResponsePlotter(Plotter):
     """

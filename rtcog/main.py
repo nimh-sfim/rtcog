@@ -9,19 +9,19 @@ import sys
 import os.path as osp
 import multiprocessing as mp
 
-from rtfmri.utils.options import Options
-from rtfmri.utils.log import get_logger, set_logger
-from rtfmri.utils.core import SharedClock, create_sync_events
-from rtfmri.comm.comm_process import comm_process
-from rtfmri.controller.controller import Controller
-from rtfmri.controller.action_series import LatencyTestActionSeries, ESAMActionSeries
-from rtfmri.experiment_registry import EXPERIMENT_REGISTRY
+from rtcog.utils.options import Options
+from rtcog.utils.log import get_logger, set_logger
+from rtcog.utils.core import SharedClock, create_sync_events
+from rtcog.comm.comm_process import comm_process
+from rtcog.controller.controller import Controller
+from rtcog.controller.action_series import LatencyTestActionSeries, ESAMActionSeries
+from rtcog.experiment_registry import EXPERIMENT_REGISTRY
 
 log = get_logger()
 
 def main():
     """
-    Main control flow for the rtfMRI experiment.
+    Main control flow for the rtcog experiment.
 
     - Parses command-line arguments and YAML config
     - Sets up shared memory and synchronization

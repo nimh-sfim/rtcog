@@ -6,7 +6,7 @@ import os.path as osp
 import pytest
 import numpy as np
 
-from rtfmri.paths import DATA_DIR, OUTPUT_DIR
+from rtcog.paths import DATA_DIR, OUTPUT_DIR
 
 def test_snapshot():
     """New version of software vs old version (v2.0, using rtcaps_matcher.py)"""

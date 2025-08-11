@@ -2,13 +2,13 @@ import multiprocessing as mp
 import os.path as osp
 import numpy as np
 
-from rtfmri.utils.log import get_logger
-from rtfmri.utils.exceptions import VolumeOverflowError
-from rtfmri.preproc.preproc_utils import gen_polort_regressors
-from rtfmri.preproc.preproc_utils import initialize_kalman_pool, kalman_filter_mv, rt_kalman_vol
-from rtfmri.preproc.preproc_utils import rt_EMA_vol, rt_regress_vol, rt_smooth_vol, rt_snorm_vol, welford
-from rtfmri.preproc.preproc_utils import create_win, CircularBuffer
-from rtfmri.utils.fMRI import unmask_fMRI_img
+from rtcog.utils.log import get_logger
+from rtcog.utils.exceptions import VolumeOverflowError
+from rtcog.preproc.preproc_utils import gen_polort_regressors
+from rtcog.preproc.preproc_utils import initialize_kalman_pool, kalman_filter_mv, rt_kalman_vol
+from rtcog.preproc.preproc_utils import rt_EMA_vol, rt_regress_vol, rt_smooth_vol, rt_snorm_vol, welford
+from rtcog.preproc.preproc_utils import create_win, CircularBuffer
+from rtcog.utils.fMRI import unmask_fMRI_img
 
 
 log = get_logger()
