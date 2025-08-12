@@ -13,9 +13,14 @@ from rtcog.viz.streaming_config import StreamingConfig
 from rtcog.viz.plotter import Plotter
 
 class ScorePlotter(Plotter):
-    """Receives scores from Matcher to stream the data live"""
+    """Receives scores from Matcher to stream the data live."""
+
     data_key = 'scores'
+
     def __init__(self, config: StreamingConfig):
+        """
+        Initialize the ScorePlotter with configuration for streaming and plotting.
+        """
         super().__init__(config)
         self._hit_thr = config.hit_thr
 
@@ -34,6 +39,9 @@ class ScorePlotter(Plotter):
         self._out_dir = config.out_dir
         
     def update(self, t: int, data: np.ndarray, qa_state: QAState) -> None:
+        """
+        Update the plot with template matching scores and QA state.
+        """
         self._df.iloc[t] = data
         self._qa_state = qa_state
         if not np.isnan(self._df.iloc[t]).all():
@@ -105,7 +113,7 @@ class ScorePlotter(Plotter):
         return dict(zip(self._template_labels, assigned_colors))
     
     def close(self):
-        """Save the final state of the streaming plot to an HTML file"""
+        """Save the final state of the streaming plot to an HTML file."""
         out_html = osp.join(self._out_dir, self._out_prefix + '.dyn_report')
         renderer = hv.renderer('bokeh')
 

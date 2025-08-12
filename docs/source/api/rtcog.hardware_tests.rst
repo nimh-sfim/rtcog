@@ -12,14 +12,6 @@ rtcog.hardware\_tests.hardware\_utils module
    :undoc-members:
    :show-inheritance:
 
-rtcog.hardware\_tests.test\_keystrokes module
----------------------------------------------
-
-.. automodule:: rtcog.hardware_tests.test_keystrokes
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
 rtcog.hardware\_tests.test\_scanner\_latency module
 ---------------------------------------------------
 

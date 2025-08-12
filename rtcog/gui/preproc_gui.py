@@ -52,6 +52,8 @@ class PreprocGUI(BaseGUI):
         ]
         
         self.test_latency = opts.test_latency
+        if self.test_latency:
+            self.ewin.winHandle.activate()
         self.clock = clock
         self.trigger_path = osp.join(opts.out_dir, f'{opts.out_prefix}_trigger_timing.pkl')
         self.triggers = []
@@ -74,7 +76,7 @@ class PreprocGUI(BaseGUI):
         for key in keys:
             if key == 't':
                 self.triggers.append((now))
-                print(f"Trig @ {now:.3f}            - Time point [t={len(self.triggers)}]", flush=True)
+                print(f"Trig @ {now:.3f}                 - Time point [t={len(self.triggers)}]", flush=True)
             elif key == 'escape':
                 self.save_trigger()
                 self.close_psychopy_infrastructure()

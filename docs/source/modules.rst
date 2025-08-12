@@ -4,14 +4,14 @@ API
 .. toctree::
    :maxdepth: 2
 
-   rtcog.comm
-   rtcog.processor
-   rtcog.preproc
-   rtcog.matching
-   rtcog.controller
-   rtcog.gui
-   rtcog.viz
-   rtcog.experiment_registry
-   rtcog.hardware_tests
-   rtcog.resources
-   rtcog.utils
+   api/rtcog.processor
+   api/rtcog.preproc
+   api/rtcog.comm
+   api/rtcog.matching
+   api/rtcog.controller
+   api/rtcog.gui
+   api/rtcog.viz
+   api/rtcog.experiment_registry
+   api/rtcog.hardware_tests
+   api/rtcog.resources
+   api/rtcog.utils

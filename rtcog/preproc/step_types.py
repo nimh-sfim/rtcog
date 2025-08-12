@@ -1,3 +1,4 @@
+"""Enum of possible PreprocSteps."""
 from enum import Enum
 
 class StepType(Enum):

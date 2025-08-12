@@ -24,7 +24,7 @@ a.pkl.npy
 kl_devel.ipynb
 
 # Sphinx stuff
-docs/build/
+docs/_build/
 
 # Scripts and Notebooks
 Scripts/60min_Preproc/

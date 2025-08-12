@@ -4,12 +4,16 @@ Creating an experiment plugin
 
 ``rtcog`` includes two built-in experiment types:
 
-- Preproc: Performs basic real-time fMRI preprocessing.
-- ESAM (Experience Sampling): Builds on Preproc to support template
+- **Preproc**: Performs basic real-time fMRI preprocessing.
+- **ESAM** (Experience Sampling): Builds on Preproc to support template
   matching, response collection, and dynamic real-time data streaming.
 
 Plugin Components
 -----------------
+
+If you’re designing a custom experiment, such as an online neurofeedback
+protocol or novel stimulus design, you can create your own experiment
+plugin by implementing or extending these components:
 
 +-------------------------+--------------------------------------------+
 | Component               | Role                                       |
@@ -18,10 +22,6 @@ Plugin Components
 +-------------------------+--------------------------------------------+
 | ActionSeries (Optional) | Performs actions based on experiment state |
 +-------------------------+--------------------------------------------+
-
-If you’re designing a custom experiment, such as an online neurofeedback
-protocol or novel stimulus design, you can create your own experiment
-plugin by implementing or extending these components.
 
 The Processor Class
 -------------------
@@ -35,8 +35,7 @@ cases can simply reuse one of the following:
 
 - ``PreprocProcessor``: Basic real-time fMRI preprocessing.
 - ``ESAMProcessor``: Extends ``PreprocProcessor`` to support online
-  template matching, participant response collection, and real-time data
-  visualization.
+  template matching and real-time data visualization.
 
 The ActionSeries Class (Optional)
 ---------------------------------
@@ -63,7 +62,7 @@ pass ``--no_action`` when running ``rtcog`` to prevent your
 - ``ESAMActionSeries``: Also collects voice recording and question
   responses at each hit
 
-If you have a GUI, it should be owned by your ``ActionSeries`` so it can
+If you have a ``GUI`` (outlined below), it should be owned by your ``ActionSeries`` so it can
 be updated throughout the experiment.
 
 Example for an ESAM experiment:
@@ -90,7 +89,7 @@ Example for an ESAM experiment:
 The GUI Class (Optional)
 ------------------------
 
-The GUI defines what the participant sees and interacts with. You can
+The ``GUI`` defines what the participant sees and interacts with. You can
 present:
 
 - Visual prompts
@@ -112,6 +111,8 @@ You can inherit from:
 |                | collection                                                |
 +----------------+-----------------------------------------------------------+
 
+Example:
+
 .. code:: python
 
    class MyGUI(EsamGUI):
@@ -121,10 +122,10 @@ You can inherit from:
 Make sure to instantiate your ``GUI`` as an attribute of your
 ``ActionSeries``.
 
-Registering Your Custom Experiment
-----------------------------------
+Registering Your Custom Experiment Plugin
+-----------------------------------------
 
-To make your processor available to ``rtcog``, register it in
+To make your plugin available to ``rtcog``, register it in
 ``rtcog/experiment_registry.py``:
 
 .. code:: python
@@ -134,5 +135,5 @@ To make your processor available to ``rtcog``, register it in
        "action" MyActionSeries     # Optional
    }
 
-Now, you can pass the name of your experiment when running ``rtcog`` and
+Now, you can pass the name of your experiment plugin when running ``rtcog`` and
 it will look it up in the registry: ``--exp_type my_custom_experiment``

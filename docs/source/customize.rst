@@ -3,8 +3,7 @@ Customizing Components
 
 .. toctree::
    :maxdepth: 1
-   :caption: Customizable components
 
-   preprocessing
-   matching
-   plugin
+   custom_preproc
+   custom_matcher
+   custom_plugin

@@ -13,6 +13,7 @@ log = get_logger()
 
 class Matcher:
     """Base class for matching processed TR data to given templates"""
+    
     registry = {} # Holds all available matching classes
 
     def __init__(self, match_opts, match_path, Nt, mp_evt_end, mp_new_tr, mp_shm_ready):
@@ -42,12 +43,12 @@ class Matcher:
 
     @classmethod
     def from_name(cls, name):
-        # match_method = opts.matching["match_method"].lower()
         if name not in cls.registry:
             raise ValueError(f'Unknown matching method: {name}')
         return cls.registry[name]
 
     def match(self, t, n, tr_data):
+        """Compute similarity of TR data to templates"""
         if self.scores is None:
             self.scores = np.zeros((self.Ntemplates, self.Nt))
 
@@ -60,6 +61,7 @@ class Matcher:
         return self.scores
     
     def setup_shared_memory(self):
+        """Create shared memory buffer to pass match scores to data streaming process"""
         if self.Ntemplates is None:
             raise RuntimeError("Ntemplates must be set before creating shared memory")
         base_arr = np.zeros((self.Ntemplates, self.Nt), dtype=np.float32)

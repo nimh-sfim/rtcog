@@ -60,14 +60,6 @@ rtcog.utils.sync module
    :undoc-members:
    :show-inheritance:
 
-rtcog.utils.trigger\_listener module
-------------------------------------
-
-.. automodule:: rtcog.utils.trigger_listener
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
 Module contents
 ---------------
 

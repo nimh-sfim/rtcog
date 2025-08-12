@@ -27,11 +27,6 @@ class MapPlotter(Plotter):
         This sets up internal state including the brain mask and a placeholder
         (empty) brain image. A matplotlib figure is created and embedded in a
         Panel pane for real-time visualization.
-
-        Parameters
-        ----------
-        config : StreamingConfig
-            Configuration object containing streaming-related information.
         """
         super().__init__(config)
         self._mask_img = config.mask_img
@@ -52,33 +47,13 @@ class MapPlotter(Plotter):
     
     def should_update(self, t: int, qa_state: QAState) -> bool:
         """
-        Whether or not the plot should be updated.
-        
-        Parameters
-        ----------
-        t : int
-            Current TR.
-        qa_state : QAState
-            QA-related metadata for the current TR.
-        Returns
-        ----------
-        bool
-            Whether the plot should be updated.
+        True if a hit occured at the current `t`.
         """
         return t in qa_state.qa_onsets
 
     def update(self, t: int, data: np.ndarray, qa_state: QAState) -> None:
         """
         Update the brain plot if a new QA onset (hit) is detected.
-
-        Parameters
-        ----------
-        t : int
-            Current TR.
-        data : np.ndarray
-            1D array containing brain activation values within the mask.
-        qa_state : QAState
-            Object holding information about QA onsets and offsets.
         """
         if qa_state.qa_onsets:
             latest_onset = qa_state.qa_onsets[-1]

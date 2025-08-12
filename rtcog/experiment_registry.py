@@ -1,3 +1,6 @@
+"""
+Register experiment plugins by defining `Processor` and `ActionSeries`
+"""
 from rtcog.processor.preproc_processor import PreprocProcessor
 from rtcog.processor.esam_processor import ESAMProcessor
 from rtcog.controller.action_series import PreprocActionSeries, ESAMActionSeries

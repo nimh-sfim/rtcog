@@ -4,14 +4,6 @@ rtcog.viz package
 Submodules
 ----------
 
-rtcog.viz.base\_streamer module
--------------------------------
-
-.. automodule:: rtcog.viz.base_streamer
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
 rtcog.viz.esam\_streaming module
 --------------------------------
 
@@ -67,3 +59,4 @@ Module contents
    :members:
    :undoc-members:
    :show-inheritance:
+   :noindex:

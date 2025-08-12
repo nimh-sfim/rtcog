@@ -1,11 +1,12 @@
+from abc import ABC, abstractmethod
 import numpy as np
 
 from rtcog.utils.sync import QAState
 from rtcog.viz.streaming_config import StreamingConfig
 
-class Plotter:
+class Plotter(ABC):
     """
-    Base class for real-time fMRI plotters.
+    Abstract base class for real-time fMRI plotters.
 
     Subclasses should implement specific plotting behavior using the `update()` method,
     and may optionally override `close()` for cleanup at the end of the experiment.
@@ -49,11 +50,10 @@ class Plotter:
         """
         return True
 
+    @abstractmethod
     def update(self, t: int, data: np.ndarray, qa_state: QAState) -> None:
         """
         Update the plot with new data for the current time repetition (TR).
-
-        This method must be implemented by subclasses.
 
         Parameters
         ----------
@@ -64,7 +64,7 @@ class Plotter:
         qa_state : QAState
             QA-related metadata for the current TR.
         """
-        raise NotImplementedError
+        pass
 
     def close(self):
         """

@@ -40,18 +40,7 @@ class ResponsePlotter(Plotter):
     
     def should_update(self, t, qa_state):
         """
-        Whether or not the plot should be updated.
-        
-        Parameters
-        ----------
-        t : int
-            Current TR.
-        qa_state : QAState
-            QA-related metadata for the current TR.
-        Returns
-        ----------
-        bool
-            Whether the plot should be updated.
+        True if the current `t` is the end of a question/response block.
         """
         if not qa_state.qa_offsets:
             return False
@@ -60,16 +49,7 @@ class ResponsePlotter(Plotter):
 
     def update(self, t: int, data: np.ndarray, qa_state: QAState) -> None:
         """
-        Update the response DataFrame with the latest responses if a new one is available.
-
-        Parameters
-        ----------
-        t : int
-            Current TR.
-        data : np.ndarray
-            The incoming data at the current TR (not used directly in this method).
-        qa_state : QAState
-            Object holding QA-related state information.
+        Update the response DataFrame with the latest responses.
         """
         latest_offset = qa_state.qa_offsets[-1]
         self._last_response_t = latest_offset

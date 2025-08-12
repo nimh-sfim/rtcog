@@ -15,6 +15,7 @@ def is_hit_rt01(t, template_labels, scores, hit_thr, nconsec_vols):
     exceed a threshold.
 
     A time point is considered a hit if:
+
     - Exactly one template's SVR score is >= `hit_thr` at time `t`
     - That same template has also been above `hit_thr` nconsec_vols (including the current volume)
 
