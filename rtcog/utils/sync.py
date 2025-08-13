@@ -9,7 +9,7 @@ class SyncEvents:
     Container for multiprocessing synchronization primitives used in experiment.
     """
     hit: MPEvent
-    qa_end: MPEvent
+    action_end: MPEvent
     end: MPEvent
     new_tr: MPEvent
     shm_ready: MPEvent

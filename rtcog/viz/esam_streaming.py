@@ -29,7 +29,7 @@ class ESAMStreamer:
     Streamer for realtime fMRI data visualization.
 
     This class receives shared memory updates and streams the data live using
-    Panel-based visualizations. It streams three plots:
+    a Panel server. It streams three plots:
 
         - ScorePlotter (match scores)
         - MapPlotter (activation maps)

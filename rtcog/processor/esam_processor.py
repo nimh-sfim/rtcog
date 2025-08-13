@@ -35,7 +35,7 @@ class ESAMProcessor(PreprocProcessor):
 
     Attributes
     ----------
-    lastQA_endTR : int
+    lastaction_endTR : int
         Most recent QA offset TR.
     matcher : Matcher
         Template matcher instance.
@@ -51,7 +51,7 @@ class ESAMProcessor(PreprocProcessor):
     def __init__(self, options, sync):
         super().__init__(options, sync)
 
-        self.lastQA_endTR  = 0
+        self.lastaction_endTR  = 0
         self.out_dir = options.out_dir
         self.out_prefix = options.out_prefix
 
@@ -109,24 +109,24 @@ class ESAMProcessor(PreprocProcessor):
             Always returns 1.
         """
         hit_status = self.sync.hit.is_set()
-        qa_end_status = self.sync.qa_end.is_set()
+        action_end_status = self.sync.action_end.is_set()
         
         self.sync.tr_index.value = self.t
 
         processed = super()._compute_TR_data_impl(motion, extra)
 
-        if qa_end_status:
-            self.lastQA_endTR = self.t
+        if action_end_status:
+            self.lastaction_endTR = self.t
             self.qa_offsets.append(self.t)
             self.shared_qa_offsets.append(self.t)
-            self.sync.qa_end.clear()
-            self.log.info(f'QA ended (cleared) --> updating lastQA_endTR = {self.lastQA_endTR}')
+            self.sync.action_end.clear()
+            self.log.info(f'QA ended (cleared) --> updating lastaction_endTR = {self.lastaction_endTR}')
         
         hit = None
         template_labels = self.matcher.template_labels
         
         in_matching_window = self.t >= self.match_start # Ready to match
-        cooldown = self.t < self.lastQA_endTR + self.vols_noqa # Cooldown after a hit
+        cooldown = self.t < self.lastaction_endTR + self.vols_noqa # Cooldown after a hit
 
         if self.t == max(0, self.match_start - 1):
             self.hit_detector.calculate_enorm_diff(self.this_motion) # Feed in motion before matching begins

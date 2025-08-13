@@ -23,7 +23,7 @@ def create_sync_events():
     return SyncEvents(
         new_tr=Event(),
         shm_ready=Event(),
-        qa_end=Event(),
+        action_end=Event(),
         hit=Event(),
         end=Event(),
         server_ready=Event(),

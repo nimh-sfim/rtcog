@@ -73,7 +73,7 @@ class ESAMActionSeries(PreprocActionSeries):
         responses = self.gui.run_full_QA()
         log.info(' - Responses: %s' % str(responses))
         self.sync.hit.clear()
-        self.sync.qa_end.set()
+        self.sync.action_end.set()
 
     
 class LatencyTestActionSeries(PreprocActionSeries):
