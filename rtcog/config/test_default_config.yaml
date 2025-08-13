@@ -1,0 +1,66 @@
+# Config file for testing software. Saves final snapshot of all
+# preprocessing steps
+
+# General options
+debug: false # set logger level to debug
+silent: false # set logger level to warning
+tcp_port: 53214
+show_data: false
+tr: 1.0
+save_orig: False # save the unprocessed image data
+discard: 10
+
+# Preprocessing steps in order
+steps:
+  - name: EMA
+    enabled: true
+    save: true
+
+  - name: iGLM
+    enabled: true
+    save: true
+    iGLM_polort: 2
+    iGLM_motion: true
+
+  - name: kalman
+    enabled: true
+    save: true
+    n_cores: 10
+
+  - name: smooth
+    enabled: true
+    save: true
+    fwhm: 4.0
+
+  - name: snorm
+    enabled: true
+    save: true
+  
+  - name: windowing
+    enabled: true
+    save: true
+    win_length: 4
+
+# Experiment/GUI Options
+no_action: false
+no_proc_chair: false # no crosshair
+fullscreen: false
+screen: 1
+q_path: questions_v1 # path to the questions used for the experiment TODO: FIX
+
+# Testing options
+snapshot: true
+test_latency: false
+
+# Matching options
+matching:
+  match_method: mask
+  match_start: 100 # Volume when matching should start
+  vols_noqa: 45 # Min. number of volumes to wait since end of last QA before declaing a new hit
+  
+# Hit options
+hits:
+  nconsec_vols: 2 # Number of consecutive vols over threshold required for a hit
+  hit_method: method01 # Method for deciding hits
+  do_mot: true # Whether or not to do motion censoring
+  mot_thr: 0.2  # Threshold for motion censoring (if do_mot)
