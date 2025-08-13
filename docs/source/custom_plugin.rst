@@ -30,7 +30,7 @@ The ``Processor`` handles how each TR is processed.
 
 Because preprocessing and template matching are fully configurable via
 the config file or subclassing ``PreprocStep``, ``Matcher``, and/or
-``HitDetector``, subclassing ``Processor`` is not recommended. Most use
+``HitDetector``, subclassing ``Processor`` is **not** recommended. Most use
 cases can simply reuse one of the following:
 
 - ``PreprocProcessor``: Basic real-time fMRI preprocessing.
