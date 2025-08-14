@@ -69,17 +69,22 @@ class Options:
           SystemExit
                If required arguments are missing.
           """
+          if argv is None:
+               argv = sys.argv[1:]
           config = {}
           pre_parser = argparse.ArgumentParser(add_help=False)
-          pre_parser.add_argument("-c", "--config", dest="config_path", help="yaml file containing experiment options", required=True)
+          pre_parser.add_argument("-c", "--config", dest="config_path", help="yaml file containing experiment options", required=False)
           pre_args, remaining_args = pre_parser.parse_known_args(argv)
 
+          # Show error if no config was given except for with --help
           if pre_args.config_path:
                if not osp.exists(pre_args.config_path):
                     raise FileNotFoundError(f"Config file {pre_args.config_path} not found")
-               # Load options from yaml file and return as Namespace
                config = cls.load_yaml(pre_args.config_path)
-          
+          elif not (argv and ("--help" in argv or "-h" in argv)):
+               print("++ ERROR: Please specify a config file using --config/-c.")
+               sys.exit(-1)
+
           # Override yaml file with any new options
           parser = argparse.ArgumentParser(
           description = "rtCAPs experimental software. Based on NIH-neurofeedback software. "
