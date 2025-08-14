@@ -48,7 +48,7 @@ class ESAMProcessor(PreprocProcessor):
     hits : np.ndarray
         Hit detection matrix [template x TR].
     """
-    def __init__(self, options, sync):
+    def __init__(self, options, sync, minimal=False):
         super().__init__(options, sync)
 
         self.lastaction_endTR  = 0
@@ -265,5 +265,7 @@ class ESAMProcessor(PreprocProcessor):
         self.write_qa()
         self.shm_tr.close()
         self.shm_tr.unlink()
+        self.matcher.shm.close()
+        self.matcher.shm.unlink()
 
         self.sync.end.set()

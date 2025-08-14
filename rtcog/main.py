@@ -65,7 +65,10 @@ def main():
 
     # 2) Start communication process
     # ------------------------------------------
-    comm_proc = mp.Process(target=comm_process, args=(opts, sync, exp_class, shared_responses, clock, receiver_path))
+    comm_proc = mp.Process(
+        target=comm_process,
+        args=(opts, sync, exp_class, shared_responses, clock, receiver_path)
+    )
     comm_proc.start()
 
     # 3) Run controller

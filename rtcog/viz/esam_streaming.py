@@ -4,7 +4,6 @@ from multiprocessing.shared_memory import SharedMemory
 from multiprocessing.managers import ListProxy, DictProxy
 import numpy as np
 import holoviews as hv
-import hvplot.pandas
 import panel as pn
 
 from rtcog.utils.sync import SyncEvents, QAState
@@ -58,12 +57,11 @@ class ESAMStreamer:
         self._Nt = config.Nt
     
         self._match_scores = SharedMemory(name="match_scores")
-        tr_data = SharedMemory(name="tr_data")
-        self._tr_data = tr_data
+        self._tr_data = SharedMemory(name="tr_data")
 
         self._shared_arrs = {}
         self._shared_arrs["scores"] = np.ndarray((Ntemplates, self._Nt), dtype=np.float32, buffer=self._match_scores.buf)
-        self._shared_arrs["tr_data"] = np.ndarray((config.Nv, config.Nt), dtype=np.float32, buffer=tr_data.buf)
+        self._shared_arrs["tr_data"] = np.ndarray((config.Nv, config.Nt), dtype=np.float32, buffer=self._tr_data.buf)
         
         self._plotters = [ScorePlotter(config), MapPlotter(config)]
         if responses is not None:
@@ -200,7 +198,6 @@ class ESAMStreamer:
         """
         Close and unlink shared memory segments.
         """
-        self._match_scores.close()
-        self._match_scores.unlink()
+        # pass
         self._tr_data.close()
         

@@ -3,7 +3,7 @@ import multiprocessing as mp
 from psychopy import event
 
 from rtcog.utils.log import get_logger
-from rtcog.gui.gui_utils import get_experiment_info, validate_likert_questions
+from rtcog.gui.gui_utils import validate_likert_questions
 from rtcog.gui.preproc_gui import PreprocGUI
 from rtcog.gui.esam_gui import EsamGUI
 

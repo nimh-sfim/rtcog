@@ -1,6 +1,9 @@
 from abc import ABC, abstractmethod
 from psychopy.visual import Window
 
+from psychopy import logging
+logging.console.setLevel(logging.ERROR)
+
 class BaseGUI(ABC):
     def _create_experiment_window(self) -> Window:
         """

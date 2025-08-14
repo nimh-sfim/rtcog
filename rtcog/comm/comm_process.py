@@ -6,7 +6,7 @@ from rtcog.processor.esam_processor import ESAMProcessor
 
 log = get_logger()
 
-def comm_process(opts, sync, proc_class, shared_responses=None, clock=None, time_path=None):
+def comm_process(opts, sync, proc_class, shared_responses=None, clock=None, time_path=None, minimal=False):
     """
     Main communication process handling experiment setup and data reception.
 
@@ -32,10 +32,9 @@ def comm_process(opts, sync, proc_class, shared_responses=None, clock=None, time
     """
     log.info('1) Initializing Processor...')
     processor = proc_class(opts, sync)
-    if isinstance(processor, ESAMProcessor):
+    if isinstance(processor, ESAMProcessor) and not minimal:
         processor.start_streaming(shared_responses) # Start streaming process
 
-    # 4) Start Communications
     log.info('2) Opening Communication Channel...')
 
     auto_save = opts.auto_save if hasattr(opts, "auto_save") else False
@@ -46,7 +45,6 @@ def comm_process(opts, sync, proc_class, shared_responses=None, clock=None, time
     if not receiver.RTI:
         log.error('RTI is not initialized.')
 
-    # 5) set signal handlers and look for data
     log.info('3) Setting Signal Handlers...')
     receiver.set_signal_handlers()
 
@@ -66,7 +64,7 @@ def comm_process(opts, sync, proc_class, shared_responses=None, clock=None, time
     if opts.test_latency:
         receiver.save_timing()
 
-    if isinstance(processor, ESAMProcessor) and not opts.no_action:
+    if isinstance(processor, ESAMProcessor) and not opts.no_action and not minimal:
         while sync.hit.is_set():
             log.info('Waiting for action to end')
             time.sleep(1)

@@ -16,6 +16,7 @@ authors = [
 
 [project.scripts]
 rtcog = "rtcog.main:main"
+rtcog_min = "rtcog.run_minimal:main"
 
 [tool.setuptools.packages.find]
 where = ["."]

@@ -7,9 +7,6 @@ from ctypes import c_int
 from rtcog.utils.sync import SyncEvents
 from rtcog.utils.log import get_logger
 
-from psychopy import logging
-logging.console.setLevel(logging.ERROR)
-
 log = get_logger()
 
 def file_exists(path):
