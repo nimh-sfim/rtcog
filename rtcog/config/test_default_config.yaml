@@ -19,7 +19,7 @@ steps:
   - name: iGLM
     enabled: true
     save: true
-    iGLM_polort: 2
+    num_polorts: 2
     iGLM_motion: true
 
   - name: kalman

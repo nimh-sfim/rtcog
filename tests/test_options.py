@@ -21,7 +21,7 @@ def test_from_yaml():
                 {'name': 'iGLM',
                     'enabled': True,
                     'save': False,
-                    'iGLM_polort': 2,
+                    'num_polorts': 2,
                     'iGLM_motion': True},
                 {'name': 'kalman', 'enabled': True, 'save': False, 'n_cores': 10},
                 {'name': 'smooth', 'enabled': True, 'save': False, 'fwhm': 4.0},

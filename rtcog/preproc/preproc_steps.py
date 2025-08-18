@@ -137,9 +137,9 @@ class EMAStep(PreprocStep):
 
 class iGLMStep(PreprocStep):
     """Incremental generalized linear model"""
-    def __init__(self, save, suffix='.pp_iGLM.nii', iGLM_polort=2, iGLM_motion=True):
+    def __init__(self, save, suffix='.pp_iGLM.nii', num_polorts=2, iGLM_motion=True):
         super().__init__(save, suffix)
-        self.iGLM_polort = iGLM_polort
+        self.num_polorts = num_polorts
         self.iGLM_motion = iGLM_motion
 
         self.iGLM_prev = {}
@@ -149,14 +149,14 @@ class iGLMStep(PreprocStep):
         
     def _start(self, pipeline):
         if self.iGLM_motion:
-            self.iGLM_num_regressors = self.iGLM_polort + 6
-            self.nuisance_labels = ['Polort'+str(i) for i in np.arange(self.iGLM_polort)] + ['roll','pitch','yaw','dS','dL','dP']
+            self.iGLM_num_regressors = self.num_polorts + 6
+            self.nuisance_labels = ['Polort'+str(i) for i in np.arange(self.num_polorts)] + ['roll','pitch','yaw','dS','dL','dP']
         else:
-            self.iGLM_num_regressors = self.iGLM_polort
-            self.nuisance_labels = ['Polort'+str(i) for i in np.arange(self.iGLM_polort)]
+            self.iGLM_num_regressors = self.num_polorts
+            self.nuisance_labels = ['Polort'+str(i) for i in np.arange(self.num_polorts)]
         
-        if self.iGLM_polort > -1:
-            self.legendre_pols = gen_polort_regressors(self.iGLM_polort, pipeline.Nt)
+        if self.num_polorts > -1:
+            self.legendre_pols = gen_polort_regressors(self.num_polorts, pipeline.Nt)
         else:
             self.legendre_pols = None
 

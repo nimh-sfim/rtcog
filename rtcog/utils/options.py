@@ -100,15 +100,8 @@ class Options:
           parser_gen.add_argument("--tr", help="Repetition time [sec]", dest="tr", action="store", type=float)
           parser_gen.add_argument("--ncores", help="Number of cores to use in the parallel processing part of the code", dest="n_cores", action="store",type=int)
           parser_gen.add_argument("-m","--mask", help="Path to mask", dest="mask_path", action="store", type=file_exists)
-          
-          parser_iglm = parser.add_argument_group("Incremental GLM Options")
-          parser_iglm.add_argument("--polort", help="Order of Legengre Polynomials for iGLM",dest="iGLM_polort", action="store", type=int)
-          parser_iglm.add_argument("--no_iglm_motion", help="Do not use 6 motion parameters in iGLM", dest="iGLM_motion", action="store_false", default=None)
-          parser_iglm.add_argument("--nvols", help="Number of expected volumes (for legendre pols only)", dest="nvols", action="store", type=int)
-          parser_iglm.add_argument("--discard", help="Number of volumes to discard (they won't enter the iGLM step)", dest="discard", action="store", type=int)
-
-          parser_smo = parser.add_argument_group("Smoothing Options")
-          parser_smo.add_argument("--fwhm", help="FWHM for Spatial Smoothing in [mm]", dest="FWHM", action="store", type=float)
+          parser_gen.add_argument("--nvols", help="Number of expected volumes (for legendre pols only)", dest="nvols", action="store", type=int)
+          parser_gen.add_argument("--discard", help="Number of volumes to discard (they won't enter the iGLM step)", dest="discard", action="store", type=int)
 
           parser_save = parser.add_argument_group("Saving Options")
           parser_save.add_argument("--out_dir", help="Output directory", dest="out_dir", action="store", type=str)
