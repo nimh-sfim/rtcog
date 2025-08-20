@@ -70,8 +70,7 @@ class PreprocGUI(BaseGUI):
         Listen for trigger keys ('t') and escape key.
         Records timestamps for triggers and allows early termination via `esc`.
         """
-        # TODO: get trigger key from init
-        keys = event.getKeys(['t', 'escape'])
+        keys = event.getKeys([self.exp_info["triggerKey"], 'escape'])
         now = self.clock.now()
         for key in keys:
             if key == 't':
