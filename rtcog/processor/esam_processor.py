@@ -60,15 +60,9 @@ class ESAMProcessor(PreprocProcessor):
         self.qa_onsets_path  = osp.join(self.out_dir,self.out_prefix+'.qa_onsets.txt')
         self.qa_offsets_path = osp.join(self.out_dir,self.out_prefix+'.qa_offsets.txt')
         
-        matching_opts = MatchingOpts(**options.matching)
-        hit_opts = HitOpts(**options.hits)
+        self.match_opts = MatchingOpts(**options.matching)
+        self.hit_opts = HitOpts(**options.hits, hit_thr=options.hit_thr)
 
-        self.hit_thr = options.hit_thr
-
-        self.vols_noqa = matching_opts.vols_noqa
-        self.match_method = matching_opts.match_method
-        self.match_start = matching_opts.match_start
-        
         base_arr = np.zeros((self.mask_Nv, self.Nt), dtype=np.float32)
         self.shm_tr = SharedMemory(create=True, size=base_arr.nbytes, name="tr_data")
         self.shared_tr_data = np.ndarray(base_arr.shape, dtype=base_arr.dtype, buffer=self.shm_tr.buf)
@@ -79,18 +73,16 @@ class ESAMProcessor(PreprocProcessor):
         self.shared_qa_offsets = manager.list()
 
         try:
-            matcher_cls = Matcher.from_name(matching_opts.match_method)
-            self.matcher = matcher_cls(matching_opts, options.match_path, self.Nt, self.sync.end, sync.new_tr, sync.shm_ready)
+            matcher_cls = Matcher.from_name(self.match_opts.match_method)
+            self.matcher = matcher_cls(self.match_opts, options.match_path, self.Nt, self.sync.end, sync.new_tr, sync.shm_ready)
         except ValueError as e:
             self.log.error(f"Matcher setup failed: {e}")
             sync.end.set()
             sys.exit(-1)
 
         self.hits = np.zeros((self.matcher.Ntemplates, self.Nt))
-        self.hit_detector = HitDetector(hit_opts, self.hit_thr)
+        self.hit_detector = HitDetector(self.hit_opts)
         self.last_hit = None
-        
-        self.matching_opts = matching_opts
         
     def compute_TR_data(self, motion, extra):
         """
@@ -125,10 +117,10 @@ class ESAMProcessor(PreprocProcessor):
         hit = None
         template_labels = self.matcher.template_labels
         
-        in_matching_window = self.t >= self.match_start # Ready to match
-        cooldown = self.t < self.lastaction_endTR + self.vols_noqa # Cooldown after a hit
+        in_matching_window = self.t >= self.match_opts.match_start # Ready to match
+        cooldown = self.t < self.lastaction_endTR + self.match_opts.vols_noqa # Cooldown after a hit
 
-        if self.t == max(0, self.match_start - 1):
+        if self.t == max(0, self.match_opts.match_start - 1):
             self.hit_detector.calculate_enorm_diff(self.this_motion) # Feed in motion before matching begins
 
         if in_matching_window: 
@@ -153,7 +145,7 @@ class ESAMProcessor(PreprocProcessor):
                     self.last_hit = hit
 
         else:
-            self.log.info(f' - Time point [t={self.t}, n={self.n}] | Matching begins at t={self.match_start}')
+            self.log.info(f' - Time point [t={self.t}, n={self.n}] | Matching begins at t={self.match_opts.match_start}')
 
         return 1
 
@@ -169,8 +161,8 @@ class ESAMProcessor(PreprocProcessor):
         streamer_config = StreamingConfig(
             self.Nt,
             self.matcher.template_labels,
-            self.hit_thr,
-            self.matching_opts,
+            self.hit_opts.hit_thr,
+            self.match_opts,
             self.mask_img,
             self.mask_Nv,
             self.out_dir,
@@ -208,7 +200,7 @@ class ESAMProcessor(PreprocProcessor):
 
     def write_hit_arrays(self):
         """Save match scores and hit arrays"""
-        match_scores_path = osp.join(self.out_dir,self.out_prefix+f'.{self.match_method}_scores')
+        match_scores_path = osp.join(self.out_dir,self.out_prefix+f'.{self.match_opts.match_method}_scores')
         np.save(match_scores_path, self.matcher.scores)
         self.log.info(f"Saved match scores to {match_scores_path + '.npy'}")
 
@@ -219,24 +211,23 @@ class ESAMProcessor(PreprocProcessor):
     def write_hit_maps(self):
         # TODO: move this somewhere
         """Write out the maps associated with the hits"""
-        if self.exp_type == "esam" or self.exp_type == "esam_test":
-            Hits_DF = pd.DataFrame(self.hits.T, columns=self.matcher.template_labels)
-            for template in self.matcher.template_labels:
-                this_template_hits = Hits_DF[template].sum()
-                if this_template_hits > 0: # There were hits for this particular template
-                    hit_ID = 1
-                    for vol in Hits_DF[Hits_DF[template]==True].index:
-                        if (cfg := self.get_enabled_step_config(StepType.WINDOWING.value)): # If windowing is enabled
-                            win_length = cfg.get("win_length", 4) # win_length is 4 by default if not present in config
-                            this_template_vols = vol-np.arange(win_length+self.hit_detector.nconsec_vols-1)
-                        else:
-                            this_template_vols = vol-np.arange(self.hit_detector.nconsec_vols)
-                        out_file = osp.join(self.out_dir, self.out_prefix + '.Hit_'+template+'_'+str(hit_ID).zfill(2)+'.nii')
-                        self.log.info(' - final_steps - [%s-%d]. Contributing Vols: %s | File: %s' % (template, hit_ID,str(this_template_vols), out_file ))
-                        this_template_InMask  = self.pipe.Data_processed[:,this_template_vols].mean(axis=1)
-                        self.log.debug(' - final_steps - this_template_InMask.shape %s' % str(this_template_InMask.shape))
-                        unmask_fMRI_img(this_template_InMask, self.mask_img, out_file)
-                        hit_ID += 1
+        Hits_DF = pd.DataFrame(self.hits.T, columns=self.matcher.template_labels)
+        for template in self.matcher.template_labels:
+            this_template_hits = Hits_DF[template].sum()
+            if this_template_hits > 0: # There were hits for this particular template
+                hit_ID = 1
+                for vol in Hits_DF[Hits_DF[template]==True].index:
+                    if (cfg := self.get_enabled_step_config(StepType.WINDOWING.value)): # If windowing is enabled
+                        win_length = cfg.get("win_length", 4) # win_length is 4 by default if not present in config
+                        this_template_vols = vol-np.arange(win_length+self.hit_opts.nconsec_vols-1)
+                    else:
+                        this_template_vols = vol-np.arange(self.hit_opts.nconsec_vols)
+                    out_file = osp.join(self.out_dir, self.out_prefix + '.Hit_'+template+'_'+str(hit_ID).zfill(2)+'.nii')
+                    self.log.info(' - final_steps - [%s-%d]. Contributing Vols: %s | File: %s' % (template, hit_ID,str(this_template_vols), out_file ))
+                    this_template_InMask  = self.pipe.Data_processed[:,this_template_vols].mean(axis=1)
+                    self.log.debug(' - final_steps - this_template_InMask.shape %s' % str(this_template_InMask.shape))
+                    unmask_fMRI_img(this_template_InMask, self.mask_img, out_file)
+                    hit_ID += 1
     
     def write_qa(self):
         """Save QA onsets and offsets to plain-text files."""

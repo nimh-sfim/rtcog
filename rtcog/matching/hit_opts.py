@@ -5,6 +5,7 @@ from typing import Optional
 class HitOpts:
     nconsec_vols: int
     hit_method: str
+    hit_thr: float
     do_mot: bool
     mot_thr: Optional[float] = field(default=None)
 
