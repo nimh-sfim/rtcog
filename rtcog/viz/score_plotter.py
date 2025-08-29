@@ -17,7 +17,7 @@ class ScorePlotter(Plotter):
 
     data_key = 'scores'
 
-    def __init__(self, config: StreamingConfig):
+    def __init__(self, config: StreamingConfig, streaming=True):
         """
         Initialize the ScorePlotter with configuration for streaming and plotting.
         """
@@ -25,7 +25,10 @@ class ScorePlotter(Plotter):
         self._hit_thr = config.hit_thr
 
         self._df = pd.DataFrame(np.nan, index=np.arange(self._Nt), columns=self._template_labels)
-        self.dmap = hv.DynamicMap(self._plot, streams=[Stream.define('Next', t=int)()])
+        if streaming:
+            self.dmap = hv.DynamicMap(self._plot, streams=[Stream.define('Next', t=int)()])
+        else:
+            self.dmap = None
         
         self._polys_static = []
         self._no_match_poly = self._draw_poly(0, config.matching_opts.match_start).opts(color='gray', line_color=None, alpha=0.2)
@@ -122,4 +125,14 @@ class ScorePlotter(Plotter):
         final_plot = self._plot(last_valid_idx)
 
         renderer.save(final_plot, out_html)
-        print(f'++ Dynamic Report written to disk: [{out_html}.html]')
+        print(f'++ Score report written to disk: [{out_html}.html]')
+    
+    def render_static(self, df: pd.DataFrame, qa_state: QAState) -> hv.Overlay:
+        """
+        Render a figure after the experiment, rather than dynamically.
+
+        Used for rtcog_min.
+        """
+        self._df = df
+        self._qa_state = qa_state
+        self.close()

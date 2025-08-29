@@ -16,7 +16,9 @@ from rtcog.matching.hit_opts import HitOpts
 from rtcog.matching.hit_detector import HitDetector
 from rtcog.viz.esam_streaming import run_streamer
 from rtcog.viz.streaming_config import StreamingConfig
-from rtcog.utils.fMRI import  unmask_fMRI_img
+from rtcog.utils.fMRI import unmask_fMRI_img
+from rtcog.utils.sync import QAState
+from rtcog.viz.score_plotter import ScorePlotter
 
 
 class ESAMProcessor(PreprocProcessor):
@@ -32,6 +34,8 @@ class ESAMProcessor(PreprocProcessor):
         Experiment configuration options.
     sync : SyncEvents
         Multiprocessing event signals for synchronization.
+    minimal : bool, optional
+        If True, generate a static score report at the end.
 
     Attributes
     ----------
@@ -83,6 +87,19 @@ class ESAMProcessor(PreprocProcessor):
         self.hits = np.zeros((self.matcher.Ntemplates, self.Nt))
         self.hit_detector = HitDetector(self.hit_opts)
         self.last_hit = None
+        
+        self.minimal = minimal
+        
+        self.streaming_config = StreamingConfig(
+            self.Nt,
+            self.matcher.template_labels,
+            self.hit_opts.hit_thr,
+            self.match_opts,
+            self.mask_img,
+            self.mask_Nv,
+            self.out_dir,
+            self.out_prefix
+        )
         
     def compute_TR_data(self, motion, extra):
         """
@@ -158,19 +175,8 @@ class ESAMProcessor(PreprocProcessor):
         shared_responses : DictProxy
             Shared-memory dictionary for real-time participant responses.
         """
-        streamer_config = StreamingConfig(
-            self.Nt,
-            self.matcher.template_labels,
-            self.hit_opts.hit_thr,
-            self.match_opts,
-            self.mask_img,
-            self.mask_Nv,
-            self.out_dir,
-            self.out_prefix
-        )
-
         self.mp_prc_stream = Process(target=run_streamer, args=(
-            streamer_config,
+            self.streaming_config,
             self.sync,
             self.shared_qa_onsets,
             self.shared_qa_offsets,
@@ -238,6 +244,23 @@ class ESAMProcessor(PreprocProcessor):
             for offset in self.qa_offsets:
                 file.write("%i\n" % offset)
 
+    def write_report(self):
+        match_scores_df = pd.DataFrame(
+        self.matcher.scores.T,
+        columns=self.matcher.template_labels
+    )
+        qa_state = QAState(
+            self.qa_onsets,
+            self.qa_offsets,
+            False,
+            False,
+            False,
+            None
+        )
+
+        plotter = ScorePlotter(self.streaming_config, streaming=False)
+        plotter.render_static(match_scores_df, qa_state) 
+        
     def end_run(self, save=True):
         """
         Finalize the experiment, including file output and memory cleanup.
@@ -254,6 +277,8 @@ class ESAMProcessor(PreprocProcessor):
         self.write_hit_arrays()
         self.write_hit_maps()
         self.write_qa()
+        if self.minimal:
+            self.write_report()
         self.shm_tr.close()
         self.shm_tr.unlink()
         self.matcher.shm.close()

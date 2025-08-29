@@ -20,9 +20,9 @@ def main():
     sync = create_sync_events()
 
     if opts.exp_type == "preproc":
-        exp_class = PreprocProcessor
+        proc_class = PreprocProcessor
     elif opts.exp_type == "esam":
-        exp_class = ESAMProcessor
+        proc_class = ESAMProcessor
     else:
         raise ValueError("Unsupported experiment type.")
 
@@ -31,7 +31,7 @@ def main():
 
     comm_proc = mp.Process(
         target=comm_process,
-        args=(opts, sync, exp_class, None, clock, receiver_path, True)
+        args=(opts, sync, proc_class, None, clock, receiver_path, True)
     )
     comm_proc.start()
     comm_proc.join()

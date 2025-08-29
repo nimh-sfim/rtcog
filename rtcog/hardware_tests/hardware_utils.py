@@ -6,7 +6,7 @@ def get_opts(options=None):
     )
 
     parser_save = parser.add_argument_group("Saving Options")
-    parser_save.add_argument("--out_dir", help="Output directory  [default: %(default)s]", dest="out_dir", action="store", type=str, default="./")
-    parser_save.add_argument("--out_prefix",  help="Prefix for outputs", dest="out_prefix", action="store", type=str)
+    parser_save.add_argument("-o", "--out_dir", help="Output directory  [default: %(default)s]", dest="out_dir", action="store", type=str, default="./")
+    parser_save.add_argument("-p", "--out_prefix",  help="Prefix for outputs", dest="out_prefix", action="store", type=str)
 
     return parser.parse_args(options)

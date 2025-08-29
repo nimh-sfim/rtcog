@@ -31,7 +31,7 @@ def comm_process(opts, sync, proc_class, shared_responses=None, clock=None, time
         Return code indicating success (0) or failure (1).
     """
     log.info('1) Initializing Processor...')
-    processor = proc_class(opts, sync)
+    processor = proc_class(opts, sync, minimal=minimal)
     if isinstance(processor, ESAMProcessor) and not minimal:
         processor.start_streaming(shared_responses) # Start streaming process
 

@@ -16,14 +16,10 @@ class PreprocProcessor:
     ----------
     options : Options
         Configuration object containing experiment parameters (e.g., TR, number of volumes, paths).
-    sync.hit : multiprocessing.Event
-        Event used to signal a CAP hit.
-    sync.end : multiprocessing.Event
-        Event used to signal the end of the experiment.
-    sync.qa_end : multiprocessing.Event
-        Event used to signal the end of a QA block.
+    sync : SyncEvents
+        Container for multiprocessing synchronization primitives used in experiment.
     """
-    def __init__(self, options, sync):
+    def __init__(self, options, sync, **kwargs):
         self.log = set_logger(options.debug, options.silent)
 
         self.sync = sync
@@ -79,7 +75,7 @@ class PreprocProcessor:
             sys.exit(-1)
         
         this_t_data = np.array([e[self.t] for e in extra])
-        del extra # Save resources
+        del extra
 
         self.Nv = len(this_t_data)
 
@@ -126,4 +122,5 @@ class PreprocProcessor:
         if save:
             self.pipe.final_steps()
         self.sync.end.set()
+
 
