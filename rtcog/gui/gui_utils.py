@@ -51,7 +51,7 @@ def get_experiment_info(opts):
         'leftKey':     '3',
         'rightKey':    '1',
         'acceptKey':   '2',
-        'triggerKey':  '5'
+        'triggerKey':  't'
     }
     dlg = gui.DlgFromDict(dictionary=expInfo, sortKeys=False, title='rtCAPs Thought Sampling')
     if dlg.OK == False:
