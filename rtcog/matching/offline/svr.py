@@ -17,7 +17,7 @@ sys.path.insert(0, osp.abspath(osp.join(osp.dirname(__file__), '..')))
 from tqdm import tqdm
 tqdm().pandas()
 
-from rtcog.matching.offline.training import SVRtrainer
+from rtcog.matching.offline.svr_training import SVRtrainer
 from rtcog.utils.core import file_exists
 # -------------------------------------------------------------------------------------
 
@@ -28,7 +28,6 @@ def processProgramOptions (self, options=None):
     parser_inopts.add_argument("-t", "--templates_path",       help="Path to templates file",     dest="templates_path", action="store", type=file_exists, default=None, required=True)
     parser_inopts.add_argument("-l", "--template_labels_path",       help="Path to text file containing comma-separated template labels in order",     dest="template_labels_path", action="store", type=file_exists, default=None, required=True)
     parser_inopts.add_argument("-m","--mask", action="store", type=str, dest="mask_path", default=None, help="path to mask [Default: %(default)s]", required=True)
-    # parser_inopts.add_argument("-c","--caps", action="store", type=str, dest="caps_path", default=None, help="path to caps template [Default: ]", required=True)
     parser_inopts.add_argument("--discard",   action="store", type=int, dest="nvols_discard",   default=100,  help="number of volumes [Default: %(default)s]")
     parser_outopts = parser.add_argument_group('Output Options','Were to save results')
     parser_outopts.add_argument("-o","--outdir",  action="store", type=str, dest="outdir",  default='./', help="output directory [Default: %(default)s]")
@@ -45,42 +44,28 @@ def main():
     opts = processProgramOptions(sys.argv)
     log.debug('User Options: %s' % str(opts))
 
-    # 2) Ensure Inputs Correctness
-    if opts.mask_path is None:
-        log.error('Mask is missing. Please provide one.')
-        sys.exit(-1)
-    if opts.data_path is None:
-        log.error('Training data is missing. Please provide one.')
-        sys.exit(-1)
-    if opts.outdir is None:
-        log.error('Output directory is missing. Please provide one.')
-        sys.exit(-1)
-    if opts.templates_path is None:
-        log.error('Path to templates is missing. Please provide one.')
-        sys.exit(-1)
-    
-    # 3) Initialize Program Object
-    log.info('2) Initializing Program Object...')
+    # 2) Initialize SVRTrainer Object
+    log.info('2) Initializing SVRTrainer Object...')
     svr_trainer = SVRtrainer(opts)
 
-    # 4) Load Datasets into memory
-    log.info('3) Load all data into memory...')
+    # 3) Load Datasets into memory
+    log.info('3) Loading data into memory...')
     svr_trainer.load_datasets()
 
-    # 5) Generate Training labels via Linear Regression + Z-scoring
+    # 4) Generate Training labels via Linear Regression + Z-scoring
     if svr_trainer.do_lasso:
-        log.info('4) Generate traning labels (LASSO)...')
+        log.info('4) Generating training labels (LASSO)...')
         svr_trainer.generate_training_labels_lasso()
     else:
-        log.info('4) Generate traning labels (Linear Regression)...')
+        log.info('4) Generating training labels (Linear Regression)...')
         svr_trainer.generate_training_labels()
 
     # 5) Train the SVRs
-    log.info('5) Train SVRs...')
+    log.info('5) Training SVRs...')
     svr_trainer.train_svrs_mp()
 
     # 6) Save results to disk
-    log.info('6) Save results to disk...')
+    log.info('6) Saving results to disk...')
     svr_trainer.save_results()
     
     return 1

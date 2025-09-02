@@ -101,7 +101,7 @@ class SVRtrainer(object):
     def generate_training_labels(self):
         self.vols4training = np.arange(self.nvols_discard, self.data_nt)
         log.debug('[generate_training_labels] Number of volumes for training [%d]: [min=%d, max=%d] (Python)' % (self.vols4training.shape[0], np.min(self.vols4training), np.max(self.vols4training)))
-
+        
         # Initialize Results Structure
         results = {}
         for template in self.template_labels:
@@ -114,7 +114,10 @@ class SVRtrainer(object):
         for vol in tqdm(range(self.data_nt)):
             if vol in self.vols4training:
                 Y_fmri = pd.Series(self.data_masked[:,vol], name='V'+str(vol).zfill(4))
-                lm     = linear_model.LinearRegression()
+                if self.do_lasso:
+                    lm = linear_model.Lasso(alpha=self.lasso_alpha, max_iter=5000, positive=self.lasso_pos)
+                else:
+                    lm = linear_model.LinearRegression()
                 model  = lm.fit(X_fmri, Y_fmri)
                 for i, template in enumerate(self.template_labels):
                     results[template].append(lm.coef_[i])
@@ -123,57 +126,24 @@ class SVRtrainer(object):
                 for i, template in enumerate(self.template_labels):
                     results[template].append(0)
                 self.lm_R2.append(0)
-        
+
         lm_results = pd.DataFrame(results)
         self.LR_labels_preZscore = lm_results
 
         # Z-score the results from the linear regression
         [lmr_nt, lmr_ntemplates] = lm_results.shape
-        lm_results_flat     = lm_results
-        lm_results_flat     = lm_results_flat.values.reshape(lmr_ntemplates*lmr_nt, order='F')
-        lm_results_flat_Z   = zscore(lm_results_flat)
-        lm_results_flat_Z   = lm_results_flat_Z.reshape((lmr_nt,lmr_ntemplates), order='F')
-        self.lm_res_z       = pd.DataFrame(lm_results_flat_Z, columns=self.template_labels, index=lm_results.index)
-
-    def generate_training_labels_lasso(self):
-        self.vols4training = np.arange(self.nvols_discard, self.data_nt)
-        log.debug('[generate_training_labels_lasso] Number of volumes for training [%d]: [min=%d, max=%d] (Python)' % (self.vols4training.shape[0], np.min(self.vols4training), np.max(self.vols4training)))
-
-        # Initialize Results Structure
-        results = {}
-        for template in self.template_labels:
-            results[template] = []
-        self.lm_R2 = []
-
-        # Perform linear regression 
-        X_fmri = pd.DataFrame(self.templates_masked, columns=self.template_labels)
-        for vol in tqdm(range(self.data_nt)):
-            if vol in self.vols4training:
-                Y_fmri = pd.Series(self.data_masked[:,vol], name='V'+str(vol).zfill(4))
-                lm     = linear_model.Lasso(alpha=self.lasso_alpha, max_iter=5000, positive=self.lasso_pos)
-                model  = lm.fit(X_fmri, Y_fmri)
-                for i, template in enumerate(self.template_labels):
-                    results[template].append(lm.coef_[i])
-                self.lm_R2.append(lm.score(X_fmri, Y_fmri))
-            else:
-                for i, template in enumerate(self.template_labels):
-                    results[template].append(0)
-                self.lm_R2.append(0)
-        lm_results = pd.DataFrame(results)
-        self.LR_labels_preZscore = lm_results
-        print(' +++++++++++ lm_results.shape %s' % str(lm_results.shape))
-        # Z-score the results from the linear regression
-        [lmr_nt, lmr_ntemplates] = lm_results.shape
-        #lm_results_flat     = lm_results
-        #lm_results_flat     = lm_results_flat.values.reshape(lmr_ntemplates*lmr_nt, order='F')
-        #lm_results_flat     = lm_results_flat.reshape(-1,1)
-        #sc                  = StandardScaler(with_mean=False)
-        #print(' +++++++++++ lm_results_flat.shape %s' % str(lm_results_flat.shape))
-        mas                 = MaxAbsScaler()
-        lm_results_flat_Z   = mas.fit_transform(lm_results)
-        #lm_results_flat_Z   = lm_results_flat_Z.reshape((lmr_nt,lmr_ntemplates), order='F')
-        self.lm_res_z       = pd.DataFrame(lm_results_flat_Z, columns=self.template_labels, index=lm_results.index)
         
+        if self.do_lasso:
+            mas               = MaxAbsScaler()
+            lm_results_flat_Z = mas.fit_transform(lm_results)
+        else:
+            lm_results_flat   = lm_results
+            lm_results_flat   = lm_results_flat.values.reshape(lmr_ntemplates*lmr_nt, order='F')
+            lm_results_flat_Z = zscore(lm_results_flat)
+            lm_results_flat_Z = lm_results_flat_Z.reshape((lmr_nt,lmr_ntemplates), order='F')
+
+        self.lm_res_z = pd.DataFrame(lm_results_flat_Z, columns=self.template_labels, index=lm_results.index)
+
     def train_svrs(self):
         for template_lab in tqdm(self.template_labels):
             Training_Labels = self.lm_res_z[template_lab]
