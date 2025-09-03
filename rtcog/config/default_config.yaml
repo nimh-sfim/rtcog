@@ -58,6 +58,6 @@ matching:
 # Hit options
 hits:
   nconsec_vols: 2 # Number of consecutive vols over threshold required for a hit
-  hit_method: method01 # Method for deciding hits
+  nonline: 1 # The number of templates that may exceed threshold at one time
   do_mot: true # Whether or not to do motion censoring
   mot_thr: 0.2  # Threshold for motion censoring (if do_mot)

@@ -4,8 +4,8 @@ from typing import Optional
 @dataclass(frozen=True)
 class HitOpts:
     nconsec_vols: int
-    hit_method: str
     hit_thr: float
+    nonline: int
     do_mot: bool
     mot_thr: Optional[float] = field(default=None)
 
