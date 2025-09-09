@@ -37,13 +37,8 @@ class MapPlotter(Plotter):
         self._brain_img = Nifti1Image(np.zeros((self._mask_img.shape)), affine=self._affine)
         self._last_map_t = None
         
-        self._fig = plt.figure(figsize=(5, 4))
-
-        with warnings.catch_warnings(): # Ignore nilearn warnings
-            warnings.simplefilter("ignore", UserWarning)
-            plot_stat_map(self._brain_img, display_mode='ortho', draw_cross=False, figure=self._fig, bg_img=None)
-
-        self.pane = pn.pane.Matplotlib(self._fig, dpi=150, tight=True, sizing_mode='scale_both')
+        self._tabs = pn.Tabs()
+        self.pane = self._tabs
     
     def should_update(self, t: int, qa_state: QAState) -> bool:
         """
@@ -60,15 +55,20 @@ class MapPlotter(Plotter):
             if self._last_map_t != latest_onset:
                 self._last_map_t = latest_onset
                 self._brain_img = self._arr_to_nifti(data)
-                self._fig.clear()
+
+                fig = plt.figure(figsize=(4,3))
+                fig.suptitle(f"t = {latest_onset}")
                 plot_stat_map(
                     self._brain_img,
                     display_mode='ortho',
                     draw_cross=False,
-                    figure=self._fig,
+                    figure=fig,
                     bg_img=None
                 )
-                self.pane.object = self._fig
+
+                pane = pn.pane.Matplotlib(fig, dpi=150, tight=True, sizing_mode='fixed')
+                self._tabs.append((f"t={latest_onset}", pane))
+                self._tabs.active = len(self._tabs) - 1
 
     def _arr_to_nifti(self, data: np.ndarray) -> Nifti1Image:
         """
@@ -93,7 +93,8 @@ class MapPlotter(Plotter):
         """
         Close the matplotlib figure to release resources.
         """
-        plt.close(self._fig)
+        pass
+        # plt.close(self._fig)
 
 
 
