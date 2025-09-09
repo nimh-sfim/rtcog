@@ -56,7 +56,7 @@ class MapPlotter(Plotter):
                 self._last_map_t = latest_onset
                 self._brain_img = self._arr_to_nifti(data)
 
-                fig = plt.figure(figsize=(4,3))
+                fig = plt.figure(figsize=(5,3))
                 fig.suptitle(f"t = {latest_onset}")
                 plot_stat_map(
                     self._brain_img,

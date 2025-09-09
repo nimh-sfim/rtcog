@@ -51,7 +51,14 @@ class ScorePlotter(Plotter):
             self.dmap.event(t=t)
 
     def _plot(self, t: int) -> hv.Overlay:
-        line_plot = self._df.hvplot.line(legend='top', label='Match Scores', width=1500, cmap=self._colors)
+        line_plot = self._df.hvplot.line(
+            legend='top',
+            width=1500,
+            cmap=self._colors,
+            group_label='Template',
+            value_label='Score',
+        )
+
         overlays = [line_plot, self._no_match_poly]
 
         if self._qa_state is None:
