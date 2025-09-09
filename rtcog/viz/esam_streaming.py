@@ -1,5 +1,6 @@
 import time
 import threading
+import os.path as osp
 from multiprocessing.shared_memory import SharedMemory
 from multiprocessing.managers import ListProxy, DictProxy
 import numpy as np
@@ -11,6 +12,7 @@ from rtcog.viz.score_plotter import ScorePlotter
 from rtcog.viz.map_plotter import MapPlotter
 from rtcog.viz.response_plotter import ResponsePlotter
 from rtcog.viz.streaming_config import StreamingConfig
+from rtcog.paths import RESOURCES_DIR
 from rtcog.utils.log import get_logger
 
 log = get_logger()
@@ -151,7 +153,11 @@ class ESAMStreamer:
                 if hasattr(p, 'dmap') or hasattr(p, 'pane')
             ]
 
-            template = pn.template.FastListTemplate(title="Live Data", theme_toggle=False)
+            template = pn.template.FastListTemplate(
+                title="Live Data",
+                logo=osp.join(RESOURCES_DIR, "brain_white.png"),
+                theme_toggle=False,
+            )
             template.main.extend(panels)
 
             self._server = pn.serve(

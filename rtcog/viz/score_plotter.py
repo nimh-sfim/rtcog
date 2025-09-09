@@ -53,7 +53,7 @@ class ScorePlotter(Plotter):
     def _plot(self, t: int) -> hv.Overlay:
         line_plot = self._df.hvplot.line(
             legend='top',
-            width=1500,
+            width=1200,
             cmap=self._colors,
             group_label='Template',
             value_label='Score',
