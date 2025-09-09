@@ -54,7 +54,8 @@ class ResponsePlotter(Plotter):
         latest_offset = qa_state.qa_offsets[-1]
         self._last_response_t = latest_offset
         new_row = {qname: self._responses.get(qname, (None, None))[0] for qname in self._df.columns}
-        self._df = pd.concat([self._df, pd.DataFrame([new_row])], ignore_index=True)
+        new_df = pd.DataFrame([new_row], index=[qa_state.qa_onsets[-1]])
+        self._df = pd.concat([self._df, new_df])
         self.pane.object = self._df
 
                 
