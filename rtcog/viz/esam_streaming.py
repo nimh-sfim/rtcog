@@ -145,15 +145,17 @@ class ESAMStreamer:
         try:
             threading.Thread(target=self.update, daemon=True).start()
 
-            panels = []
-            for p in self._plotters:
-                if hasattr(p, 'dmap'):
-                    panels.append(p.dmap)
-                elif hasattr(p, 'pane'):
-                    panels.append(p.pane)
+            panels = [
+                getattr(p, 'dmap', getattr(p, 'pane', None))
+                for p in self._plotters
+                if hasattr(p, 'dmap') or hasattr(p, 'pane')
+            ]
+
+            template = pn.template.FastListTemplate(title="Live Data", theme_toggle=False)
+            template.main.extend(panels)
 
             self._server = pn.serve(
-                pn.Column(*panels),
+                template,
                 start=True,
                 show=True,
                 threaded=True,
