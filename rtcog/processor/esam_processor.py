@@ -101,6 +101,12 @@ class ESAMProcessor(PreprocProcessor):
             self.out_prefix
         )
         
+        if self.match_opts.match_start >= self.Nt:
+            self.log.warning(
+                f"Matching will never occur: match_start ({self.match_opts.match_start}) "
+                f"is >= total volumes ({self.Nt})."
+            )
+        
     def compute_TR_data(self, motion, extra):
         """
         Process one TR in ESAM mode with template matching and hit detection.
@@ -215,7 +221,6 @@ class ESAMProcessor(PreprocProcessor):
         self.log.info('Saved hits info to %s' % hits_path)
     
     def write_hit_maps(self):
-        # TODO: move this somewhere
         """Write out the maps associated with the hits"""
         Hits_DF = pd.DataFrame(self.hits.T, columns=self.matcher.template_labels)
         for template in self.matcher.template_labels:
@@ -245,6 +250,10 @@ class ESAMProcessor(PreprocProcessor):
                 file.write("%i\n" % offset)
 
     def write_report(self):
+        if self.matcher.scores is None:
+            self.log.warning("No matching scores were computed; skipping report generation.")
+            return
+
         match_scores_df = pd.DataFrame(
         self.matcher.scores.T,
         columns=self.matcher.template_labels
