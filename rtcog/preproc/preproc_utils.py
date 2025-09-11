@@ -155,11 +155,6 @@ def rt_regress_vol(n, Yn, Fn, prev):
 
 # EMA Related Functions
 # =====================
-def init_EMA():
-    EMA_th      = 0.98
-    EMA_filt    = None
-    return EMA_th, EMA_filt
-
 def _apply_EMA_filter(a, emaIn, filtInput):
     A            = (np.array([a,1-a])[:,np.newaxis]).T
     EMA_filt_out = np.dot(A, np.hstack([filtInput,emaIn]).T).T

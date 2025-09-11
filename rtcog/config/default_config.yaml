@@ -12,6 +12,7 @@ steps:
   - name: EMA
     enabled: true
     save: false
+    ema_thr: 0.98
 
   - name: iGLM
     enabled: true

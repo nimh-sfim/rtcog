@@ -123,14 +123,14 @@ class PreprocStep:
 
 class EMAStep(PreprocStep):
     """Exponential moving average"""
-    def __init__(self, save, suffix='.pp_EMA.nii', ema_th=0.98):
+    def __init__(self, save, suffix='.pp_EMA.nii', ema_thr=0.98):
         super().__init__(save, suffix)
-        self.EMA_th = ema_th
+        self.EMA_thr = ema_thr
         self.EMA_filt = None
 
     def _run(self, pipeline):
         Data_FromAFNI = pipeline.Data_FromAFNI[:, :pipeline.t + 1]
-        ema_data_out, self.EMA_filt = rt_EMA_vol(pipeline.n, self.EMA_th, Data_FromAFNI, self.EMA_filt)
+        ema_data_out, self.EMA_filt = rt_EMA_vol(pipeline.n, self.EMA_thr, Data_FromAFNI, self.EMA_filt)
         
         return ema_data_out
     
