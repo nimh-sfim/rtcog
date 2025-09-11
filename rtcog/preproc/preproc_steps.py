@@ -6,8 +6,9 @@ from rtcog.utils.log import get_logger
 from rtcog.utils.exceptions import VolumeOverflowError
 from rtcog.preproc.preproc_utils import gen_polort_regressors
 from rtcog.preproc.preproc_utils import initialize_kalman_pool, kalman_filter_mv, rt_kalman_vol
-from rtcog.preproc.preproc_utils import rt_EMA_vol, rt_regress_vol, rt_smooth_vol, rt_snorm_vol, welford
+from rtcog.preproc.preproc_utils import rt_EMA_vol, rt_regress_vol, rt_smooth_vol, rt_snorm_vol, welford, calculate_spc
 from rtcog.preproc.preproc_utils import create_win, CircularBuffer
+from rtcog.preproc.step_types import StepType
 from rtcog.utils.fMRI import unmask_fMRI_img
 
 
@@ -272,6 +273,53 @@ class SnormStep(PreprocStep):
         norm_out = rt_snorm_vol(pipeline.processed_tr)
         
         return norm_out
+
+                
+class TnormStep(PreprocStep):
+    """Temporal normalization"""
+    def __init__(self, save=False, suffix='.pp_Tnorm.nii', nvols_to_compute=50):
+        super().__init__(save, suffix)
+        self.nvols_to_compute = nvols_to_compute
+        self.remove_mean = None
+        self.baseline_signal = None
+
+        self.fwhm = None
+        self.orig_data = None
+
+    def _start(self, pipeline):
+        self.orig_data = np.zeros((pipeline.Nv, pipeline.Nt))
+
+        smooth_step = next((step for step in pipeline.steps if step.name == StepType.SMOOTH.value), None)
+        if smooth_step:
+            self.fwhm = smooth_step.fwhm
+        
+        self.remove_mean = True if StepType.EMA.value in pipeline.steps else False
+
+    def _run(self, pipeline):
+        n = pipeline.n
+        t = pipeline.t
+
+        if n < self.nvols_to_compute:
+            if self.fwhm is not None:
+                smoothed_vol = rt_smooth_vol(
+                    pipeline.Data_FromAFNI[:, t][:, np.newaxis],
+                    pipeline.mask_img,
+                    fwhm=self.fwhm
+                )
+                self.orig_data[:, t] = smoothed_vol[:, 0]
+            else:
+                self.orig_data[:, t] = pipeline.Data_FromAFNI[:, t]
+            return pipeline.processed_tr
+
+        elif pipeline.n == self.nvols_to_compute:
+            self.baseline_signal = np.mean(self.orig_data, axis=1)
+            self.baseline_signal[self.baseline_signal == 0] = 1e-6 # Avoid divide by zero
+            
+            return pipeline.processed_tr
+        
+        else:
+            current_signal = pipeline.processed_tr[:, 0]
+            return calculate_spc(current_signal, self.baseline_signal, self.remove_mean)
 
 class WindowingStep(PreprocStep):
     def __init__(self, save=False, suffix='.pp_Windowed.nii', win_length=4):

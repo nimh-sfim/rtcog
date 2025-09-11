@@ -554,6 +554,40 @@ def rt_snorm_vol(data):
     sc  = StandardScaler(with_mean=True, with_std=True)
     return sc.fit_transform(data)
 
+
+# Temporal Normalization
+# ==========================
+def calculate_spc(current_signal, baseline_signal, remove_mean):
+    """
+    Calculate signal percent change (SPC) for a given timepoint.
+
+    The SPC is computed voxel-wise as either:
+    - `100 * (s / s̄)` if the mean has already been removed (e.g. via EMA)
+    - `100 * ((s - s̄) / s̄)` otherwise
+
+    Parameters
+    ----------
+    current_signal : np.ndarray, shape (Nvoxels,)
+        The current volume's voxel intensities after prior preprocessing.
+    baseline_signal : np.ndarray, shape (Nvoxels,)
+        The voxel-wise mean signal computed from the baseline period.
+    remove_mean : bool
+        Whether the signal mean has already been removed (e.g., via EMA).
+        If True, use multiplicative SPC; if False, use standard SPC.
+
+    Returns
+    -------
+    np.ndarray, shape (Nvoxels, 1)
+        The normalized signal.
+    """
+    if remove_mean:
+        spc = (current_signal / baseline_signal) * 100
+    else:
+        spc = ((current_signal - baseline_signal) / baseline_signal) * 100
+            
+    return spc[:, np.newaxis]
+
+
 # Windowing utilities
 # ==========================
 def create_win(M, center=0, tau=3):
