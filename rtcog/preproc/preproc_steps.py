@@ -280,46 +280,52 @@ class TnormStep(PreprocStep):
     def __init__(self, save=False, suffix='.pp_Tnorm.nii', nvols_to_compute=50):
         super().__init__(save, suffix)
         self.nvols_to_compute = nvols_to_compute
-        self.remove_mean = None
+        self.remove_mean = False
+        self.fwhm = None
+
+        self.orig_data = None
         self.baseline_signal = None
 
-        self.fwhm = None
-        self.orig_data = None
-
     def _start(self, pipeline):
-        self.orig_data = np.zeros((pipeline.Nv, pipeline.Nt))
+        self.orig_data = np.zeros((pipeline.Nv, self.nvols_to_compute))
 
         smooth_step = next((step for step in pipeline.steps if step.name == StepType.SMOOTH.value), None)
         if smooth_step:
             self.fwhm = smooth_step.fwhm
         
-        self.remove_mean = True if StepType.EMA.value in pipeline.steps else False
+        #TODO: determine if iGLM presence with num_polorts >= 1 should also count here
+        self.remove_mean = StepType.EMA.value in pipeline.steps
 
     def _run(self, pipeline):
         n = pipeline.n
         t = pipeline.t
 
-        if n < self.nvols_to_compute:
-            if self.fwhm is not None:
-                smoothed_vol = rt_smooth_vol(
-                    pipeline.Data_FromAFNI[:, t][:, np.newaxis],
-                    pipeline.mask_img,
-                    fwhm=self.fwhm
-                )
-                self.orig_data[:, t] = smoothed_vol[:, 0]
-            else:
-                self.orig_data[:, t] = pipeline.Data_FromAFNI[:, t]
-            return pipeline.processed_tr
-
-        elif pipeline.n == self.nvols_to_compute:
-            self.baseline_signal = np.mean(self.orig_data, axis=1)
-            self.baseline_signal[self.baseline_signal == 0] = 1e-6 # Avoid divide by zero
-            
-            return pipeline.processed_tr
-        
-        else:
+        # Calculate SPC after baseline is established
+        if self.baseline_signal is not None:
             current_signal = pipeline.processed_tr[:, 0]
             return calculate_spc(current_signal, self.baseline_signal, self.remove_mean)
+
+        # Collect orig data until nvols_to_compute is reached
+        elif 0 < n <= self.nvols_to_compute:
+            vol = pipeline.Data_FromAFNI[:, pipeline.t]
+
+            if self.fwhm is not None: # Smooth if necessary
+                vol = rt_smooth_vol(vol[:, np.newaxis], pipeline.mask_img, fwhm=self.fwhm)
+            
+            self.orig_data[:, n - 1] = vol[:, 0]
+            
+            # Establish baseline
+            if n == self.nvols_to_compute:
+                print(f"++ INFO: establishing baseline at {t=}")
+                self.baseline_signal = np.mean(self.orig_data, axis=1)
+                self.baseline_signal[self.baseline_signal == 0] = 1e-6 # Avoid divide by zero
+                print(f'{self.baseline_signal.shape=}')
+
+            return pipeline.processed_tr
+
+        # During discard volumes
+        return pipeline.processed_tr
+        
 
 class WindowingStep(PreprocStep):
     def __init__(self, save=False, suffix='.pp_Windowed.nii', win_length=4):
