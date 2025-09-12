@@ -557,7 +557,7 @@ def rt_snorm_vol(data):
 
 # Temporal Normalization
 # ==========================
-def calculate_spc(current_signal, baseline_signal, remove_mean):
+def calculate_spc(current_signal, baseline_signal, mean_removed):
     """
     Calculate signal percent change (SPC) for a given timepoint.
 
@@ -571,7 +571,7 @@ def calculate_spc(current_signal, baseline_signal, remove_mean):
         The current volume's voxel intensities after prior preprocessing.
     baseline_signal : np.ndarray, shape (Nvoxels,)
         The voxel-wise mean signal computed from the baseline period.
-    remove_mean : bool
+    mean_removed : bool
         Whether the signal mean has already been removed (e.g., via EMA).
         If True, use multiplicative SPC; if False, use standard SPC.
 
@@ -580,7 +580,7 @@ def calculate_spc(current_signal, baseline_signal, remove_mean):
     np.ndarray, shape (Nvoxels, 1)
         The normalized signal.
     """
-    if remove_mean:
+    if mean_removed:
         spc = (current_signal / baseline_signal) * 100
     else:
         spc = ((current_signal - baseline_signal) / baseline_signal) * 100

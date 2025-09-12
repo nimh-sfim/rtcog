@@ -280,7 +280,7 @@ class TnormStep(PreprocStep):
     def __init__(self, save=False, suffix='.pp_Tnorm.nii', nvols_to_compute=50):
         super().__init__(save, suffix)
         self.nvols_to_compute = nvols_to_compute
-        self.remove_mean = False
+        self.mean_removed = False
         self.fwhm = None
 
         self.orig_data = None
@@ -292,9 +292,9 @@ class TnormStep(PreprocStep):
         smooth_step = next((step for step in pipeline.steps if step.name == StepType.SMOOTH.value), None)
         if smooth_step:
             self.fwhm = smooth_step.fwhm
-        
+       
         #TODO: determine if iGLM presence with num_polorts >= 1 should also count here
-        self.remove_mean = StepType.EMA.value in pipeline.steps
+        self.mean_removed = StepType.EMA.value in pipeline.steps
 
     def _run(self, pipeline):
         n = pipeline.n
@@ -303,7 +303,7 @@ class TnormStep(PreprocStep):
         # Calculate SPC after baseline is established
         if self.baseline_signal is not None:
             current_signal = pipeline.processed_tr[:, 0]
-            return calculate_spc(current_signal, self.baseline_signal, self.remove_mean)
+            return calculate_spc(current_signal, self.baseline_signal, self.mean_removed)
 
         # Collect orig data until nvols_to_compute is reached
         elif 0 < n <= self.nvols_to_compute:
