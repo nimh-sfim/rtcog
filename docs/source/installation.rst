@@ -6,8 +6,8 @@ Installation
 
 .. code-block:: bash
 
-   git clone https://github.com/nimh-sfim/rtCAPs.git
-   cd rtCAPs
+   git clone git@github.com:nimh-sfim/rtcog.git
+   cd rtcog
 
 2. Install dependencies
 -----------------------
@@ -23,5 +23,5 @@ Installation
 
    conda env create -f env.yml
 
-   conda install rtcaps
+   conda install rtcog
    pip install .  # or `pip install -e .` for editable mode

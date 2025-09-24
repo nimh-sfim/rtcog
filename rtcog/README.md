@@ -1,49 +1,20 @@
-# rtcog
+# Setup
 
-## Installation
-
-### 1. Clone the Repository
-
-```bash
-git clone https://github.com/nimh-sfim/rtCAPs.git
-cd rtCAPs
-```
-
-### 2. Install dependencies
-
-#### Prerequisites
-
-- [portaudio](https://www.portaudio.com/)
-- afni (version AFNI_25.0.07)
-
-#### Create environment
-
-```bash
-conda env create -f env.yml
-```
-
-```bash
-conda activate rtcaps
-pip install .
-```
-
-## Setup
-
-### 1. Update config
+## 1. Update config
 
 This package relies on options specified in a yaml file to run. We've provided you with a default setup at `rtcog/config/default_config.yaml` which you can customize to your setup. Please note that the order of preprocessing steps is preserved, so any changes to that will affect the pipeline.
 
-### 2. Real-Time Scanner Setup
+## 2. Real-Time Scanner Setup
 
-To run rtCAPs in a live scanner environment, see [guides/scanner_setup.md](guides/scanner_setup.md).
+To run rtCAPs in a live scanner environment, see [scan_session.rst](../docs/source/scan_session.rst).
 
-## Customization
+# Customization
 
-### Adding preprocessing steps
+## Adding preprocessing steps
 
 You can easily extend the real-time fMRI preprocessing pipeline by defining a new step as a subclass of `PreprocStep`. Each step operates on one TR at a time and integrates into the existing framework.
 
-### 1. **Create your step class**
+## 1. **Create your step class**
 
 In `rtcog/preproc/preproc_steps.py`, define a new class that inherits from `PreprocStep`. Your class must implement the following method:
 
@@ -71,7 +42,7 @@ Class names ending with "Step" are registered using the lowercase prefix (e.g., 
 
 Private classes (classes that start with `_`) are not registered.
 
-### 2. Enable the step in your config file
+## 2. Enable the step in your config file
 
 Add your step to the steps list in your YAML config file, in the order you want it to be applied during preprocessing:
 
@@ -84,7 +55,7 @@ steps:
 
 The string "custom" will automatically map to your `CustomStep` class.
 
-### 3. (Optional) Registering with StepTypes
+## 3. (Optional) Registering with StepTypes
 
 If you want to check whether a step is active in `Pipeline` without relying on string literals, add it to the `StepType` enum:
 
@@ -104,7 +75,7 @@ if StepType.CUSTOM.value in self.steps:
 
 ---
 
-### Adding matching methods
+## Adding matching methods
 
 This software offers two methods for spatial template matching:
 
@@ -114,7 +85,7 @@ This software offers two methods for spatial template matching:
 
 You can easily add your own matching method by defining a new step as a subclass of `Matcher`. Each step operates on one TR at a time and integrates into the existing framework.
 
-### 1. **Create your matcher class**
+## 1. **Create your matcher class**
 
 In `rtcog/matching/matching_methods.py` (or wherever appropriate), define a new class that inherits from Matcher. Your class must implement the following elements in `__init__`:
 
@@ -155,7 +126,7 @@ Class names ending with "Matcher" are registered using the lowercase prefix (e.g
 
 Private classes (classes that start with `_`) are not registered.
 
-### 2. **Enable the matcher in your config**
+## 2. **Enable the matcher in your config**
 
 Specify the matcher in your YAML config file under the matching section:
 
@@ -168,14 +139,14 @@ The string "custom" automatically maps to your CustomMatcher class.
 
 ---
 
-### Creating your own experiment plugin
+## Creating your own experiment plugin
 
 `rtcog` includes two built-in experiment types:
 
 - Preproc: Performs basic real-time fMRI preprocessing.
 - ESAM (Experience Sampling): Builds on Preproc to support template matching, response collection, and dynamic real-time data streaming.
 
-#### Plugin Components
+### Plugin Components
 
 | Component                | Role                                       |
 | ------------------------ | ------------------------------------------ |
@@ -184,7 +155,7 @@ The string "custom" automatically maps to your CustomMatcher class.
 
 If you’re designing a custom experiment, such as an online neurofeedback protocol or novel stimulus design, you can create your own experiment plugin by implementing or extending these components.
 
-#### The Processor Class
+### The Processor Class
 
 The `Processor` handles how each TR is processed.
 
@@ -193,7 +164,7 @@ Because preprocessing and template matching are fully configurable via the confi
 - `PreprocProcessor`: Basic real-time fMRI preprocessing.
 - `ESAMProcessor`: Extends `PreprocProcessor` to support online template matching, participant response collection, and real-time data visualization.
 
-#### The ActionSeries Class (Optional)
+### The ActionSeries Class (Optional)
 
 The `ActionSeries` class responds to the state of the experiment. By extending `BaseActionSeries`, you can implement your own custom logic for what should occur at each stage of the experiment:
 
@@ -232,7 +203,7 @@ class MyActionSeries(BaseActionSeries):
         self.gui.close_psychopy_infrastructure()
 ```
 
-#### The GUI Class (Optional)
+### The GUI Class (Optional)
 
 The GUI defines what the participant sees and interacts with. You can present:
 
@@ -258,7 +229,7 @@ class MyGUI(EsamGUI):
 
 Make sure to instantiate your `GUI` as an attribute of your `ActionSeries`.
 
-#### Registering Your Custom Experiment
+### Registering Your Custom Experiment
 
 To make your processor available to `rtcog`, register it in `rtcog/experiment_registry.py`:
 
