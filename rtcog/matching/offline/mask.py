@@ -24,6 +24,12 @@ class OfflineMask:
         if not osp.isdir(opts.out_dir):
             log.error('Out directory does not exist')
             sys.exit(-1)
+        
+        if not opts.no_calc and opts.data_path is None:
+            log.error("--data is required unless --no_calc is used")
+            sys.exit(-1)
+
+        self.no_calc = opts.no_calc
 
         self.templates_path = opts.templates_path
         self.data_path = opts.data_path
@@ -48,15 +54,17 @@ class OfflineMask:
             sys.exit(-1)
 
         log.info(f"Processing templates: {', '.join(self.template_labels)}")
-        self.data_img = load_fMRI_file(self.data_path)
         mask_img = load_fMRI_file(self.mask_path)
         self.templates_img = load_fMRI_file(self.templates_path)
         
         masked_template_array = mask_fMRI_img(self.templates_img, mask_img)
         self.templates_masked = [masked_template_array[:, i] for i in range(masked_template_array.shape[1])]
-        full_data_masked = mask_fMRI_img(self.data_img, mask_img)
-        self.data_masked = full_data_masked[:, self.nvols_discard:]
-        log.debug(f'Masked data dimensions: {self.data_masked.shape}')
+
+        if not self.no_calc:
+            self.training_img = load_fMRI_file(self.data_path)
+            full_training_masked = mask_fMRI_img(self.training_img, mask_img)
+            self.training_masked = full_training_masked[:, self.nvols_discard:]
+            log.debug(f'Masked data dimensions: {self.training_masked.shape}')
 
     def _threshold(self, label, template):
         """Select voxels for a template above desired threshold and apply that mask to the data."""
@@ -72,15 +80,17 @@ class OfflineMask:
         thresholded_template = template[composite_mask_vect]
 
         log.debug(f"template shape: {template.shape}")
-        log.debug(f"data_masked.shape: {self.data_masked.shape}")
         log.debug(f"composite_mask_vect shape: {composite_mask_vect.shape}")
-        thresholded_data = self.data_masked[composite_mask_vect, :]
+        
+        thresholded_training = None
+        if not self.no_calc:
+            log.debug(f"training_masked.shape: {self.training_masked.shape}")
+            thresholded_training = self.training_masked[composite_mask_vect, :]
 
-        return thresholded_template, thresholded_data, composite_mask_Nv
+        return thresholded_template, thresholded_training, composite_mask_Nv
 
-    def get_masked_traces(self):
+    def get_masked_data(self):
         """Compute and save masked activation traces and thresholded template data."""
-        full_timepoints = self.data_masked.shape[1] + self.nvols_discard
         self.act_traces = {}
 
         masked_templates = {}
@@ -88,24 +98,18 @@ class OfflineMask:
         self.mask_vectors = {}
         
         for label, template in zip(self.template_labels, self.templates_masked):
-            thr_template, thr_data, Nvoxels_in_mask = self._threshold(label, template)
-            act_trace = np.dot(thr_template, thr_data) / Nvoxels_in_mask
-            
-            final = np.zeros(full_timepoints)
-            final[self.nvols_discard:] = act_trace
-
-            self.act_traces[label] = final
+            thr_template, thr_training, Nvoxels_in_mask = self._threshold(label, template)
             masked_templates[label] = thr_template
             voxel_counts[label] = Nvoxels_in_mask
 
-        # Save activation traces
-        trace_out = self.out_path + '.act_traces.npz'
-        np.savez(trace_out, **self.act_traces)
+            if not self.no_calc:
+                act_trace = np.dot(thr_template, thr_training) / Nvoxels_in_mask
+                
+                full_timepoints = self.training_masked.shape[1] + self.nvols_discard
+                final = np.zeros(full_timepoints)
+                final[self.nvols_discard:] = act_trace
 
-        if self.save_txt: # Save one txt file per trace if desired
-            for template, arr in self.act_traces.items():
-                with open(f'{template}.act_trace.txt', 'w') as f:
-                    np.savetxt(f, arr, delimiter=',')
+                self.act_traces[label] = final
 
         # Save thresholded template info for online use
         template_out = self.out_path + '.template_data.npz'
@@ -116,11 +120,24 @@ class OfflineMask:
             masks=self.mask_vectors,
             voxel_counts=voxel_counts
         )
-
-        log.info(f'Saved traces to: {trace_out}')
         log.info(f'Saved thresholded template data to: {template_out}')
+
+        # Save activation traces
+        if not self.no_calc:
+            trace_out = self.out_path + '.act_traces.npz'
+            np.savez(trace_out, **self.act_traces)
+
+            if self.save_txt: # Save one txt file per trace if desired
+                for template, arr in self.act_traces.items():
+                    with open(f'{template}.act_trace.txt', 'w') as f:
+                        np.savetxt(f, arr, delimiter=',')
+
+            log.info(f'Saved traces to: {trace_out}')
     
     def save_figures(self):
+        if self.no_calc:
+            return
+
         df = pd.DataFrame.from_dict(self.act_traces, orient='index').T
 
         # Static figure
@@ -145,18 +162,20 @@ class OfflineMask:
 def process_options():
     parser = argparse.ArgumentParser(description="Run mask method offline for spatial template matching")
     parser_inopts = parser.add_argument_group('Input Options','Inputs to this program')
-    parser_inopts.add_argument("-d","--data", action="store", type=file_exists, dest="data_path", default=None, help="path to training dataset", required=True)
+    parser_inopts.add_argument("-d","--data", action="store", type=file_exists, dest="data_path", default=None, help="path to training dataset")
     parser_inopts.add_argument("-t", "--templates_path", help="Path to templates file", dest="templates_path", action="store", type=file_exists, default=None, required=True)
     parser_inopts.add_argument("-l", "--template_labels_path", help="Path to text file containing comma-separated template labels in order", dest="template_labels_path", action="store", type=file_exists, default=None, required=True)
     parser_inopts.add_argument("-m","--mask", action="store", type=file_exists, dest="mask_path", default=None, help="path to mask", required=True)
     parser_inopts.add_argument("--template_type", action="store", type=str, choices=['normal', 'binary'], dest="template_type", default="binary", help="the type of template being used [Default: %(default)s]")
     parser_inopts.add_argument("--discard", action="store", type=int, dest="nvols_discard", default=100,  help="number of volumes to discard")
-    parser_inopts.add_argument("--thr", action="store", type=float, dest="template_thr", default=10,  help="threshold to use for the templates [Default: %(default)s]")
+    parser_inopts.add_argument("--thr", action="store", type=float, dest="template_thr", default=10, help="threshold to use for the templates [Default: %(default)s]")
+    parser_inopts.add_argument("--no_calc", action="store_true", dest="no_calc", help="Skip calculation of activity traces and only save labels and templates")
     parser_inopts.add_argument("--debug", action="store_true", dest="debug", default=False,  help="Enable debugging [Default: False]")
-    parser_outopts = parser.add_argument_group('Output Options','Were to save results')
+    parser_outopts = parser.add_argument_group('Output Options','Where to save results')
     parser_outopts.add_argument("-o","--out_dir",  action="store", type=str, dest="out_dir", default='./', help="output directory [Default: %(default)s]")
     parser_outopts.add_argument("-p","--prefix", action="store", type=str, dest="prefix", default="mask_method", help="prefix for output file [Default: %(default)s]")
     parser_outopts.add_argument("--save_txt", action="store_true", dest="save_txt", default=False, help="save txt files for each array [Default: False]")
+
     return parser.parse_args()  
 
 if __name__ == "__main__":
@@ -165,5 +184,5 @@ if __name__ == "__main__":
         log.setLevel(logging.DEBUG)
     offline_mask = OfflineMask(opts)
     offline_mask.load_datasets()
-    offline_mask.get_masked_traces()
+    offline_mask.get_masked_data()
     offline_mask.save_figures()
