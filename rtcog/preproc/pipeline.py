@@ -246,7 +246,10 @@ class Pipeline:
             return
         
         log.debug(' final_steps - About to write outputs to disk.')
-        self.save_nifti_files()
+        try:
+            self.save_nifti_files()
+        except Exception as e:
+            log.error(f'Failed to save images: {e}')
 
         # If running snapshot test, save the variable states
         if self.snapshot:

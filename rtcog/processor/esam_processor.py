@@ -250,10 +250,6 @@ class ESAMProcessor(PreprocProcessor):
                 file.write("%i\n" % offset)
 
     def write_report(self):
-        if self.matcher.scores is None:
-            self.log.warning("No matching scores were computed; skipping report generation.")
-            return
-
         match_scores_df = pd.DataFrame(
         self.matcher.scores.T,
         columns=self.matcher.template_labels
@@ -283,11 +279,18 @@ class ESAMProcessor(PreprocProcessor):
             self.pipe.final_steps()
 
         # TODO: move hit saving to HitDetector?
-        self.write_hit_arrays()
-        self.write_hit_maps()
-        self.write_qa()
-        if self.minimal:
-            self.write_report()
+        if self.matcher.scores is None:
+            self.log.warning("No match scores were computed; skipping report generation.")
+        else:
+            self.write_hit_arrays()
+            self.write_hit_maps()
+            if self.minimal:
+                self.write_report()
+        if self.qa_onsets is None:
+            self.log.warning("No QA blocks were recorded; skipping report generation.")
+        else:
+            self.write_qa()
+
         self.shm_tr.close()
         self.shm_tr.unlink()
         self.matcher.shm.close()
