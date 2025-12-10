@@ -23,13 +23,7 @@ log.addHandler(log_ch)
 
 class OfflineMask:
     def __init__(self, opts):
-        if not osp.isdir(opts.out_dir):
-            log.error('Out directory does not exist')
-            sys.exit(-1)
         
-        if not opts.no_calc and opts.data_path is None:
-            log.error("--data is required unless --no_calc is used")
-            sys.exit(-1)
 
         self.no_calc = opts.no_calc
 
@@ -84,8 +78,6 @@ class OfflineMask:
         elif self.template_type == 'binary':
             composite_mask_vect = template.astype(bool)
         
-        self.mask_vectors[label] = composite_mask_vect
-            
         composite_mask_Nv = composite_mask_vect.sum()
 
         thresholded_template = template[composite_mask_vect]
@@ -98,7 +90,7 @@ class OfflineMask:
             log.debug(f"training_masked.shape: {self.training_masked.shape}")
             thresholded_training = self.training_masked[composite_mask_vect, :]
 
-        return thresholded_template, thresholded_training, composite_mask_Nv
+        return thresholded_template, thresholded_training, composite_mask_Nv, composite_mask_vect
 
     def get_masked_data(self):
         """Compute and save masked activation traces and thresholded template data."""
@@ -109,16 +101,20 @@ class OfflineMask:
         self.mask_vectors = {}
         
         for label, template in zip(self.template_labels, self.templates_masked):
-            thr_template, thr_training, Nvoxels_in_mask = self._threshold(label, template)
+            thr_template, thr_training, Nvoxels_in_mask, comp_mask = self._threshold(label, template)
             if Nvoxels_in_mask == 0:
                 log.error(f"Template '{label}' has zero voxels after thresholding.")
                 continue
+            log.info(f"Template '{label}': {Nvoxels_in_mask} voxels after thresholding.")
+
+            # Only store templates/masks that have >0 voxels
             masked_templates[label] = thr_template
             voxel_counts[label] = Nvoxels_in_mask
+            self.mask_vectors[label] = comp_mask
 
             if not self.no_calc:
                 act_trace = np.dot(thr_template, thr_training) / Nvoxels_in_mask
-                
+
                 full_timepoints = self.training_masked.shape[1] + self.nvols_discard
                 final = np.zeros(full_timepoints)
                 final[self.nvols_discard:] = act_trace
@@ -133,7 +129,7 @@ class OfflineMask:
         template_out = self.out_path + '.template_data.npz'
         np.savez(
             template_out,
-            labels=np.array(self.template_labels),
+            labels=np.array(list(masked_templates.keys())),
             masked_templates=masked_templates,
             masks=self.mask_vectors,
             voxel_counts=voxel_counts
@@ -186,7 +182,7 @@ def process_options():
     parser_inopts.add_argument("-m","--mask", action="store", type=file_exists, dest="mask_path", default=None, help="path to mask", required=True)
     parser_inopts.add_argument("--template_type", action="store", type=str, choices=['normal', 'binary'], dest="template_type", default="binary", help="the type of template being used [Default: %(default)s]")
     parser_inopts.add_argument("--discard", action="store", type=int, dest="nvols_discard", default=100,  help="number of volumes to discard")
-    parser_inopts.add_argument("--thr", action="store", type=float, dest="template_thr", default=10, help="threshold to use for the templates [Default: %(default)s]")
+    parser_inopts.add_argument("--thr", action="store", type=float, dest="template_thr", default=None, help="threshold to use for the templates (only valid with --template_type normal)")
     parser_inopts.add_argument("--no_calc", action="store_true", dest="no_calc", help="Skip calculation of activity traces and only save labels and templates")
     parser_inopts.add_argument("--debug", action="store_true", dest="debug", default=False,  help="Enable debugging [Default: False]")
     parser_outopts = parser.add_argument_group('Output Options','Where to save results')
@@ -194,7 +190,20 @@ def process_options():
     parser_outopts.add_argument("-p","--prefix", action="store", type=str, dest="prefix", default="mask_method", help="prefix for output file [Default: %(default)s]")
     parser_outopts.add_argument("--save_txt", action="store_true", dest="save_txt", default=False, help="save txt files for each array [Default: False]")
 
-    return parser.parse_args()  
+    opts = parser.parse_args()
+
+    if not osp.isdir(opts.out_dir):
+        parser.error('Out directory does not exist')
+        
+    if not opts.no_calc and opts.data_path is None:
+        parser.error("--data is required unless --no_calc is used")
+
+    if opts.template_type == 'binary' and opts.template_thr is not None:
+        parser.error("--thr is not allowed when --template_type is 'binary'. Remove --thr or set --template_type normal.")
+    if opts.template_type == 'normal' and opts.template_thr is None:
+        opts.template_thr = 10.0 # Default threshold for normal templates
+
+    return opts
 
 if __name__ == "__main__":
     opts = process_options()
