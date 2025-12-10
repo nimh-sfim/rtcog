@@ -1,6 +1,7 @@
 import sys
 import argparse
 import os.path as osp
+import re
 import numpy as np
 import pandas as pd
 import holoviews as hv
@@ -48,7 +49,7 @@ class OfflineMask:
         try:
             with open (self.template_labels_path, 'r') as f:
                 lines = f.read()
-                self.template_labels = [label.strip() for label in lines.strip().split(',')]
+                self.template_labels = re.split(r"[,\s]+", lines.strip())
         except Exception as e:
             log.error(e)
             sys.exit(-1)
@@ -57,7 +58,11 @@ class OfflineMask:
         mask_img = load_fMRI_file(self.mask_path)
         self.templates_img = load_fMRI_file(self.templates_path)
         
+        if mask_img.shape != self.templates_img.shape[:3]:
+            raise ValueError("Template volume and mask volume have incompatible shapes")
+
         masked_template_array = mask_fMRI_img(self.templates_img, mask_img)
+
         self.templates_masked = [masked_template_array[:, i] for i in range(masked_template_array.shape[1])]
 
         if not self.no_calc:
@@ -99,6 +104,9 @@ class OfflineMask:
         
         for label, template in zip(self.template_labels, self.templates_masked):
             thr_template, thr_training, Nvoxels_in_mask = self._threshold(label, template)
+            if Nvoxels_in_mask == 0:
+                log.error(f"Template '{label}' has zero voxels after thresholding.")
+                continue
             masked_templates[label] = thr_template
             voxel_counts[label] = Nvoxels_in_mask
 
