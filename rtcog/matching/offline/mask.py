@@ -2,6 +2,7 @@ import sys
 import argparse
 import os.path as osp
 import re
+import re
 import numpy as np
 import pandas as pd
 import holoviews as hv
@@ -123,6 +124,10 @@ class OfflineMask:
                 final[self.nvols_discard:] = act_trace
 
                 self.act_traces[label] = final
+
+        if len(masked_templates) == 0:
+            log.error('No valid templates after thresholding.')
+            sys.exit(-1)
 
         # Save thresholded template info for online use
         template_out = self.out_path + '.template_data.npz'
