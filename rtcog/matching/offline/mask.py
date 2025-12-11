@@ -67,11 +67,21 @@ class OfflineMask:
 
         if not self.no_calc:
             self.training_img = load_fMRI_file(self.data_path)
+            
+            # Validate training image shape matches mask
+            if self.training_img.shape[:3] != mask_img.shape:
+                training_voxels = np.prod(self.training_img.shape[:3])
+                mask_voxels = np.prod(mask_img.shape)
+                raise ValueError(
+                    f"Training image shape {self.training_img.shape[:3]} ({training_voxels} voxels) does not match "
+                    f"mask shape {mask_img.shape} ({mask_voxels} voxels). "
+                )
+            
             full_training_masked = mask_fMRI_img(self.training_img, mask_img)
             self.training_masked = full_training_masked[:, self.nvols_discard:]
             log.debug(f'Masked data dimensions: {self.training_masked.shape}')
 
-    def _threshold(self, label, template):
+    def _threshold(self, template):
         """Select voxels for a template above desired threshold and apply that mask to the data."""
         if self.template_type == 'normal':
             composite_mask_vect = (template > int(self.template_thr)).astype(bool)
@@ -101,9 +111,9 @@ class OfflineMask:
         self.mask_vectors = {}
         
         for label, template in zip(self.template_labels, self.templates_masked):
-            thr_template, thr_training, Nvoxels_in_mask, comp_mask = self._threshold(label, template)
+            thr_template, thr_training, Nvoxels_in_mask, comp_mask = self._threshold(template)
             if Nvoxels_in_mask == 0:
-                log.error(f"Template '{label}' has zero voxels after thresholding.")
+                log.warning(f"Template '{label}' has zero voxels after thresholding.")
                 continue
             log.info(f"Template '{label}': {Nvoxels_in_mask} voxels after thresholding.")
 
