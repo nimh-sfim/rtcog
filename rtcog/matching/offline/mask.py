@@ -62,8 +62,13 @@ class OfflineMask:
             raise ValueError("Template volume and mask volume have incompatible shapes")
 
         masked_template_array = mask_fMRI_img(self.templates_img, mask_img)
-
-        self.templates_masked = [masked_template_array[:, i] for i in range(masked_template_array.shape[1])]
+        if masked_template_array.shape[1] != len(self.template_labels):
+            raise ValueError("Number of template labels does not match number of templates in file")
+        
+        if masked_template_array.ndim == 1: # only one template
+            self.templates_masked = [masked_template_array]
+        else: # multiple templates
+            self.templates_masked = [masked_template_array[:, i] for i in range(masked_template_array.shape[1])]
 
         if not self.no_calc:
             self.training_img = load_fMRI_file(self.data_path)
