@@ -2,7 +2,6 @@ import sys
 import argparse
 import os.path as osp
 import re
-import re
 import numpy as np
 import pandas as pd
 import holoviews as hv
@@ -57,14 +56,16 @@ class OfflineMask:
             raise ValueError("Template volume and mask volume have incompatible shapes")
 
         masked_template_array = mask_fMRI_img(self.templates_img, mask_img)
-        if masked_template_array.shape[1] != len(self.template_labels):
-            raise ValueError("Number of template labels does not match number of templates in file")
-        
-        if masked_template_array.ndim == 1: # only one template
+
+        if masked_template_array.ndim == 1: # one template
+            if len(self.template_labels) != 1:
+                raise ValueError(f"Expected 1 template label but got {len(self.template_labels)}")
             self.templates_masked = [masked_template_array]
         else: # multiple templates
+            if masked_template_array.shape[1] != len(self.template_labels):
+                raise ValueError(f"Number of template labels ({len(self.template_labels)}) does not match number of templates in file ({masked_template_array.shape[1]})")
             self.templates_masked = [masked_template_array[:, i] for i in range(masked_template_array.shape[1])]
-
+        
         if not self.no_calc:
             self.training_img = load_fMRI_file(self.data_path)
             
@@ -132,8 +133,7 @@ class OfflineMask:
                 self.act_traces[label] = final
 
         if len(masked_templates) == 0:
-            log.error('No valid templates after thresholding.')
-            sys.exit(-1)
+            raise RuntimeError('No valid templates after thresholding.')
 
         # Save thresholded template info for online use
         template_out = self.out_path + '.template_data.npz'
