@@ -6,6 +6,7 @@ and sets up a controller for responding to experiment state if given.
 """
 
 import sys
+import time
 import os.path as osp
 import multiprocessing as mp
 
@@ -63,22 +64,33 @@ def main():
         if isinstance(action, ESAMActionSeries):
             shared_responses = action.gui.shared_responses
 
-    # 2) Start communication process
-    # ------------------------------------------
     comm_proc = mp.Process(
         target=comm_process,
         args=(opts, sync, exp_class, shared_responses, clock, receiver_path)
     )
-    comm_proc.start()
 
-    # 3) Run controller
-    # ------------------------------------
-    if controller:
-        controller.run()
-    
-    # 4) Wait for communication process to complete
-    # ------------------------------------
-    comm_proc.join()
+    try:
+        # 1) Start communication process
+        # ------------------------------------------
+        comm_proc.start()
+
+        # 2) Run controller
+        # ------------------------------------
+        if controller:
+            controller.run()
+        
+        # 3) Wait for communication process to complete
+        # ------------------------------------
+        comm_proc.join()
+
+    except KeyboardInterrupt:
+        log.info("User interrupted, shutting down.")
+    finally:
+        sync.end.set()
+        comm_proc.join()
+
+        if controller:
+            controller.action_series.on_end()
 
 
 if __name__ == "__main__":

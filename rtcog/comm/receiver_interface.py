@@ -129,20 +129,18 @@ class CustomReceiverInterface(ReceiverInterface):
                 else:
                     self.final_steps(save=False)
             return
-
-        log.info("-- The life of this program is coming to an end....")
-        log.info("-- Calling the Final Steps Function...")
-        if self.final_steps:
-            self.final_steps()
-         
-        if rv > 0:
-            tail = '(terminating on success)'
-        else:
-            tail = '(terminating on error)'
-        log.info('-- processed %d TRs of data %s' % (self.RTI.nread, tail))
-        log.info('-' * 60)
-        
-        return rv
+        finally:
+            log.info("-- The life of this program is coming to an end....")
+            if self.final_steps:
+                self.final_steps()
+            if rv > 0:
+                tail = '(terminating on success)'
+            else:
+                tail = '(terminating on error)'
+            log.info('-- processed %d TRs of data %s' % (self.RTI.nread, tail))
+            log.info('-' * 60)
+            
+            return rv
     
     def save_timing(self):
         with open(self.out_path, 'wb') as f:

@@ -1,3 +1,4 @@
+import time
 from rtcog.utils.sync import SyncEvents
 from rtcog.controller.action_series import BaseActionSeries
 
@@ -13,5 +14,7 @@ class Controller:
             self.action_series.on_loop()
             if self.sync.hit.is_set():
                 self.action_series.on_hit()
+            time.sleep(0.01)
+
 
         self.action_series.on_end()

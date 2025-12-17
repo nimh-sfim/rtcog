@@ -234,9 +234,9 @@ class ESAMProcessor(PreprocProcessor):
                     else:
                         this_template_vols = vol-np.arange(self.hit_opts.nconsec_vols)
                     out_file = osp.join(self.out_dir, self.out_prefix + '.Hit_'+template+'_'+str(hit_ID).zfill(2)+'.nii')
-                    self.log.info(' - final_steps - [%s-%d]. Contributing Vols: %s | File: %s' % (template, hit_ID,str(this_template_vols), out_file ))
+                    self.log.info('[%s-%d]. Contributing Vols: %s | File: %s' % (template, hit_ID,str(this_template_vols), out_file ))
                     this_template_InMask  = self.pipe.Data_processed[:,this_template_vols].mean(axis=1)
-                    self.log.debug(' - final_steps - this_template_InMask.shape %s' % str(this_template_InMask.shape))
+                    self.log.debug('this_template_InMask.shape %s' % str(this_template_InMask.shape))
                     unmask_fMRI_img(this_template_InMask, self.mask_img, out_file)
                     hit_ID += 1
     
@@ -279,6 +279,7 @@ class ESAMProcessor(PreprocProcessor):
         save : bool
             Whether to save final output files (default: True).
         """
+        print(f'save = {save}')
         if save:
             self.pipe.final_steps()
 

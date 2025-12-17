@@ -49,8 +49,8 @@ def comm_process(opts, sync, proc_class, shared_responses=None, clock=None, time
     receiver.set_signal_handlers()
 
     # 6) set receiver callback
-    receiver.compute_TR_data  = processor.compute_TR_data
-    receiver.final_steps      = processor.end_run
+    receiver.compute_TR_data = processor.compute_TR_data
+    receiver.final_steps     = processor.end_run
 
     # 7) prepare for incoming connections
     log.info('4) Prepare for Incoming Connections...')
@@ -59,20 +59,15 @@ def comm_process(opts, sync, proc_class, shared_responses=None, clock=None, time
     
     # 8) Run experiment
     log.info('5) Ready to go...')
-    try:
-        rv = receiver.process_one_run()
-    except KeyboardInterrupt:
-        log.info('KeyboardInterrupt received, exiting...')
-        if receiver.final_steps:
-            receiver.final_steps(save=False)
-        raise
+    rv = receiver.process_one_run()
 
     if opts.test_latency:
         receiver.save_timing()
 
     if isinstance(processor, ESAMProcessor) and not opts.no_action and not minimal:
-        while sync.hit.is_set():
+        if sync.hit.is_set():
             log.info('Waiting for action to end')
+        while sync.hit.is_set():
             time.sleep(1)
     log.info('Ready to end')
 
