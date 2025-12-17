@@ -2,12 +2,11 @@ import sys
 import os.path as osp
 from multiprocessing import Process
 from multiprocessing import Value, Manager
-from multiprocessing.shared_memory import SharedMemory
 from ctypes import c_int
-
 import numpy as np
 import pandas as pd
 
+from rtcog.utils.shared_memory_manager import SharedMemoryManager
 from rtcog.processor.preproc_processor import PreprocProcessor
 from rtcog.preproc.step_types import StepType
 from rtcog.matching.matcher import Matcher
@@ -68,7 +67,8 @@ class ESAMProcessor(PreprocProcessor):
         self.hit_opts = HitOpts(**options.hits, hit_thr=options.hit_thr)
 
         base_arr = np.zeros((self.mask_Nv, self.Nt), dtype=np.float32)
-        self.shm_tr = SharedMemory(create=True, size=base_arr.nbytes, name="tr_data")
+        self.shm_tr_manager = SharedMemoryManager("tr_data", create=True, size=base_arr.nbytes)
+        self.shm_tr = self.shm_tr_manager.open()
         self.shared_tr_data = np.ndarray(base_arr.shape, dtype=base_arr.dtype, buffer=self.shm_tr.buf)
         self.shared_tr_index = Value(c_int, -1)
         
@@ -288,9 +288,9 @@ class ESAMProcessor(PreprocProcessor):
         self.write_qa()
         if self.minimal:
             self.write_report()
-        self.shm_tr.close()
-        self.shm_tr.unlink()
-        self.matcher.shm.close()
-        self.matcher.shm.unlink()
 
+        if hasattr(self, 'shm_tr_manager'):
+            self.shm_tr_manager.cleanup()
+        self.matcher.cleanup_shared_memory()
+        
         self.sync.end.set()

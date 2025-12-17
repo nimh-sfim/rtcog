@@ -1,7 +1,7 @@
 import time
 import threading
 import os.path as osp
-from multiprocessing.shared_memory import SharedMemory
+from rtcog.utils.shared_memory_manager import SharedMemoryManager
 from multiprocessing.managers import ListProxy, DictProxy
 import numpy as np
 import holoviews as hv
@@ -58,12 +58,15 @@ class ESAMStreamer:
         Ntemplates = len(config.template_labels)
         self._Nt = config.Nt
     
-        self._match_scores = SharedMemory(name="match_scores")
-        self._tr_data = SharedMemory(name="tr_data")
+        self._match_scores = SharedMemoryManager("match_scores")
+        self._tr_data = SharedMemoryManager("tr_data")
+
+        self._match_scores_shm = self._match_scores.open()
+        self._tr_data_shm = self._tr_data.open()
 
         self._shared_arrs = {}
-        self._shared_arrs["scores"] = np.ndarray((Ntemplates, self._Nt), dtype=np.float32, buffer=self._match_scores.buf)
-        self._shared_arrs["tr_data"] = np.ndarray((config.Nv, config.Nt), dtype=np.float32, buffer=self._tr_data.buf)
+        self._shared_arrs["scores"] = np.ndarray((Ntemplates, self._Nt), dtype=np.float32, buffer=self._match_scores_shm.buf)
+        self._shared_arrs["tr_data"] = np.ndarray((config.Nv, config.Nt), dtype=np.float32, buffer=self._tr_data_shm.buf)
         
         self._plotters = [ScorePlotter(config), MapPlotter(config)]
         if responses is not None:
@@ -123,6 +126,8 @@ class ESAMStreamer:
             if t >= self._Nt or t > self._sync.tr_index.value:
                 time.sleep(0.01)
                 continue
+            self._sync.new_tr.wait(timeout=0.05)
+
 
             # Now data for t is available, so increment and process
             self._last_t = t
@@ -206,6 +211,7 @@ class ESAMStreamer:
         """
         Close and unlink shared memory segments.
         """
-        # pass
-        self._tr_data.close()
-        
+        if hasattr(self, '_match_scores'):
+            self._match_scores.cleanup()
+        if hasattr(self, '_tr_data'):
+            self._tr_data.cleanup()

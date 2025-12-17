@@ -3,7 +3,6 @@ import os.path as osp
 import math
 from multiprocessing import Event, Value
 from ctypes import c_int
-
 from rtcog.utils.sync import SyncEvents
 from rtcog.utils.log import get_logger
 

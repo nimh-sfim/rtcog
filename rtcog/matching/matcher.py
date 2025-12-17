@@ -1,11 +1,9 @@
 import sys
 import pickle
-from types import SimpleNamespace
-from multiprocessing.shared_memory import SharedMemory
-
 import numpy as np
 
 from rtcog.utils.log import get_logger
+from rtcog.utils.shared_memory_manager import SharedMemoryManager
 from rtcog.matching.matching_utils import rt_svrscore_vol, rt_maskscore_vol
 
 log = get_logger()
@@ -65,8 +63,14 @@ class Matcher:
         if self.Ntemplates is None:
             raise RuntimeError("Ntemplates must be set before creating shared memory")
         base_arr = np.zeros((self.Ntemplates, self.Nt), dtype=np.float32)
-        self.shm = SharedMemory(create=True, size=base_arr.nbytes, name="match_scores")
+        self.shm_manager = SharedMemoryManager("match_scores", create=True, size=base_arr.nbytes)
+        self.shm = self.shm_manager.open()
         self.shared_arr = np.ndarray(base_arr.shape, dtype=base_arr.dtype, buffer=self.shm.buf)
+        
+    def cleanup_shared_memory(self):
+        """Clean up shared memory."""
+        if hasattr(self, 'shm_manager'):
+            self.shm_manager.cleanup()
         
 
 class SVRMatcher(Matcher):

@@ -59,8 +59,14 @@ def comm_process(opts, sync, proc_class, shared_responses=None, clock=None, time
     
     # 8) Run experiment
     log.info('5) Ready to go...')
-    rv = receiver.process_one_run()
-    
+    try:
+        rv = receiver.process_one_run()
+    except KeyboardInterrupt:
+        log.info('KeyboardInterrupt received, exiting...')
+        if receiver.final_steps:
+            receiver.final_steps(save=False)
+        raise
+
     if opts.test_latency:
         receiver.save_timing()
 
