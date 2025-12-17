@@ -279,9 +279,7 @@ class ESAMProcessor(PreprocProcessor):
         save : bool
             Whether to save final output files (default: True).
         """
-        print(f'save = {save}')
-        if save:
-            self.pipe.final_steps()
+        self.pipe.final_steps(save=save)
 
         # TODO: move hit saving to HitDetector?
         self.write_hit_arrays()

@@ -45,6 +45,8 @@ class PreprocStep:
         Optional setup logic to initialize internal state before processing begins.
     run(pipeline):
         Executes the step’s logic on the current TR. Saves result to `data_out` if saving is enabled.
+    end_step(pipeline):
+        Optional cleanup logic to perform after processing has completed.
     save_nifti(pipeline):
         Saves the accumulated data to disk as a NIfTI file using the provided mask and filename.
     get_class(name):
@@ -102,6 +104,9 @@ class PreprocStep:
 
         return output
     
+    def end_step(self, pipeline):
+        pass
+
     def save_nifti(self, pipeline):
         if self.save and self.suffix:
             out_path = osp.join(pipeline.out_dir, pipeline.out_prefix + self.suffix)
@@ -250,6 +255,12 @@ class KalmanStep(PreprocStep):
         self.fNegatDerivSpike[:] = fNeg_new.ravel()
 
         return klm_data_out
+
+    def end_step(self, pipeline):
+        if hasattr(self, 'pool'):
+            self.pool.close()
+            self.pool.join()
+            del self.pool
 
 
 class SmoothStep(PreprocStep):

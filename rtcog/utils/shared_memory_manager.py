@@ -42,10 +42,12 @@ class SharedMemoryManager:
                 try:
                     self.shm = SharedMemory(create=True, size=self._size, name=self.name)
                 except FileExistsError:  # If already exists, clean up and retry
+                    log.debug(f"Shared memory '{self.name}' already exists, cleaning up and retrying")
                     old = SharedMemory(name=self.name)
                     old.close()
                     old.unlink()
                     self.shm = SharedMemory(create=True, size=self._size, name=self.name)
+                    log.debug(f"Created new shared memory '{self.name}' with size {self._size}")
             else:
                 self.shm = SharedMemory(name=self.name)
         except Exception as e:

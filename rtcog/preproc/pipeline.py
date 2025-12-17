@@ -1,5 +1,6 @@
 import sys
 import os.path as osp
+from imageio import save
 import numpy as np
 from nibabel.nifti1 import Nifti1Image
 
@@ -231,13 +232,19 @@ class Pipeline:
         return self.processed_tr
 
 
-    def final_steps(self) -> None:
+    def final_steps(self, save=True) -> None:
         """
         Run finalization steps after all volumes are processed.
 
         This includes saving motion estimates, writing processed NIfTI files, 
         and optionally saving a snapshot of internal variables for testing/debugging.
         """
+        for step in self.steps:
+            step.end_step(self)
+        
+        if not save:
+            return
+            
         self.save_motion_estimates()
 
         if self.mask_img is None:

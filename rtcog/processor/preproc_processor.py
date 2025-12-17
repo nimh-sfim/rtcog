@@ -119,8 +119,7 @@ class PreprocProcessor:
         save : bool
             Whether to save final outputs (default: True).
         """
-        if save:
-            self.pipe.final_steps()
+        self.pipe.final_steps(save=save)
         self.sync.end.set()
 
 
