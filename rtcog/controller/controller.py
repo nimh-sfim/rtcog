@@ -16,5 +16,4 @@ class Controller:
                 self.action_series.on_hit()
             time.sleep(0.01)
 
-
         self.action_series.on_end()

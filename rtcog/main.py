@@ -89,9 +89,6 @@ def main():
         sync.end.set()
         comm_proc.join()
 
-        if controller:
-            controller.action_series.on_end()
-
 
 if __name__ == "__main__":
     sys.exit(main())

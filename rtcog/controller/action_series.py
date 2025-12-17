@@ -71,9 +71,18 @@ class ESAMActionSeries(PreprocActionSeries):
     def on_hit(self):
         """Collect voice recording and question responses"""
         responses = self.gui.run_full_QA()
-        log.info(' - Responses: %s' % str(responses))
+
+        rounded_responses = {k: (v[0], round(v[1], 2)) for k, v in responses.items()}
+        log.debug(f' - Responses: {rounded_responses}')
+
         self.sync.hit.clear()
         self.sync.action_end.set()
+
+        self.gui.draw_resting_screen()
+    
+    def on_end(self):
+        self.gui.save_likert_files()
+        self.gui.close_psychopy_infrastructure()
 
     
 class LatencyTestActionSeries(PreprocActionSeries):
