@@ -132,20 +132,20 @@ class Options:
                     config[k] = v
           
           if 'exp_type' not in config:
-               print(f"++ ERROR: Please specify experiment type with -e/-exp_type.")
-               sys.exit(-1)
+               parser.error(f"++ ERROR: Please specify experiment type with -e/-exp_type.")
 
           required_args = ['mask_path', 'nvols', 'out_dir', 'out_prefix']
           if config['exp_type'] == 'esam':
-               required_args.extend(['match_path', 'hit_thr'])
+               required_args.append('hit_thr')
+               if config['matching']['match_method'] in ['mask', 'svr']:
+                    required_args.append('match_path')
 
           missing = []
           for arg in required_args:
                if not arg in config or config[arg] is None:
                     missing.append(f'--{arg}') 
           if missing:
-               print(f"++ ERROR: The following arguments are required: {', '.join(missing)}")
-               sys.exit(-1)
+               parser.error(f"ERROR: The following arguments are required: {', '.join(missing)}")
                     
           return config
 
