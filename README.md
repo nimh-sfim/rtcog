@@ -11,8 +11,8 @@ This project contains the code to perform realtime fMRI experiments in the follo
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/nimh-sfim/rtCAPs.git
-cd rtCAPs
+git clone https://github.com/nimh-sfim/rtcog.git
+cd rtcog
 ```
 
 ### 2. Install dependencies
@@ -29,7 +29,7 @@ conda env create -f env.yml
 ```
 
 ```bash
-conda activate rtcaps
+conda activate rtcog
 pip install . # or `pip install -e .` for editable mode
 ```
 
