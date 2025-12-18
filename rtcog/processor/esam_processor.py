@@ -78,7 +78,7 @@ class ESAMProcessor(PreprocProcessor):
 
         try:
             matcher_cls = Matcher.from_name(self.match_opts.match_method)
-            self.matcher = matcher_cls(self.match_opts, options.match_path, self.Nt, self.sync.end, sync.new_tr, sync.shm_ready)
+            self.matcher = matcher_cls(self.match_opts, self.Nt, sync, options.match_path)
         except ValueError as e:
             self.log.error(f"Matcher setup failed: {e}")
             sync.end.set()
