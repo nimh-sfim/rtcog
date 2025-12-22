@@ -1,8 +1,8 @@
 Transcribing
 ============
 
-To transcribe the hit audio files, you first need to create a basic
-virtual environment due to some issues using the one that comes with
+To transcribe the audio files recorded from the participant, you first need to
+create a basic virtual environment due to some issues using the one that comes with
 this software.
 
 .. code:: bash

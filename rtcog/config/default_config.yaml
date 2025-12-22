@@ -44,7 +44,7 @@ no_action: false
 no_proc_chair: false # no crosshair
 fullscreen: false
 screen: 1
-q_path: questions_v1 # path to the questions used for the experiment TODO: FIX
+q_path: questions_v1 # path to the questions used for the experiment
 
 # Testing option2
 snapshot: false

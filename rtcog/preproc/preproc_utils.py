@@ -373,16 +373,17 @@ def rt_kalman_vol(
     Returns
     -------
     list
-        A list containing:
-        o_data: np.ndarray, shape (Nvoxels, 1)
+        A list containing the following elements, in order:
+
+        o_data : np.ndarray, shape (Nvoxels, 1)
             Output data.
-        o_S_x: type
+        o_S_x : type
             Description of o_S_x.
-        o_S_P: type
+        o_S_P : type
             Description of o_S_P.
-        o_fPos: type
+        o_fPos : type
             Description of o_fPos.
-        o_fNeg: type
+        o_fNeg : type
             Description of o_fNeg.
     """
 

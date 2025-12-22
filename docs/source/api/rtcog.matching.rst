@@ -20,14 +20,6 @@ rtcog.matching.hit\_opts module
    :undoc-members:
    :show-inheritance:
 
-rtcog.matching.hit\_utils module
---------------------------------
-
-.. automodule:: rtcog.matching.hit_utils
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
 rtcog.matching.matcher module
 -----------------------------
 

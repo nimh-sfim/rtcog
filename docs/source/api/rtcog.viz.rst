@@ -27,6 +27,7 @@ rtcog.viz.plotter module
    :members:
    :undoc-members:
    :show-inheritance:
+   :noindex:
 
 rtcog.viz.response\_plotter module
 ----------------------------------

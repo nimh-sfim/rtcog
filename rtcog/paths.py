@@ -1,7 +1,7 @@
 """
 Directory structure definitions for the rtcog software package.
 
-This module defines key absolute paths used throughout the codebase.
+This module defines key paths used throughout the codebase.
 All paths are constructed relative to the location of this file.
 """
 

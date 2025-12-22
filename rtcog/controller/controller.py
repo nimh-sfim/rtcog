@@ -30,9 +30,13 @@ class Controller:
         Run the controller loop.
 
         This method:
+
         - Calls `on_start()` once at initialization
+
         - Repeatedly calls `on_loop()` until the end event is set
+
         - Triggers `on_hit()` whenever a hit event is detected
+
         - Calls `on_end()` once before exiting
         """
         self.action_series.on_start()

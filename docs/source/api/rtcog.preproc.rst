@@ -11,6 +11,7 @@ rtcog.preproc.pipeline module
    :members:
    :undoc-members:
    :show-inheritance:
+   :noindex:
 
 rtcog.preproc.preproc\_steps module
 -----------------------------------
@@ -19,6 +20,7 @@ rtcog.preproc.preproc\_steps module
    :members:
    :undoc-members:
    :show-inheritance:
+   :noindex:
 
 rtcog.preproc.preproc\_utils module
 -----------------------------------

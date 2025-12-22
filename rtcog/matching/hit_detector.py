@@ -35,8 +35,11 @@ class HitDetector:
         exceed a threshold.
 
         A time point is a hit if:
+
         - No more than `nonline` templates are >= `hit_thr` at time `t`.
+
           - The one with the highest score is selected as the "hit".
+
         - That same template has also been above `hit_thr` nconsec_vols (including the current volume)
         
         Parameters
