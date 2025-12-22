@@ -13,23 +13,44 @@ from rtcog.viz.streaming_config import StreamingConfig
 from rtcog.viz.plotter import Plotter
 
 class ScorePlotter(Plotter):
-    """Receives scores from Matcher to stream the data live."""
+    """
+    Live and post-hoc visualization of template matching scores.
 
+    This plotter receives template matching scores over time and visualizes them
+    as streaming line plots. It overlays action-related annotations including hit
+    thresholds, action windows, cooldown periods, and hit markers indicating the
+    strongest-matching template at action onset times.
+
+    The plot can be rendered dynamically during acquisition or saved as a static
+    HTML report at the end of the experiment.
+    """
     data_key = 'scores'
 
     def __init__(self, config: StreamingConfig, streaming=True):
         """
-        Initialize the ScorePlotter with configuration for streaming and plotting.
+        Initialize the ScorePlotter.
+
+        Parameters
+        ----------
+        config : StreamingConfig
+            Configuration object containing plotting, streaming, and action parameters.
+        streaming : bool, optional
+            If True, enables live updating via a HoloViews DynamicMap.
+            If False, the plotter is used only for static rendering.
         """
         super().__init__(config)
         self._hit_thr = config.hit_thr
 
+        # DataFrame storing scores for each template across time
         self._df = pd.DataFrame(np.nan, index=np.arange(self._Nt), columns=self._template_labels)
+
+        # Dynamic map for live updates
         if streaming:
             self.dmap = hv.DynamicMap(self._plot, streams=[Stream.define('Next', t=int)()])
         else:
             self.dmap = None
         
+        # Static overlays accumulated over time
         self._polys_static = []
         self._no_match_poly = self._draw_poly(0, config.matching_opts.match_start).opts(color='gray', line_color=None, alpha=0.2)
         self._qa_state = None
@@ -43,7 +64,17 @@ class ScorePlotter(Plotter):
         
     def update(self, t: int, data: np.ndarray, qa_state: QAState) -> None:
         """
-        Update the plot with template matching scores and QA state.
+        Update the plot with new score data at a given time point.
+
+        Parameters
+        ----------
+        t : int
+            TR corresponding to the incoming scores.
+        data : np.ndarray
+            Array of template matching scores at time `t`.
+            Must align with the template label order.
+        action_state : ActionState
+            Current action state containing action onsets, offsets, and cooldown info.
         """
         self._df.iloc[t] = data
         self._qa_state = qa_state
@@ -51,6 +82,25 @@ class ScorePlotter(Plotter):
             self.dmap.event(t=t)
 
     def _plot(self, t: int) -> hv.Overlay:
+        """
+        Construct the full plot overlay for a given time point.
+
+        This includes:
+        - Line plots of template scores
+        - Hit threshold line
+        - action hit markers
+        - action, cooldown, and pre-matching shaded regions
+
+        Parameters
+        ----------
+        t : int
+            Current time index used to update dynamic elements.
+
+        Returns
+        -------
+        hv.Overlay
+            Combined HoloViews overlay for rendering.
+        """
         line_plot = self._df.hvplot.line(
             legend='top',
             width=1200,
@@ -64,7 +114,14 @@ class ScorePlotter(Plotter):
         if self._qa_state is None:
             return hv.Overlay(overlays)
 
-        overlays.append(hv.HLine(self._hit_thr).opts(color='black', line_dash='dashed', line_width=1)) # Threshold line
+        # Threshold line
+        overlays.append(
+            hv.HLine(self._hit_thr).opts(
+                color='black', line_dash='dashed', line_width=1
+            )
+        )
+
+        # Hit markers
         overlays.append(self._draw_hit_markers())
 
         if self._qa_state.in_qa:
@@ -84,15 +141,54 @@ class ScorePlotter(Plotter):
         return hv.Overlay(overlays)
 
     def _draw_dynamic_box(self, t: int) -> hv.Polygons:
-        return self._draw_poly(self._qa_state.qa_onsets[-1], t).opts(alpha=0.2, color='blue', )
+        """
+        Draw a dynamic action window box extending to the current time.
+
+        Parameters
+        ----------
+        t : int
+            Current time index.
+
+        Returns
+        -------
+        hv.Polygons
+            Polygon representing the active action window.
+        """
+        return self._draw_poly(self._action_state.action_onsets[-1], t).opts(alpha=0.2, color='blue', )
         
     def _draw_poly(self, start: int, end: int) -> hv.Polygons:
+        """
+        Draw a rectangular polygon spanning a time interval.
+
+        Parameters
+        ----------
+        start : int
+            Start time index.
+        end : int
+            End time index.
+
+        Returns
+        -------
+        hv.Polygons
+            Rectangle covering the interval.
+        """
         end = min(end, self._Nt)
         return hv.Polygons([
             [(start, -5), (end, -5), (end, 5), (start, 5)]
         ])
 
     def _draw_hit_markers(self) -> hv.Scatter:
+        """
+        Draw scatter markers at action onset (hit) times.
+
+        Each marker is placed at the score of the highest-scoring template
+        at that time point and colored according to the template identity.
+
+        Returns
+        -------
+        hv.Scatter
+            Scatter plot of action hit markers.
+        """
         points = []
         for hit_time in self._qa_state.qa_onsets:
             row = self._df.iloc[hit_time]
@@ -116,6 +212,17 @@ class ScorePlotter(Plotter):
             return hv.Scatter([], kdims=["TR"], vdims=["score", "template"])
     
     def _get_template_colors(self):
+        """
+        Assign colors to each template label.
+
+        Colors are drawn from the Category10 palette and cycled if the number
+        of templates exceeds the palette size.
+
+        Returns
+        -------
+        dict
+            Mapping from template label to color string.
+        """
         palette = Category10[10]
 
         # Cycle through palette if more labels than colors
@@ -136,9 +243,19 @@ class ScorePlotter(Plotter):
     
     def render_static(self, df: pd.DataFrame, qa_state: QAState) -> hv.Overlay:
         """
-        Render a figure after the experiment, rather than dynamically.
+        Render a static score plot after the experiment has completed.
 
-        Used for rtcog_min.
+        Parameters
+        ----------
+        df : pd.DataFrame
+            Full score DataFrame indexed by time and template.
+        action_state : ActionState
+            Final action state containing all action intervals.
+
+        Returns
+        -------
+        hv.Overlay
+            Rendered plot overlay.
         """
         self._df = df
         self._qa_state = qa_state

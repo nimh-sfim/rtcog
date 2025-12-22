@@ -48,16 +48,16 @@ def comm_process(opts, sync, proc_class, shared_responses=None, clock=None, time
     log.info('3) Setting Signal Handlers...')
     receiver.set_signal_handlers()
 
-    # 6) set receiver callback
+    # Set receiver callback
     receiver.compute_TR_data = processor.compute_TR_data
     receiver.final_steps     = processor.end_run
 
-    # 7) prepare for incoming connections
+    # Prepare for incoming connections
     log.info('4) Prepare for Incoming Connections...')
     if receiver.RTI.open_incoming_socket():
         return 1
     
-    # 8) Run experiment
+    # Run experiment
     log.info('5) Ready to go...')
     rv = receiver.process_one_run()
 

@@ -10,58 +10,130 @@ from rtcog.gui.esam_gui import EsamGUI
 log = get_logger()
 
 class BaseActionSeries(ABC):
+    """
+    Base class defining methods that are called by the Controller during an experiment.
+
+    The Controller manages the experiment flow and calls these methods at different
+    stages, such as at the start of the experiment, during each loop iteration,
+    when a hit event occurs, and at the end. Subclasses can override these methods
+    to implement task-specific behavior.
+    """
     def __init__(self, sync, *, opts=None, gui=None, **kwargs):
+        """
+        Initialize the ActionSeries.
+
+        Parameters
+        ----------
+        sync : SyncEvents
+            Shared synchronization events used to coordinate experiment state.
+        opts : Options, optional
+            Options object containing experiment settings.
+        gui : object, optional
+            GUI instance used by the action series.
+        **kwargs
+            Additional attributes to attach to the instance.
+        """
         self.sync = sync
         self.gui = gui
         self.opts = opts
 
+        # Attach additional attributes to the instance
         for k, v in kwargs.items():
             setattr(self, k, v)
 
     def on_start(self):
-        """Run once before loop starts."""
+        """Called once at the beginning of the experiment for initialization."""
         pass
 
     def on_loop(self):
-        """Run every iteration of the controller loop."""
+        """Called every iteration of the controller loop."""
         pass
 
     def on_hit(self):
-        """Triggered when sync.hit is set."""
+        """Called whenever a hit event occurs during the experiment."""
         pass
 
     def on_end(self):
-        """Run once after the loop ends."""
+        """Called once after the loop ends."""
         pass
 
 
 class PreprocActionSeries(BaseActionSeries):
+    """
+    Action series providing basic GUI handling.
+
+    This class displays a resting screen and monitors for
+    user-triggered experiment termination.
+    """
     def __init__(self, sync, opts, gui=None, **kwargs):
-        """Set up GUI"""
+        """
+        Initialize the preprocessing action series.
+
+        Parameters
+        ----------
+        sync : SyncEvents
+            Shared synchronization events.
+        opts : Options
+            Options object containing experiment settings.
+        gui : PreprocGUI, optional
+            GUI instance. If not provided, a PreprocGUI is created.
+        **kwargs
+            Additional arguments passed to the GUI constructor.
+        """
         if gui is None:
             gui = PreprocGUI(opts, **kwargs)
         super().__init__(sync, opts=opts, gui=gui)
 
     def on_start(self):
-        """Draw resting screen"""
+        """
+        Draw the resting screen at experiment start.
+        """
         self.gui.draw_resting_screen()
     
     def on_loop(self):
-        """Poll for escape keys"""
+        """
+        Poll for user escape key presses.
+
+        If the escape key is detected, the global end event is set to signal
+        experiment termination.
+        """
         # TODO: fix bug that this won't shut down experiment
         if event.getKeys(['escape']):
             log.info('- User pressed escape key')
             self.sync.end.set()
         
     def on_end(self):
-        """Shut down GUI"""
+        """
+        Shut down GUI at experiment termination.
+        """
         self.gui.close_psychopy_infrastructure()
 
 
 class ESAMActionSeries(PreprocActionSeries):
+    """
+    Action series implementing ESAM task behavior.
+
+    This series extends preprocessing behavior by collecting voice recordings
+    and Likert-scale responses during action periods and saving them
+    at experiment end.
+    """
     def __init__(self, sync, opts):
-        """Build shared responses based on Likert questions and set up GUI"""
+        """
+        Initialize the ESAM action series.
+
+        This method validates Likert questions, creates shared response storage,
+        and initializes the ESAM GUI.
+
+        Parameters
+        ----------
+        sync : SyncEvents
+            Shared synchronization events.
+        opts : object
+            Configuration options, including Likert question definitions.
+        """
         opts.likert_questions = validate_likert_questions(opts.q_path)
+
+        # Shared dictionary to store responses across processes
         manager = mp.Manager()
         shared_responses = manager.dict({q["name"]: (None, None) for q in opts.likert_questions})
 
@@ -69,32 +141,69 @@ class ESAMActionSeries(PreprocActionSeries):
         super().__init__(sync, opts=opts, gui=gui)
 
     def on_hit(self):
-        """Collect voice recording and question responses"""
-        responses = self.gui.run_full_QA()
+        """
+        Handle action onset by collecting recordings and questionnaire responses.
 
-        rounded_responses = {k: (v[0], round(v[1], 2)) for k, v in responses.items()}
+        This method:
+        - Runs the full action interaction
+        - Logs rounded response values
+        - Clears the hit event
+        - Signals action completion
+        - Returns the GUI to the resting screen
+        """
+        responses = self.gui.run_full_action()
+
+        rounded_responses = {
+            k: (v[0], round(v[1], 2)) for k, v in responses.items()
+        }
         log.debug(f' - Responses: {rounded_responses}')
 
+        # Reset hit event and mark action completion
         self.sync.hit.clear()
         self.sync.action_end.set()
 
         self.gui.draw_resting_screen()
     
     def on_end(self):
+        """
+        Save Likert responses and shut down GUI resources.
+        """
         self.gui.save_likert_files()
         self.gui.close_psychopy_infrastructure()
 
     
 class LatencyTestActionSeries(PreprocActionSeries):
+    """
+    Action series used for trigger latency testing.
+
+    This series timestamps trigger events during the controller loop and
+    saves timing information at experiment end.
+    """
     def __init__(self, sync, opts, clock):
+        """
+        Initialize the latency test action series.
+
+        Parameters
+        ----------
+        sync : SyncEvents
+            Shared synchronization events.
+        opts : Options
+            Options object containing experiment settings.
+        clock : object
+            Clock to timestamp triggers.
+        """
         super().__init__(sync, opts=opts, clock=clock)
     
     def on_loop(self):
-        """Timestamp each trigger instance"""
+        """
+        Poll for trigger events and record their timestamps.
+        """
         self.gui.poll_trigger()
     
     def on_end(self):
-        """Save trigger timestamps and shut down GUI"""
+        """
+        Save trigger timestamps and shut down GUI
+        """
         self.gui.save_trigger()
         self.gui.close_psychopy_infrastructure()
     

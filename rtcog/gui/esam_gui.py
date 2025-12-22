@@ -65,7 +65,7 @@ class EsamGUI(PreprocGUI):
         ]
 
         # Likert Instructions
-        self.likert_qa_inst = [
+        self.likert_inst = [
             TextStim(win=self.ewin, text='Now, please use the response box', pos=(0.0, 0.78)),
             TextStim(win=self.ewin, text='to answer additional questions',   pos=(0.0, 0.66)),
             TextStim(win=self.ewin, text='about what you were experiencing',   pos=(0.0, 0.54)),
@@ -133,7 +133,7 @@ class EsamGUI(PreprocGUI):
         """
         Show instructions before presenting the Likert questions.
         """
-        self._draw_stims(self.likert_qa_inst)
+        self._draw_stims(self.likert_inst)
         event.waitKeys()
 
     def draw_likert_questions(self, order=None):
@@ -215,7 +215,7 @@ class EsamGUI(PreprocGUI):
         Returns
         -------
         dict
-            Dictionary of Likert responses for this QA instance.
+            Dictionary of Likert responses for this action.
         """
         # 1) Play beep and record oral description
         self.record_oral_descr()
@@ -223,7 +223,7 @@ class EsamGUI(PreprocGUI):
         # 2) Acknowledge successful recording
         self.draw_ack_recording_screen()
         
-        # 3) Show instructions for likert part of QA
+        # 3) Show instructions for likert questions
         self.draw_likert_instructions()
         
         # 4) Do the Likert questionnaire

@@ -66,6 +66,7 @@ class ESAMProcessor(PreprocProcessor):
         self.match_opts = MatchingOpts(**options.matching)
         self.hit_opts = HitOpts(**options.hits, hit_thr=options.hit_thr)
 
+        # Share memory with streaming process
         base_arr = np.zeros((self.mask_Nv, self.Nt), dtype=np.float32)
         self.shm_tr_manager = SharedMemoryManager("tr_data", create=True, size=base_arr.nbytes)
         self.shm_tr = self.shm_tr_manager.open()
@@ -76,6 +77,7 @@ class ESAMProcessor(PreprocProcessor):
         self.shared_qa_onsets = manager.list()
         self.shared_qa_offsets = manager.list()
 
+        # Matcher setup
         try:
             matcher_cls = Matcher.from_name(self.match_opts.match_method)
             self.matcher = matcher_cls(self.match_opts, self.Nt, sync, options.match_path)
@@ -84,12 +86,14 @@ class ESAMProcessor(PreprocProcessor):
             sync.end.set()
             sys.exit(-1)
 
+        # Hit detection setup
         self.hits = np.zeros((self.matcher.Ntemplates, self.Nt))
         self.hit_detector = HitDetector(self.hit_opts)
         self.last_hit = None
         
-        self.minimal = minimal
+        self.minimal = minimal  # Run without streaming if True
         
+        # Config passed to streaming server
         self.streaming_config = StreamingConfig(
             self.Nt,
             self.matcher.template_labels,
@@ -130,7 +134,7 @@ class ESAMProcessor(PreprocProcessor):
 
         processed = super()._compute_TR_data_impl(motion, extra)
 
-        if action_end_status:
+        if action_end_status:  # Action block just ended
             self.lastaction_endTR = self.t
             self.qa_offsets.append(self.t)
             self.shared_qa_offsets.append(self.t)
