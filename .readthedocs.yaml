@@ -14,11 +14,10 @@ build:
 sphinx:
    configuration: docs/source/conf.py
 
-
 python:
   install:
+    - path: .
+      method: pip
     - method: pip
       packages:
-        - sphinx
         - sphinx_rtd_theme
-
