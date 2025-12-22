@@ -6,6 +6,8 @@ This project contains the code to perform realtime fMRI experiments in the follo
 2. If the subject brain looks like one of a subset of templates, then the program fires a survey
 3. The program continues monitoring the brain in the background.
 
+Documentation can be found at https://rtcog.readthedocs.io.
+
 ## Installation
 
 ### 1. Clone the Repository
