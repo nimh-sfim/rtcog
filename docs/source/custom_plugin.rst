@@ -89,14 +89,24 @@ Example for an ESAM experiment:
 The GUI Class (Optional)
 ------------------------
 
-The ``GUI`` defines what the participant sees and interacts with. You can
-present:
+The ``GUI`` defines what the participant sees and interacts with.
 
-- Visual prompts
-- Trial feedback
-- Questions or rating scales
-- Audio/voice recording
-- Or anything else that Psychopy supports
+If you only want to change the Likert questions displayed to the participant, you can
+simply create a json file with your custom questions and put the path in your config yaml
+file under ``q_path``. Define the text, labels, and name for each question: 
+
+.. code-block:: json
+
+    {
+        "text": "Q1/11. How alert were you?",
+        "labels": ["Fully asleep", "Somewhat sleepy", "Somewhat alert", "Fully alert"],
+        "name": "alert"
+    }
+
+See ``questions_v1.json`` for a full example.
+
+However, if you want to create a more complex GUI, you can
+create a custom ``GUI`` class.
 
 You can inherit from:
 
@@ -118,6 +128,15 @@ Example:
    class MyGUI(EsamGUI):
        def show_custom_prompt(self):
            self._draw_stims(self._custom_stim)
+
+You can
+present:
+
+- Visual prompts
+- Trial feedback
+- Questions or rating scales
+- Audio/voice recording
+- Or anything else that ``Psychopy`` supports
 
 Make sure to instantiate your ``GUI`` as an attribute of your
 ``ActionSeries``.
