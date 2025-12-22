@@ -9,14 +9,14 @@ import matplotlib.pyplot as plt
 
 from rtcog.viz.streaming_config import StreamingConfig
 from rtcog.viz.plotter import Plotter
-from rtcog.utils.sync import QAState
+from rtcog.utils.sync import ActionState
 
 class MapPlotter(Plotter):
     """
     Plot brain activation maps when each 'hit' occurs.
 
     This class generates brain plots using data masked by a mask image.
-    It updates the plot only when a new QA onset is detected.
+    It updates the plot only when a new action onset is detected.
     """
     data_key = "tr_data"
 
@@ -40,18 +40,18 @@ class MapPlotter(Plotter):
         self._tabs = pn.Tabs()
         self.pane = self._tabs
     
-    def should_update(self, t: int, qa_state: QAState) -> bool:
+    def should_update(self, t: int, action_state: ActionState) -> bool:
         """
         True if a hit occured at the current `t`.
         """
-        return t in qa_state.qa_onsets
+        return t in action_state.action_onsets
 
-    def update(self, t: int, data: np.ndarray, qa_state: QAState) -> None:
+    def update(self, t: int, data: np.ndarray, action_state: ActionState) -> None:
         """
-        Update the brain plot if a new QA onset (hit) is detected.
+        Update the brain plot if a new action onset (hit) is detected.
         """
-        if qa_state.qa_onsets:
-            latest_onset = qa_state.qa_onsets[-1]
+        if action_state.action_onsets:
+            latest_onset = action_state.action_onsets[-1]
             if self._last_map_t != latest_onset:
                 self._last_map_t = latest_onset
                 self._brain_img = self._arr_to_nifti(data)

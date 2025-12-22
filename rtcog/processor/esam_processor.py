@@ -16,7 +16,7 @@ from rtcog.matching.hit_detector import HitDetector
 from rtcog.viz.esam_streaming import run_streamer
 from rtcog.viz.streaming_config import StreamingConfig
 from rtcog.utils.fMRI import unmask_fMRI_img
-from rtcog.utils.sync import QAState
+from rtcog.utils.sync import ActionState
 from rtcog.viz.score_plotter import ScorePlotter
 
 
@@ -24,7 +24,7 @@ class ESAMProcessor(PreprocProcessor):
     """
     Real-time fMRI processor class supporting experience sampling (ESAM) mode.
 
-    Extends `Processor` with template matching, hit detection, QA state tracking,
+    Extends `Processor` with template matching, hit detection, action state tracking,
     and dynamic Panel-based GUI streaming.
 
     Parameters
@@ -39,29 +39,29 @@ class ESAMProcessor(PreprocProcessor):
     Attributes
     ----------
     lastaction_endTR : int
-        Most recent QA offset TR.
+        Most recent action offset TR.
     matcher : Matcher
         Template matcher instance.
     shared_tr_data : np.ndarray
         Shared memory array for matched volumes.
-    shared_qa_onsets : ListProxy
-        Shared list of QA onsets.
-    shared_qa_offsets : ListProxy
-        Shared list of QA offsets.
+    shared_action_onsets : ListProxy
+        Shared list of action onsets.
+    shared_action_offsets : ListProxy
+        Shared list of action offsets.
     hits : np.ndarray
         Hit detection matrix [template x TR].
     """
     def __init__(self, options, sync, minimal=False):
         super().__init__(options, sync)
 
-        self.lastaction_endTR  = 0
+        self.lastaction_endTR  = 0  # Most recent action offset TR
         self.out_dir = options.out_dir
         self.out_prefix = options.out_prefix
 
-        self.qa_onsets = []
-        self.qa_offsets = []
-        self.qa_onsets_path  = osp.join(self.out_dir,self.out_prefix+'.qa_onsets.txt')
-        self.qa_offsets_path = osp.join(self.out_dir,self.out_prefix+'.qa_offsets.txt')
+        self.action_onsets = []
+        self.action_offsets = []
+        self.action_onsets_path  = osp.join(self.out_dir,self.out_prefix+'.action_onsets.txt')
+        self.action_offsets_path = osp.join(self.out_dir,self.out_prefix+'.action_offsets.txt')
         
         self.match_opts = MatchingOpts(**options.matching)
         self.hit_opts = HitOpts(**options.hits, hit_thr=options.hit_thr)
@@ -70,12 +70,11 @@ class ESAMProcessor(PreprocProcessor):
         base_arr = np.zeros((self.mask_Nv, self.Nt), dtype=np.float32)
         self.shm_tr_manager = SharedMemoryManager("tr_data", create=True, size=base_arr.nbytes)
         self.shm_tr = self.shm_tr_manager.open()
-        self.shared_tr_data = np.ndarray(base_arr.shape, dtype=base_arr.dtype, buffer=self.shm_tr.buf)
-        self.shared_tr_index = Value(c_int, -1)
+        self.shared_tr_data = np.ndarray(base_arr.shape, dtype=base_arr.dtype, buffer=self.shm_tr.buf)  # Holds matched volumes
         
         manager = Manager()
-        self.shared_qa_onsets = manager.list()
-        self.shared_qa_offsets = manager.list()
+        self.shared_action_onsets = manager.list()
+        self.shared_action_offsets = manager.list()
 
         # Matcher setup
         try:
@@ -136,16 +135,16 @@ class ESAMProcessor(PreprocProcessor):
 
         if action_end_status:  # Action block just ended
             self.lastaction_endTR = self.t
-            self.qa_offsets.append(self.t)
-            self.shared_qa_offsets.append(self.t)
+            self.action_offsets.append(self.t)
+            self.shared_action_offsets.append(self.t)
             self.sync.action_end.clear()
-            self.log.info(f'QA ended (cleared) --> updating lastaction_endTR = {self.lastaction_endTR}')
+            self.log.info(f'Action ended (cleared) --> updating lastaction_endTR = {self.lastaction_endTR}')
         
         hit = None
         template_labels = self.matcher.template_labels
         
         in_matching_window = self.t >= self.match_opts.match_start # Ready to match
-        cooldown = self.t < self.lastaction_endTR + self.match_opts.vols_noqa # Cooldown after a hit
+        cooldown = self.t < self.lastaction_endTR + self.match_opts.vols_noaction # Cooldown after a hit
 
         if self.t == max(0, self.match_opts.match_start - 1):
             self.hit_detector.calculate_enorm_diff(self.this_motion) # Feed in motion before matching begins
@@ -164,10 +163,10 @@ class ESAMProcessor(PreprocProcessor):
                 if hit:
                     self.sync.hit.clear()
                     self.log.info(f'[t={self.t},n={self.n}] ==========================================  Template hit [{hit}]')
-                    self.qa_onsets.append(self.t)
-                    self.shared_qa_onsets.append(self.t)
+                    self.action_onsets.append(self.t)
+                    self.shared_action_onsets.append(self.t)  # Update shared list for streaming
                     self.hits[template_labels.index(hit), self.t] = 1
-                    self.shared_tr_data[:, self.t] = processed.ravel()
+                    self.shared_tr_data[:, self.t] = processed.ravel()  # Save the matched volume to shared memory
                     self.sync.hit.set()
                     self.last_hit = hit
 
@@ -188,8 +187,8 @@ class ESAMProcessor(PreprocProcessor):
         self.mp_prc_stream = Process(target=run_streamer, args=(
             self.streaming_config,
             self.sync,
-            self.shared_qa_onsets,
-            self.shared_qa_offsets,
+            self.shared_action_onsets,
+            self.shared_action_offsets,
             shared_responses
         ))
 
@@ -244,13 +243,13 @@ class ESAMProcessor(PreprocProcessor):
                     unmask_fMRI_img(this_template_InMask, self.mask_img, out_file)
                     hit_ID += 1
     
-    def write_qa(self):
-        """Save QA onsets and offsets to plain-text files."""
-        with open(self.qa_onsets_path,'w') as file:
-            for onset in self.qa_onsets:
+    def write_action(self):
+        """Save action onsets and offsets to plain-text files."""
+        with open(self.action_onsets_path,'w') as file:
+            for onset in self.action_onsets:
                 file.write("%i\n" % onset)
-        with open(self.qa_offsets_path,'w') as file:
-            for offset in self.qa_offsets:
+        with open(self.action_offsets_path,'w') as file:
+            for offset in self.action_offsets:
                 file.write("%i\n" % offset)
 
     def write_report(self):
@@ -262,9 +261,9 @@ class ESAMProcessor(PreprocProcessor):
         self.matcher.scores.T,
         columns=self.matcher.template_labels
     )
-        qa_state = QAState(
-            self.qa_onsets,
-            self.qa_offsets,
+        action_state = ActionState(
+            self.action_onsets,
+            self.action_offsets,
             False,
             False,
             False,
@@ -272,7 +271,7 @@ class ESAMProcessor(PreprocProcessor):
         )
 
         plotter = ScorePlotter(self.streaming_config, streaming=False)
-        plotter.render_static(match_scores_df, qa_state) 
+        plotter.render_static(match_scores_df, action_state) 
         
     def end_run(self, save=True):
         """
@@ -288,7 +287,7 @@ class ESAMProcessor(PreprocProcessor):
         # TODO: move hit saving to HitDetector?
         self.write_hit_arrays()
         self.write_hit_maps()
-        self.write_qa()
+        self.write_action()
         if self.minimal:
             self.write_report()
 

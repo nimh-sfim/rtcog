@@ -39,7 +39,7 @@ def test_from_yaml():
         'test_latency': False,
         'matching': {'match_method': 'mask',
                     'match_start': 100,
-                    'vols_noqa': 45},
+                    'vols_noaction': 45},
         'hits': {'nconsec_vols': 2,
                 'hit_method': 'method01',
                 'do_mot': True,

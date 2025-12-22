@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 import numpy as np
 
-from rtcog.utils.sync import QAState
+from rtcog.utils.sync import ActionState
 from rtcog.viz.streaming_config import StreamingConfig
 
 class Plotter(ABC):
@@ -32,7 +32,7 @@ class Plotter(ABC):
         self._template_labels = config.template_labels
         self._Ntemplates = len(self._template_labels)
 
-    def should_update(self, t: int, qa_state: QAState) -> bool:
+    def should_update(self, t: int, action_state: ActionState) -> bool:
         """
         Whether or not the plot should be updated. By default, it will always
         update.
@@ -41,8 +41,8 @@ class Plotter(ABC):
         ----------
         t : int
             Current TR.
-        qa_state : QAState
-            QA-related metadata for the current TR.
+        action_state : ActionState
+            The current state of an action block during the experiment.
         Returns
         ----------
         bool
@@ -51,7 +51,7 @@ class Plotter(ABC):
         return True
 
     @abstractmethod
-    def update(self, t: int, data: np.ndarray, qa_state: QAState) -> None:
+    def update(self, t: int, data: np.ndarray, action_state: ActionState) -> None:
         """
         Update the plot with new data for the current time repetition (TR).
 
@@ -61,8 +61,8 @@ class Plotter(ABC):
             Current TR.
         data : np.ndarray
             Data to be visualized (format depends on subclass).
-        qa_state : QAState
-            QA-related metadata for the current TR.
+        action_state : ActionState
+            The current state of an action block during the experiment.
         """
         pass
 

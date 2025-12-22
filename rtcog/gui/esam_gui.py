@@ -208,7 +208,7 @@ class EsamGUI(PreprocGUI):
         return responses
 
 
-    def run_full_QA(self):
+    def run_full_action(self):
         """
         Run the full QA block: record voice, show Likert questions, and save results.
 

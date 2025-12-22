@@ -17,13 +17,13 @@ class SyncEvents:
     tr_index: Synchronized
 
 @dataclass(frozen=True)
-class QAState:
+class ActionState:
     """
-    Represents the current state of a QA trial during the experiment.
+    Represents the current state of an action block during the experiment.
     """
-    qa_onsets: List[int]
-    qa_offsets: List[int]
-    in_qa: bool
+    action_onsets: List[int]
+    action_offsets: List[int]
+    in_action: bool
     in_cooldown: bool
     cooldown_end: Optional[int]
     hit: bool

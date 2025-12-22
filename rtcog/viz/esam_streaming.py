@@ -7,7 +7,7 @@ import numpy as np
 import holoviews as hv
 import panel as pn
 
-from rtcog.utils.sync import SyncEvents, QAState
+from rtcog.utils.sync import SyncEvents, ActionState
 from rtcog.viz.score_plotter import ScorePlotter
 from rtcog.viz.map_plotter import MapPlotter
 from rtcog.viz.response_plotter import ResponsePlotter
@@ -20,9 +20,9 @@ log = get_logger()
 hv.extension('bokeh')
 pn.extension()
 
-def run_streamer(streamer_config, sync_events, qa_onsets, qa_offsets, responses) -> None:
+def run_streamer(streamer_config, sync_events, action_onsets, action_offsets, responses) -> None:
     """Instantiate streamer object and start thread."""
-    streamer = ESAMStreamer(streamer_config, sync_events, qa_onsets, qa_offsets, responses)
+    streamer = ESAMStreamer(streamer_config, sync_events, action_onsets, action_offsets, responses)
     streamer.run()
 
 class ESAMStreamer:
@@ -42,14 +42,14 @@ class ESAMStreamer:
         Configuration object containing information about the fMRI session.
     sync_events : SyncEvents
         Object that handles interprocess synchronization flags and signals.
-    qa_onsets : ListProxy
-        Shared list storing the TR indices of QA onsets (trial starts).
-    qa_offsets : ListProxy
-        Shared list storing the TR indices of QA offsets (trial ends).
+    action_onsets : ListProxy
+        Shared list storing the TR indices of action onsets (trial starts).
+    action_offsets : ListProxy
+        Shared list storing the TR indices of action offsets (trial ends).
     responses : DictProxy
         Shared dictionary containing responses collected during the experiment.
     """
-    def __init__(self, config: StreamingConfig, sync_events: SyncEvents, qa_onsets: ListProxy, qa_offsets: ListProxy, responses: DictProxy):
+    def __init__(self, config: StreamingConfig, sync_events: SyncEvents, action_onsets: ListProxy, action_offsets: ListProxy, responses: DictProxy):
         self._sync = sync_events
         self._sync.shm_ready.wait()
         
@@ -72,28 +72,28 @@ class ESAMStreamer:
         if responses is not None:
             self._plotters.append(ResponsePlotter(config, responses))
 
-        self._vols_noqa = config.matching_opts.vols_noqa
+        self._vols_noaction = config.matching_opts.vols_noaction
 
-        self._qa_onsets = qa_onsets
-        self._qa_offsets = qa_offsets
-        self._in_qa = False
+        self._action_onsets = action_onsets
+        self._action_offsets = action_offsets
+        self._in_action = False
         self._cooldown_end = None
         self._hit = False
 
     @property
-    def qa_state(self) -> QAState:
+    def action_state(self) -> ActionState:
         """
-        Construct and return the current QAState.
+        Construct and return the current ActionState.
 
         Returns
         -------
-        QAState
+        ActionState
             An object encapsulating current trial timing state.
         """
-        return QAState(
-            list(self._qa_onsets),
-            list(self._qa_offsets),
-            self._in_qa,
+        return ActionState(
+            list(self._action_onsets),
+            list(self._action_offsets),
+            self._in_action,
             self.in_cooldown,
             self._cooldown_end,
             self._hit
@@ -109,8 +109,8 @@ class ESAMStreamer:
         bool
             True if in cooldown, False otherwise.
         """
-        if self._qa_offsets:
-            return self._last_t < self._qa_offsets[-1] + self._vols_noqa
+        if self._action_offsets:
+            return self._last_t < self._action_offsets[-1] + self._vols_noaction
         return False
     
     def update(self) -> None:
@@ -131,10 +131,10 @@ class ESAMStreamer:
 
             # Now data for t is available, so increment and process
             self._last_t = t
-            self._update_qa_state(t)
+            self._update_action_state(t)
 
             for plotter in self._plotters:
-                if not plotter.should_update(t, self.qa_state):
+                if not plotter.should_update(t, self.action_state):
                     continue
 
                 data = None
@@ -142,7 +142,7 @@ class ESAMStreamer:
                 if key in self._shared_arrs:
                     data = self._shared_arrs[key][:, t]
                 
-                plotter.update(t, data, self.qa_state)
+                plotter.update(t, data, self.action_state)
 
 
     def run(self) -> None:
@@ -179,9 +179,9 @@ class ESAMStreamer:
         finally:
             self._shutdown()
             
-    def _update_qa_state(self, t: int) -> None:
+    def _update_action_state(self, t: int) -> None:
         """
-        Update internal QA state based on the current TR.
+        Update internal action state based on the current TR.
 
         Parameters
         ----------
@@ -189,12 +189,12 @@ class ESAMStreamer:
             Current TR index.
         """
         self._hit = False
-        if t in self._qa_onsets and not self._in_qa:
+        if t in self._action_onsets and not self._in_action:
             self._hit = True
-            self._in_qa = True
-        elif self._qa_offsets and t in self._qa_offsets:
-            self._in_qa = False
-            self._cooldown_end = t + self._vols_noqa
+            self._in_action = True
+        elif self._action_offsets and t in self._action_offsets:
+            self._in_action = False
+            self._cooldown_end = t + self._vols_noaction
 
     def _shutdown(self) -> None:
         """

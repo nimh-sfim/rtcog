@@ -121,5 +121,3 @@ class PreprocProcessor:
         """
         self.pipe.final_steps(save=save)
         self.sync.end.set()
-
-

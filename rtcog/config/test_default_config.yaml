@@ -57,7 +57,7 @@ test_latency: false
 matching:
   match_method: mask
   match_start: 100 # Volume when matching should start
-  vols_noqa: 45 # Min. number of volumes to wait since end of last QA before declaing a new hit
+  vols_noaction: 45 # Min. number of volumes to wait since end of last action before declaing a new hit
   
 # Hit options
 hits:

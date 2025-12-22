@@ -8,7 +8,7 @@ import panel as pn
 from holoviews.streams import Stream
 from bokeh.palettes import Category10
 
-from rtcog.utils.sync import QAState
+from rtcog.utils.sync import ActionState
 from rtcog.viz.streaming_config import StreamingConfig
 from rtcog.viz.plotter import Plotter
 
@@ -52,9 +52,13 @@ class ScorePlotter(Plotter):
         
         # Static overlays accumulated over time
         self._polys_static = []
-        self._no_match_poly = self._draw_poly(0, config.matching_opts.match_start).opts(color='gray', line_color=None, alpha=0.2)
-        self._qa_state = None
-        
+
+        # Gray box before matching starts
+        self._no_match_poly = self._draw_poly(
+                0, config.matching_opts.match_start
+            ).opts(color='gray', line_color=None, alpha=0.2)
+
+        self._action_state = None
         self._last_cooldown_shown = None
         
         self._colors = self._get_template_colors()
@@ -62,7 +66,7 @@ class ScorePlotter(Plotter):
         self._out_prefix = config.out_prefix
         self._out_dir = config.out_dir
         
-    def update(self, t: int, data: np.ndarray, qa_state: QAState) -> None:
+    def update(self, t: int, data: np.ndarray, action_state: ActionState) -> None:
         """
         Update the plot with new score data at a given time point.
 
@@ -77,7 +81,9 @@ class ScorePlotter(Plotter):
             Current action state containing action onsets, offsets, and cooldown info.
         """
         self._df.iloc[t] = data
-        self._qa_state = qa_state
+        self._action_state = action_state
+
+        # Trigger redraw only if data is valid
         if not np.isnan(self._df.iloc[t]).all():
             self.dmap.event(t=t)
 
@@ -111,7 +117,7 @@ class ScorePlotter(Plotter):
 
         overlays = [line_plot, self._no_match_poly]
 
-        if self._qa_state is None:
+        if self._action_state is None:
             return hv.Overlay(overlays)
 
         # Threshold line
@@ -124,19 +130,27 @@ class ScorePlotter(Plotter):
         # Hit markers
         overlays.append(self._draw_hit_markers())
 
-        if self._qa_state.in_qa:
+        # Action state-dependent dynamic shaded regions
+        if self._action_state.in_action:
             overlays.append(self._draw_dynamic_box(t))
-        elif self._qa_state.qa_offsets and t == self._qa_state.qa_offsets[-1]:
-            self._polys_static.append(self._draw_poly(self._qa_state.qa_onsets[-1], t).opts(alpha=0.2, color='blue', line_color=None))
-        elif self._qa_state.in_cooldown:
-            if self._qa_state.cooldown_end != self._last_cooldown_shown:
+        elif self._action_state.action_offsets and t == self._action_state.action_offsets[-1]:
+            # Final action box
+            self._polys_static.append(
+                    self._draw_poly(self._action_state.action_onsets[-1], t
+                ).opts(alpha=0.2, color='blue', line_color=None))
+        elif self._action_state.in_cooldown:
+            # Cooldown box
+            if self._action_state.cooldown_end != self._last_cooldown_shown:
                 self._polys_static.append(
-                    self._draw_poly(self._qa_state.qa_offsets[-1], self._qa_state.cooldown_end)
+                    self._draw_poly(self._action_state.action_offsets[-1], self._action_state.cooldown_end)
                     .opts(alpha=0.2, color='cyan', line_color=None)
                 )
-                self._last_cooldown_shown = self._qa_state.cooldown_end
+                self._last_cooldown_shown = self._action_state.cooldown_end
         
-        overlays.append(hv.Overlay(self._polys_static) if self._polys_static else hv.Overlay([]))
+        overlays.append(
+            hv.Overlay(self._polys_static)
+            if self._polys_static else hv.Overlay([])
+        )
         
         return hv.Overlay(overlays)
 
@@ -190,7 +204,7 @@ class ScorePlotter(Plotter):
             Scatter plot of action hit markers.
         """
         points = []
-        for hit_time in self._qa_state.qa_onsets:
+        for hit_time in self._action_state.action_onsets:
             row = self._df.iloc[hit_time]
             if not row.isna().all():
                 max_template = row.idxmax() # Template with the highest score
@@ -226,11 +240,15 @@ class ScorePlotter(Plotter):
         palette = Category10[10]
 
         # Cycle through palette if more labels than colors
-        assigned_colors = [c for _, c in zip(self._template_labels, cycle(palette))]
+        assigned_colors = [
+            c for _, c in zip(self._template_labels, cycle(palette))
+        ]
         return dict(zip(self._template_labels, assigned_colors))
     
     def close(self):
-        """Save the final state of the streaming plot to an HTML file."""
+        """
+        Save the final state of the plot to an HTML file.
+        """
         out_html = osp.join(self._out_dir, self._out_prefix + '.dyn_report')
         renderer = hv.renderer('bokeh')
 
@@ -241,7 +259,7 @@ class ScorePlotter(Plotter):
         renderer.save(final_plot, out_html)
         print(f'++ Score report written to disk: [{out_html}.html]')
     
-    def render_static(self, df: pd.DataFrame, qa_state: QAState) -> hv.Overlay:
+    def render_static(self, df: pd.DataFrame, action_state: ActionState) -> hv.Overlay:
         """
         Render a static score plot after the experiment has completed.
 
@@ -258,5 +276,5 @@ class ScorePlotter(Plotter):
             Rendered plot overlay.
         """
         self._df = df
-        self._qa_state = qa_state
+        self._action_state = action_state
         self.close()

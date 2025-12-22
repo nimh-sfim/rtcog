@@ -3,7 +3,7 @@ import pandas as pd
 import panel as pn
 from multiprocessing.managers import DictProxy
 
-from rtcog.utils.sync import QAState
+from rtcog.utils.sync import ActionState
 from rtcog.viz.streaming_config import StreamingConfig
 from rtcog.viz.plotter import Plotter
 
@@ -38,23 +38,23 @@ class ResponsePlotter(Plotter):
 
         self._last_response_t = None
     
-    def should_update(self, t, qa_state):
+    def should_update(self, t, action_state):
         """
         True if the current `t` is the end of a question/response block.
         """
-        if not qa_state.qa_offsets:
+        if not action_state.action_offsets:
             return False
-        latest_offset = qa_state.qa_offsets[-1]
+        latest_offset = action_state.action_offsets[-1]
         return self._last_response_t != latest_offset
 
-    def update(self, t: int, data: np.ndarray, qa_state: QAState) -> None:
+    def update(self, t: int, data: np.ndarray, action_state: ActionState) -> None:
         """
         Update the response DataFrame with the latest responses.
         """
-        latest_offset = qa_state.qa_offsets[-1]
+        latest_offset = action_state.action_offsets[-1]
         self._last_response_t = latest_offset
         new_row = {qname: self._responses.get(qname, (None, None))[0] for qname in self._df.columns}
-        new_df = pd.DataFrame([new_row], index=[qa_state.qa_onsets[-1]])
+        new_df = pd.DataFrame([new_row], index=[action_state.action_onsets[-1]])
         self._df = pd.concat([self._df, new_df])
         self.pane.object = self._df
 
