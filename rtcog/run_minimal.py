@@ -24,7 +24,7 @@ def main():
     elif opts.exp_type == "esam":
         proc_class = ESAMProcessor
     else:
-        raise ValueError("Unsupported experiment type.")
+        raise ValueError(f"Unsupported experiment type for minimal mode: {opts.exp_type}.")
 
     clock = SharedClock() if opts.test_latency else None
     receiver_path = opts.out_dir + f"{opts.out_prefix}_receiver_timing.pkl" if opts.test_latency else None

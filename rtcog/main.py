@@ -43,7 +43,7 @@ def main():
     if opts.exp_type not in EXPERIMENT_REGISTRY:
         raise ValueError(f"Unsupported experiment type: {opts.exp_type}")
 
-    exp_class = EXPERIMENT_REGISTRY[opts.exp_type]["processor"]
+    proc_class = EXPERIMENT_REGISTRY[opts.exp_type]["processor"]
     action_class = EXPERIMENT_REGISTRY.get(opts.exp_type, {}).get("action", None)
     
     controller = None
@@ -66,7 +66,7 @@ def main():
 
     comm_proc = mp.Process(
         target=comm_process,
-        args=(opts, sync, exp_class, shared_responses, clock, receiver_path)
+        args=(opts, sync, proc_class, shared_responses, clock, receiver_path)
     )
 
     try:

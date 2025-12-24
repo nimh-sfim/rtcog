@@ -109,8 +109,7 @@ class Options:
           parser_save.add_argument("--auto_save", help="Automatically save all outputs even if error is encountered during processing.", dest="auto_save", action="store_true", default=None)
           
           parser_exp = parser.add_argument_group('Experiment/GUI Options')
-          # TODO: allow any kind but check elsewhere that its registered properly
-          parser_exp.add_argument("-e","--exp_type", help="Type of Experimental Run", type=str, choices=['basic','esam', 'esam_test'])
+          parser_exp.add_argument("-e","--exp_type", help="Type of Experimental Run", type=str)
           parser_exp.add_argument("--no_action", help="Do not perform any action (ex. GUI)", action="store_true", dest='no_action', default=None)
           parser_exp.add_argument("--no_proc_chair", help="Hide crosshair during preprocessing run", action="store_true", dest='no_proc_chair', default=None)
           parser_exp.add_argument("--fscreen", help="Use full screen for Experiment", action="store_true", dest="fullscreen", default=None)
