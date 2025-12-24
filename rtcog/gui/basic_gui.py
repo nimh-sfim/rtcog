@@ -13,7 +13,7 @@ from rtcog.gui.base_gui import BaseGUI
 
 log = get_logger()
 
-class PreprocGUI(BaseGUI):
+class BasicGUI(BaseGUI):
     """
     Default GUI class for real-time fMRI experiments using PsychoPy.
 

@@ -8,4 +8,4 @@ tr: 1.0
 # Testing option2
 test_latency: true
 
-exp_type: preproc
+exp_type: basic

@@ -9,7 +9,7 @@ from rtcog.utils.options import Options
 from rtcog.utils.log import set_logger
 from rtcog.utils.core import SharedClock, create_sync_events
 from rtcog.comm.comm_process import comm_process
-from rtcog.processor.preproc_processor import PreprocProcessor
+from rtcog.processor.basic_processor import BasicProcessor
 from rtcog.processor.esam_processor import ESAMProcessor
 
 def main():
@@ -19,8 +19,8 @@ def main():
     set_logger(debug=opts.debug, silent=opts.silent)
     sync = create_sync_events()
 
-    if opts.exp_type == "preproc":
-        proc_class = PreprocProcessor
+    if opts.exp_type == "basic":
+        proc_class = BasicProcessor
     elif opts.exp_type == "esam":
         proc_class = ESAMProcessor
     else:

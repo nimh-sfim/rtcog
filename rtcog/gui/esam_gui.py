@@ -12,11 +12,11 @@ prefs.hardware['keyboard'] = 'pygame'
 from rtcog.utils.recorder import Recorder
 from rtcog.utils.core import get_logger
 from rtcog.paths import RESOURCES_DIR
-from rtcog.gui.preproc_gui import PreprocGUI
+from rtcog.gui.basic_gui import BasicGUI
 
 log = get_logger()
 
-class EsamGUI(PreprocGUI):
+class EsamGUI(BasicGUI):
     """
     GUI class for Experience Sampling (ESAM) fMRI experiments.
 

@@ -1,14 +1,14 @@
 """
 Register experiment plugins by defining `Processor` and `ActionSeries`
 """
-from rtcog.processor.preproc_processor import PreprocProcessor
+from rtcog.processor.basic_processor import BasicProcessor
 from rtcog.processor.esam_processor import ESAMProcessor
-from rtcog.controller.action_series import PreprocActionSeries, ESAMActionSeries
+from rtcog.controller.action_series import BasicActionSeries, ESAMActionSeries
 
 EXPERIMENT_REGISTRY = {
-    "preproc": {
-        "processor": PreprocProcessor,
-        "action": PreprocActionSeries,
+    "basic": {
+        "processor": BasicProcessor,
+        "action": BasicActionSeries,
     },
     "esam": {
         "processor": ESAMProcessor,

@@ -7,7 +7,7 @@ import numpy as np
 import pandas as pd
 
 from rtcog.utils.shared_memory_manager import SharedMemoryManager
-from rtcog.processor.preproc_processor import PreprocProcessor
+from rtcog.processor.basic_processor import BasicProcessor
 from rtcog.preproc.step_types import StepType
 from rtcog.matching.matcher import Matcher
 from rtcog.matching.matching_opts import MatchingOpts
@@ -20,7 +20,7 @@ from rtcog.utils.sync import ActionState
 from rtcog.viz.score_plotter import ScorePlotter
 
 
-class ESAMProcessor(PreprocProcessor):
+class ESAMProcessor(BasicProcessor):
     """
     Real-time fMRI processor class supporting experience sampling (ESAM) mode.
 

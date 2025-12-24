@@ -4,8 +4,8 @@ Creating an experiment plugin
 
 ``rtcog`` includes two built-in experiment types:
 
-- **Preproc**: Performs basic real-time fMRI preprocessing.
-- **ESAM** (Experience Sampling): Builds on Preproc to support template
+- **Basic**: Performs basic real-time fMRI preprocessing.
+- **ESAM** (Experience Sampling): Builds on Basic to support template
   matching, response collection, and dynamic real-time data streaming.
 
 Plugin Components
@@ -33,8 +33,8 @@ the config file or subclassing ``PreprocStep``, ``Matcher``, and/or
 ``HitDetector``, subclassing ``Processor`` is **not** recommended. Most use
 cases can simply reuse one of the following:
 
-- ``PreprocProcessor``: Basic real-time fMRI preprocessing.
-- ``ESAMProcessor``: Extends ``PreprocProcessor`` to support online
+- ``BasicProcessor``: Basic real-time fMRI preprocessing.
+- ``ESAMProcessor``: Extends ``BasicProcessor`` to support online
   template matching and real-time data visualization.
 
 The ActionSeries Class (Optional)
@@ -57,7 +57,7 @@ pass ``--no_action`` when running ``rtcog`` to prevent your
 
 ``rtcog`` by default comes with two action series:
 
-- ``PreprocActionSeries``: Displays a basic GUI until the experiment
+- ``BasicActionSeries``: Displays a basic GUI until the experiment
   ends
 - ``ESAMActionSeries``: Also collects voice recording and question
   responses at each hit
@@ -115,7 +115,7 @@ You can inherit from:
 +================+===========================================================+
 | ``BaseGUI``    | Blank starting point                                      |
 +----------------+-----------------------------------------------------------+
-| ``PreprocGUI`` | Displays a fixation cross and general instructions        |
+| ``BasicGUI`` | Displays a fixation cross and general instructions          |
 +----------------+-----------------------------------------------------------+
 | ``EsamGUI``    | Adds voice recording, question prompts, and response      |
 |                | collection                                                |
@@ -150,7 +150,7 @@ To make your plugin available to ``rtcog``, register it in
 .. code:: python
 
    "my_custom_experiment": {
-       "processor": ESAMProcessor, # Or PreprocProcessor
+       "processor": ESAMProcessor, # Or BasicProcessor
        "action" MyActionSeries     # Optional
    }
 

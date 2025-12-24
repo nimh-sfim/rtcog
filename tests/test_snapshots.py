@@ -1,4 +1,4 @@
-"""Run rtcaps_matcher.py in preproc mode with --snapshot flag to compare to known values using PILOT03_Run01.300vols.nii.
+"""Run rtcaps_matcher.py in basic mode with --snapshot flag to compare to known values using PILOT03_Run01.300vols.nii.
 Could be automated in the future for quick testing after updates.
 Note: Data_kalman has some nonnumeric values for some reason (nans maybe?) so np.load won't load if it's in there. Need to look into that."""
 

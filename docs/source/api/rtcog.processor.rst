@@ -12,10 +12,10 @@ rtcog.processor.esam\_processor module
    :undoc-members:
    :show-inheritance:
 
-rtcog.processor.preproc\_processor module
+rtcog.processor.basic\_processor module
 -----------------------------------------
 
-.. automodule:: rtcog.processor.preproc_processor
+.. automodule:: rtcog.processor.basic_processor
    :members:
    :undoc-members:
    :show-inheritance:

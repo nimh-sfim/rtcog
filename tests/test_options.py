@@ -1,6 +1,5 @@
 import os.path as osp
 import pytest
-import pprint
 
 from rtcog.utils.options import Options
 from rtcog.paths import CONFIG_DIR
@@ -17,7 +16,7 @@ def test_from_yaml():
         'tr': 1.0,
         'save_orig': False,
         'discard': 10,
-        'steps': [{'name': 'EMA', 'enabled': True, 'save': False},
+        'steps': [{'name': 'EMA', 'enabled': True, 'save': False, 'ema_thr': 0.98},
                 {'name': 'iGLM',
                     'enabled': True,
                     'save': False,
@@ -41,7 +40,7 @@ def test_from_yaml():
                     'match_start': 100,
                     'vols_noaction': 45},
         'hits': {'nconsec_vols': 2,
-                'hit_method': 'method01',
+                'nonline': 1,
                 'do_mot': True,
                 'mot_thr': 0.2}
     }

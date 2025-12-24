@@ -21,7 +21,7 @@ work in progress...
 3. Running ``rtcog``
 =====================
 
-In Preproc mode:
+In Basic mode:
 
 .. code:: bash
 
@@ -33,7 +33,7 @@ In Preproc mode:
      --mask path/to/your_mask.nii \           # Your mask file
      --out_dir ./output_directory \           # Where results will be saved
      --out_prefix your_output_prefix \        # Prefix for output files
-     --exp_type preproc \                     # Experiment type
+     --exp_type basic \                       # Experiment type
 
 In ESAM mode:
 

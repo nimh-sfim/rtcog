@@ -143,8 +143,8 @@ The string "custom" automatically maps to your CustomMatcher class.
 
 `rtcog` includes two built-in experiment types:
 
-- Preproc: Performs basic real-time fMRI preprocessing.
-- ESAM (Experience Sampling): Builds on Preproc to support template matching, response collection, and dynamic real-time data streaming.
+- Basic: Performs basic real-time fMRI preprocessing.
+- ESAM (Experience Sampling): Builds on Basic to support template matching, response collection, and dynamic real-time data streaming.
 
 ### Plugin Components
 
@@ -161,8 +161,8 @@ The `Processor` handles how each TR is processed.
 
 Because preprocessing and template matching are fully configurable via the config file or subclassing `PreprocStep`, `Matcher`, and/or `HitDetector`, subclassing `Processor` is not recommended. Most use cases can simply reuse one of the following:
 
-- `PreprocProcessor`: Basic real-time fMRI preprocessing.
-- `ESAMProcessor`: Extends `PreprocProcessor` to support online template matching, participant response collection, and real-time data visualization.
+- `BasicProcessor`: Basic real-time fMRI preprocessing.
+- `ESAMProcessor`: Extends `BasicProcessor` to support online template matching, participant response collection, and real-time data visualization.
 
 ### The ActionSeries Class (Optional)
 
@@ -177,7 +177,7 @@ The `ActionSeries` class responds to the state of the experiment. By extending `
 
 `rtcog` by default comes with two action series:
 
-- `PreprocActionSeries`: Displays a basic GUI until the experiment ends
+- `BasicActionSeries`: Displays a basic GUI until the experiment ends
 - `ESAMActionSeries`: Also collects voice recording and question responses at each hit
 
 If you have a GUI, it should be owned by your `ActionSeries` so it can be updated throughout the experiment.
@@ -218,7 +218,7 @@ You can inherit from:
 | Class        | Description                                                     |
 | ------------ | --------------------------------------------------------------- |
 | `BaseGUI`    | Blank starting point                                            |
-| `PreprocGUI` | Displays a fixation cross and general instructions              |
+| `BasicGUI` | Displays a fixation cross and general instructions              |
 | `EsamGUI`    | Adds voice recording, question prompts, and response collection |
 
 ```python

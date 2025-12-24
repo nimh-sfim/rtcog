@@ -4,7 +4,7 @@ from psychopy import event
 
 from rtcog.utils.log import get_logger
 from rtcog.gui.gui_utils import validate_likert_questions
-from rtcog.gui.preproc_gui import PreprocGUI
+from rtcog.gui.basic_gui import BasicGUI
 from rtcog.gui.esam_gui import EsamGUI
 
 log = get_logger()
@@ -58,7 +58,7 @@ class BaseActionSeries(ABC):
         pass
 
 
-class PreprocActionSeries(BaseActionSeries):
+class BasicActionSeries(BaseActionSeries):
     """
     Action series providing basic GUI handling.
 
@@ -75,13 +75,13 @@ class PreprocActionSeries(BaseActionSeries):
             Shared synchronization events.
         opts : Options
             Options object containing experiment settings.
-        gui : PreprocGUI, optional
-            GUI instance. If not provided, a PreprocGUI is created.
+        gui : BasicGUI, optional
+            GUI instance. If not provided, a BasicGUI is created.
         **kwargs
             Additional arguments passed to the GUI constructor.
         """
         if gui is None:
-            gui = PreprocGUI(opts, **kwargs)
+            gui = BasicGUI(opts, **kwargs)
         super().__init__(sync, opts=opts, gui=gui)
 
     def on_start(self):
@@ -109,7 +109,7 @@ class PreprocActionSeries(BaseActionSeries):
         self.gui.close_psychopy_infrastructure()
 
 
-class ESAMActionSeries(PreprocActionSeries):
+class ESAMActionSeries(BasicActionSeries):
     """
     Action series implementing ESAM task behavior.
 
@@ -172,7 +172,7 @@ class ESAMActionSeries(PreprocActionSeries):
         self.gui.close_psychopy_infrastructure()
 
     
-class LatencyTestActionSeries(PreprocActionSeries):
+class LatencyTestActionSeries(BasicActionSeries):
     """
     Action series used for trigger latency testing.
 

@@ -5,7 +5,7 @@ from rtcog.preproc.pipeline import Pipeline
 from rtcog.utils.log import set_logger
 from rtcog.utils.fMRI import load_fMRI_file
 
-class PreprocProcessor:
+class BasicProcessor:
     """
     Class representing a real-time fMRI processor.
 
