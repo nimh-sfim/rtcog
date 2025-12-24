@@ -1,6 +1,7 @@
 import sys
 import os.path as osp
 import numpy as np
+from typing import Optional
 from nibabel.nifti1 import Nifti1Image
 
 from rtcog.preproc.preproc_steps import PreprocStep
@@ -175,7 +176,8 @@ class Pipeline:
         for step in self.steps:
             step.start_step(self)
 
-    def process(self, t: int, n: int, motion: list[float], this_t_data: np.ndarray) -> np.ndarray | None:
+    def process(self, t: int, n: int, motion: list[float], this_t_data: np.ndarray) -> Optional[np.ndarray]:
+        
         """
         Run full processing pipeline on a single TR.
 

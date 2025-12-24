@@ -32,7 +32,7 @@ autodoc_mock_imports = [
     'numpy', 'psychopy', 'nibabel', 'yaml',
     'pyaudio', 'playsound', 'whisper', 'pandas',
     'scipy', 'holoviews', 'panel', 'sklearn',
-    'hvplot', 'nilearn', 'matplotlib'
+    'hvplot', 'nilearn', 'matplotlib', 'bokeh'
 ]
 
 html_theme = 'sphinx_rtd_theme'
