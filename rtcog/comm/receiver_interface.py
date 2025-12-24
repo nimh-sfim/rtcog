@@ -1,38 +1,29 @@
-# Updating ReceiverInterface class to suit our purposes
-
-import sys
-import os.path as osp
-import shutil
+import os
 import traceback
 import pickle
-
-sys.path.append('..')
+from rtcog.utils.core import setup_afni
 from rtcog.utils.exceptions import VolumeOverflowError
 
 import logging
 log = logging.getLogger(__name__)
 
-afni_path = shutil.which('afni')
+_ReceiverBase = object
+ReceiverInterface = None
+RT = None
 
-if not afni_path:
-    log.error('++ ERROR: AFNI not found in the system PATH')
-    sys.exit(-1)
+# Do not load afni stuff on Read the Docs
+if not os.environ.get("READTHEDOCS"):
+    ReceiverInterface, RT = setup_afni()
+    _ReceiverBase = ReceiverInterface
 
-abin_path = osp.dirname(afni_path)
-sys.path.insert(1, abin_path)
-
-# system libraries : test, then import as local symbols
-from afnipy import module_test_lib
-testlibs = ['signal', 'time']
-if module_test_lib.num_import_failures(testlibs): sys.exit(1)
-
-# AFNI libraries (besides module_test_lib)
-from realtime_receiver import ReceiverInterface
-from afnipy import lib_realtime as RT
-
-    
-class CustomReceiverInterface(ReceiverInterface):
+class CustomReceiverInterface(_ReceiverBase):
+    """Custom AFNI real-time receiver with rtcog extensions."""
     def __init__(self, port=None, show_data=False, verb=0, auto_save=True, clock=None, out_path=None):
+        if ReceiverInterface is None or RT is None:
+            raise RuntimeError(
+                "CustomReceiverInterface cannot be used without AFNI"
+            )
+
         super().__init__()
         self.RTI = RT.RTInterface()
         

@@ -1,6 +1,7 @@
+import sys
 import time
 import os.path as osp
-import math
+import shutil
 from multiprocessing import Event, Value
 from ctypes import c_int
 from rtcog.utils.sync import SyncEvents
@@ -55,6 +56,22 @@ class SharedClock:
         """
         return time.perf_counter() - self._start_time
       
-def euclidean_norm(nums):
-    """Compute the Euclidean norm of a list or iterable of numbers."""
-    return math.sqrt(sum(x**2 for x in nums))
+def setup_afni():
+    afni_path = shutil.which('afni')
+
+    if not afni_path:
+        log.error('++ ERROR: AFNI not found in the system PATH')
+        raise RuntimeError("AFNI not found")
+
+    abin_path = osp.dirname(afni_path)
+    sys.path.insert(1, abin_path)
+
+    from afnipy import module_test_lib
+    testlibs = ['signal', 'time']
+    if module_test_lib.num_import_failures(testlibs):
+        raise RuntimeError("AFNI module import failures")
+
+    from realtime_receiver import ReceiverInterface
+    from afnipy import lib_realtime as RT
+
+    return ReceiverInterface, RT
