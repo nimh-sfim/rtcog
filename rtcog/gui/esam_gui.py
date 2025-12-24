@@ -1,3 +1,4 @@
+import os
 import time
 import os.path as osp
 import csv
@@ -7,7 +8,9 @@ from psychopy import core, event
 from psychopy.visual import TextStim, ImageStim
 from psychopy.visual.slider import Slider 
 from psychopy import prefs
-prefs.hardware['keyboard'] = 'pygame'
+
+if os.environ.get("READTHEDOCS") != "True":
+    prefs.hardware['keyboard'] = 'pygame'
 
 from rtcog.utils.recorder import Recorder
 from rtcog.utils.core import get_logger

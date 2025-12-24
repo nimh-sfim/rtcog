@@ -1,11 +1,14 @@
 import pickle
+import os
 import os.path as osp
 
 from psychopy import core, event
 from psychopy import logging as psychopy_logging
 from psychopy.visual import TextStim
 from psychopy import prefs
-prefs.hardware['keyboard'] = 'pygame'
+
+if os.environ.get("READTHEDOCS") != "True":
+    prefs.hardware['keyboard'] = 'pygame'
 
 from rtcog.utils.core import get_logger
 from rtcog.gui.gui_utils import get_experiment_info

@@ -29,7 +29,8 @@ templates_path = ['_templates']
 exclude_patterns = []
 autodoc_mock_imports = [
     'numpy', 'psychopy', 'nibabel', 'yaml',
-    'pyaudio', 'playsound', 'whisper'
+    'pyaudio', 'playsound', 'whisper', 'pandas',
+    'scipy', 'holoviews', 'panel'
 ]
 
 html_theme = 'sphinx_rtd_theme'

@@ -1,11 +1,14 @@
 import sys
-import os.path as osp
+import os
 import json
+import os.path as osp
 
 from psychopy import core, gui, data
 from psychopy.hardware import keyboard
 from psychopy import prefs
-prefs.hardware['keyboard'] = 'pygame'
+
+if os.environ.get("READTHEDOCS") != "True":
+    prefs.hardware['keyboard'] = 'pygame'
 
 from rtcog.utils.core import get_logger
 from rtcog.paths import RESOURCES_DIR
