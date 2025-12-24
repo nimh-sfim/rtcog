@@ -31,7 +31,7 @@ rtcog.gui.gui\_utils module
 rtcog.gui.preproc\_gui module
 -----------------------------
 
-.. automodule:: rtcog.gui.preproc_gui
+.. automodule:: rtcog.gui.basic_gui
    :members:
    :undoc-members:
    :show-inheritance:
