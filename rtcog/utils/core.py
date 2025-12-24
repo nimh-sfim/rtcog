@@ -1,3 +1,4 @@
+import os
 import sys
 import time
 import os.path as osp
@@ -57,6 +58,9 @@ class SharedClock:
         return time.perf_counter() - self._start_time
       
 def setup_afni():
+    if os.environ.get("READTHEDOCS") == "True":
+        log.warning("AFNI not loaded. Mocking imports for documentation build")
+        return None, None
     afni_path = shutil.which('afni')
 
     if not afni_path:

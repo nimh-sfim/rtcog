@@ -5,6 +5,7 @@
 
 import os
 import sys
+from unittest import mock
 
 sys.path.insert(0, os.path.abspath('../..'))
 
@@ -30,7 +31,8 @@ exclude_patterns = []
 autodoc_mock_imports = [
     'numpy', 'psychopy', 'nibabel', 'yaml',
     'pyaudio', 'playsound', 'whisper', 'pandas',
-    'scipy', 'holoviews', 'panel'
+    'scipy', 'holoviews', 'panel', 'sklearn',
+    'hvplot', 'nilearn', 'matplotlib'
 ]
 
 html_theme = 'sphinx_rtd_theme'

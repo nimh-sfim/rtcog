@@ -12,7 +12,7 @@ ReceiverInterface = None
 RT = None
 
 # Do not load afni stuff on Read the Docs
-if os.environ.get("READTHEDOCS") != True:
+if os.environ.get("READTHEDOCS") != "True":
     ReceiverInterface, RT = setup_afni()
     _ReceiverBase = ReceiverInterface
 
