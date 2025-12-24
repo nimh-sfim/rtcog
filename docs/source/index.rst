@@ -6,6 +6,7 @@ Documentation for rtcog: real-time fMRI monitoring of brain activity and cogniti
    :maxdepth: 2
    :caption: Contents:
 
+   overview
    installation
    usage
    customize

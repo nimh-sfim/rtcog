@@ -7,8 +7,9 @@ This software offers two methods for spatial template matching:
 * ``SVRMatcher``: Uses a pretrained SVR model.
 * ``MaskMatcher``: Uses template masks.
 
-You can easily add your own matching method by defining a new step as a
-subclass of ``Matcher``. Each step operates on one TR at a time and
+If you want a different way of deciding when a template matches the current TR,
+you can add your own matching method by defining a new Matcher as a
+subclass of ``Matcher``. Each Matcher operates on one TR at a time and
 integrates into the existing framework.
 
 1. **Create your matcher class**
@@ -21,7 +22,7 @@ the following:
 
 - ``_match(self, tr_data)``: **required**
   This method performs the actual matching computation for the current
-  TR and returns a 1D NumPy array of length Ntemplates containing
+  TR. It must return a 1D NumPy array of length ``Ntemplates`` containing
   the match scores for each template at the current TR.
 
 During initalization, your matcher must:
@@ -64,7 +65,7 @@ class name in lowercase (e.g., ``CustomMethod`` → ``"custommethod"``).
 
 Private classes (classes that start with ``_``) are not registered.
 
-1. **Enable the matcher in your config**
+2. **Enable the matcher in your config**
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Specify the matcher in your YAML config file under the matching section:
