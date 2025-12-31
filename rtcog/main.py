@@ -30,7 +30,7 @@ def main():
     - Optionally creates a controller for experiment interaction
     """
     # 1) Read Input Parameters: port, fullscreen, etc..
-    # ------------------------------------------
+    # -------------------------------------------------
     opts = Options.from_cli()
     opts.save_config()
     
@@ -40,6 +40,8 @@ def main():
     
     sync = create_sync_events()
         
+    # 2) Validate experiment type and setup Processor/Controller
+    # ----------------------------------------------------------
     if opts.exp_type not in EXPERIMENT_REGISTRY:
         raise ValueError(f"Unsupported experiment type: {opts.exp_type}")
 
@@ -64,23 +66,24 @@ def main():
         if isinstance(action, ESAMActionSeries):
             shared_responses = action.gui.shared_responses
 
+    # 3) Launch the communication process
+    # -----------------------------------
     comm_proc = mp.Process(
         target=comm_process,
         args=(opts, sync, proc_class, shared_responses, clock, receiver_path)
     )
 
+    # 4) Start experiment
+    # -------------------
     try:
-        # 1) Start communication process
-        # ------------------------------------------
+        # Start communication process
         comm_proc.start()
 
-        # 2) Run controller
-        # ------------------------------------
+        # Run controller
         if controller:
             controller.run()
         
-        # 3) Wait for communication process to complete
-        # ------------------------------------
+        # Wait for communication process to complete
         comm_proc.join()
 
     except KeyboardInterrupt:

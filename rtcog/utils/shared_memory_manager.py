@@ -8,6 +8,11 @@ class SharedMemoryManager:
     """
     Manager for SharedMemory with open and cleanup logic.
 
+    This class provides a safe interface for shared memory, which allows large data arrays
+    (like fMRI volumes) to be shared between processes without copying. This is crucial for
+    real-time performance as it avoids the overhead of serializing/deserializing data
+    between the data processing and streaming processes.
+
     This class wraps multiprocessing.shared_memory.SharedMemory to provide
     automatic cleanup.
     """

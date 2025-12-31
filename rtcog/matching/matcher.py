@@ -5,7 +5,6 @@ import numpy as np
 from rtcog.matching.matching_opts import MatchingOpts
 from rtcog.utils.log import get_logger
 from rtcog.utils.shared_memory_manager import SharedMemoryManager
-from rtcog.matching.matching_utils import rt_svrscore_vol, rt_maskscore_vol
 from rtcog.utils.sync import SyncEvents
 
 log = get_logger()
@@ -13,11 +12,61 @@ log = get_logger()
 
 # TODO: accept SyncEvents instead of individual mp events
 class Matcher:
-    """Base class for matching processed TR data to given templates"""
-    
-    registry = {} # Holds all available matching classes
+    """
+    Base class for matching processed TR data to given templates.
+
+    This class provides the framework for comparing incoming fMRI volumes against
+    predefined brain state templates to detect patterns of interest. Subclasses
+    implement specific matching algorithms (e.g., SVR-based or mask-based).
+
+    Attributes
+    ----------
+    registry : dict
+        Class-level registry mapping matcher names to their classes.
+    match_start : int
+        First volume index to start computing match scores.
+    Nt : int
+        Total number of time points in the experiment.
+    scores : np.ndarray
+        Array of match scores, shape (Ntemplates, Nt).
+    Ntemplates : int
+        Number of templates to match against.
+    mp_end : multiprocessing.Event
+        Event to signal experiment end.
+    mp_new_tr : multiprocessing.Event
+        Event set when a new TR is processed.
+    mp_shm_ready : multiprocessing.Event
+        Event indicating shared memory is ready.
+
+    Methods
+    -------
+    from_name(name)
+        Factory method to instantiate a matcher by name.
+    match(t, n, tr_data)
+        Compute similarity scores for a TR and update shared memory.
+    setup_shared_memory()
+        Initialize shared memory for score storage.
+    cleanup_shared_memory()
+        Clean up shared memory resources.
+    _match(tr_data)
+        Abstract method for computing match scores (implemented by subclasses).
+    """
 
     def __init__(self, match_opts: MatchingOpts, Nt: int, sync: SyncEvents, match_path: str):
+        """
+        Initialize the Matcher.
+
+        Parameters
+        ----------
+        match_opts : MatchingOpts
+            Configuration options for matching.
+        Nt : int
+            Total number of time points.
+        sync : SyncEvents
+            Synchronization events container.
+        match_path : str
+            Path to matching data (e.g., templates or model).
+        """
         self.match_start = match_opts.match_start # First volume to start computing match scores on
         self.Nt = Nt
         self.scores = None
@@ -49,7 +98,23 @@ class Matcher:
         return cls.registry[name]
 
     def match(self, t, n, tr_data):
-        """Compute similarity of TR data to templates"""
+        """
+        Compute similarity scores for a TR and update shared memory.
+
+        Parameters
+        ----------
+        t : int
+            Time point index.
+        n : int
+            Processed volume index.
+        tr_data : np.ndarray
+            Processed TR data.
+
+        Returns
+        -------
+        np.ndarray
+            Updated scores array.
+        """
         if self.scores is None:
             self.scores = np.zeros((self.Ntemplates, self.Nt))
         
@@ -73,7 +138,11 @@ class Matcher:
         return self.scores
 
     def setup_shared_memory(self):
-        """Create shared memory buffer to pass match scores to data streaming process"""
+        """
+        Initialize shared memory for score storage.
+
+        Creates a shared memory buffer to pass match scores to the data streaming process.
+        """
         if self.Ntemplates is None:
             raise RuntimeError("Ntemplates must be set before creating shared memory")
 
@@ -83,16 +152,38 @@ class Matcher:
         self.shared_arr = np.ndarray(base_arr.shape, dtype=base_arr.dtype, buffer=self.shm.buf)
         
     def cleanup_shared_memory(self):
-        """Clean up shared memory."""
+        """
+        Clean up shared memory resources.
+        """
+        if hasattr(self, 'shm_manager'):
+            self.shm_manager.cleanup()
         if hasattr(self, 'shm_manager'):
             self.shm_manager.cleanup()
     
-    def _match(self):
+    def _match(self, tr_data):
+        """
+        Abstract method for computing match scores.
+
+        Parameters
+        ----------
+        tr_data : np.ndarray
+            Processed TR data.
+
+        Returns
+        -------
+        np.ndarray
+            1D array of match scores for each template.
+        """
         raise NotImplementedError
         
 
 class SVRMatcher(Matcher):
-    """Match to templates using pretrained SVR model"""
+    """
+    Match to templates using pretrained SVR model.
+
+    This matcher uses a support vector regression model trained on previous data
+    to detect activation patterns in incoming TRs.
+    """
     def __init__(self, match_opts, Nt, sync, match_path):
         super().__init__(match_opts, Nt, sync, match_path)
 

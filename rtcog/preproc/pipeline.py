@@ -18,8 +18,10 @@ class Pipeline:
     """
     Realtime fMRI preprocessing pipeline.
 
-    This class handles the initialization and execution of a customizable
-    realtime fMRI preprocessing pipeline. Operates on a TR-by-TR basis.
+    This class implements a pipeline design pattern for modular preprocessing of fMRI data.
+    Data flows through a series of configurable steps (e.g., smoothing, normalization),
+    allowing flexible analysis workflows. Each step is a separate object that can be
+    enabled/disabled and configured independently.
 
     Attributes
     ----------
@@ -223,7 +225,8 @@ class Pipeline:
         # Start with raw data
         self.processed_tr = this_t_data[:, np.newaxis]
 
-        # Run pipeline steps to update data
+        # Apply each preprocessing step in sequence
+        # Each step modifies the data in-place for efficiency
         for func in self.run_funcs:
             self.processed_tr[:] = func(self)
 
