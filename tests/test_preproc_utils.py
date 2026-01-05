@@ -2,10 +2,9 @@ import pytest
 import numpy as np
 from numpy.testing import assert_array_equal
 
-from rtcog.preproc.preproc_utils import gen_polort_regressors, _is_pos_def, _iGLMVol, rt_regress_vol
-from rtcog.preproc.preproc_utils import rt_EMA_vol
-from rtcog.preproc.preproc_utils import init_kalman, _kalman_filter, rt_kalman_vol
-from rtcog.preproc.preproc_utils import rt_smooth_vol, rt_snorm_vol
+from rtcog.preproc.helpers.preproc_utils import gen_polort_regressors, _is_pos_def, _iGLMVol, rt_regress_vol
+from rtcog.preproc.helpers.preproc_utils import rt_EMA_vol
+from rtcog.preproc.helpers.preproc_utils import rt_smooth_vol, rt_snorm_vol
 
 
 def test_gen_polort_regressors():

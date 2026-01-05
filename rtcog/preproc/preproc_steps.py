@@ -4,10 +4,10 @@ import numpy as np
 
 from rtcog.utils.log import get_logger
 from rtcog.utils.exceptions import VolumeOverflowError
-from rtcog.preproc.preproc_utils import gen_polort_regressors
-from rtcog.preproc.preproc_utils import initialize_kalman_pool, kalman_filter_mv, rt_kalman_vol
-from rtcog.preproc.preproc_utils import rt_EMA_vol, rt_regress_vol, rt_smooth_vol, rt_snorm_vol, welford, calculate_spc
-from rtcog.preproc.preproc_utils import create_win, CircularBuffer
+from rtcog.preproc.helpers.preproc_utils import gen_polort_regressors
+from rtcog.preproc.helpers.preproc_utils import rt_EMA_vol, rt_regress_vol, rt_smooth_vol, rt_snorm_vol, calculate_spc
+from rtcog.preproc.helpers.preproc_utils import create_win, CircularBuffer
+from rtcog.preproc.helpers.kalman_filter import KalmanFilter
 from rtcog.preproc.step_types import StepType
 from rtcog.utils.fMRI import unmask_fMRI_img
 
@@ -201,58 +201,22 @@ class KalmanStep(PreprocStep):
     """Kalman filter for low pass filtering, spike removal, and signal smoothing"""
     def __init__(self, save, suffix='.pp_LPfilter.nii', n_cores=10, mask_Nv=None):
         super().__init__(save, suffix)
-        self.welford_S = None
-        self.welford_M = None
-        self.welford_std = None
-
-        self.S_x = None
-        self.S_P = None
-        self.fPositDerivSpike = None
-        self.fNegatDerivSpike = None
         
         self.n_cores = n_cores
         self.pool = mp.Pool(processes=self.n_cores)
         self.mask_Nv = mask_Nv
+        self.kalman_filter = KalmanFilter(self.mask_Nv, self.n_cores, self.pool)
 
         log.info(f'Initializing Kalman pool with {self.n_cores} processes ...')
-        _ = self.pool.map(kalman_filter_mv, initialize_kalman_pool(self.mask_Nv, self.n_cores))        
+        self.kalman_filter.initialize_pool()        
 
     def _start(self, pipeline):
-        Nv = pipeline.Nv
-        self.welford_M = np.zeros(Nv)
-        self.welford_S   = np.zeros(Nv)
-        self.welford_std = np.zeros(Nv)
-
-        self.S_x = np.zeros(Nv)
-        self.S_P = np.zeros(Nv) 
-        self.fPositDerivSpike = np.zeros(Nv)
-        self.fNegatDerivSpike = np.zeros(Nv)
+        pass
 
     def _run(self, pipeline):
-        self.welford_M, self.welford_S, self.welford_std = welford(
-            pipeline.n,
-            pipeline.Data_FromAFNI[:, pipeline.t],
-            self.welford_M,
-            self.welford_S
-        )
+        self.kalman_filter.update_welford(pipeline.n, pipeline.Data_FromAFNI[:, pipeline.t])
 
-        klm_data_out, S_x_new, S_P_new, fPos_new, fNeg_new = rt_kalman_vol(
-            pipeline.n,
-            pipeline.t,
-            pipeline.processed_tr,
-            self.welford_std,
-            self.S_x,
-            self.S_P,
-            self.fPositDerivSpike,
-            self.fNegatDerivSpike,
-            self.n_cores,
-            self.pool,
-        )
-
-        self.S_x[:] = S_x_new.ravel()
-        self.S_P[:] = S_P_new.ravel()
-        self.fPositDerivSpike[:] = fPos_new.ravel()
-        self.fNegatDerivSpike[:] = fNeg_new.ravel()
+        klm_data_out = self.kalman_filter.run_volume(pipeline.n, pipeline.processed_tr)
 
         return klm_data_out
 
