@@ -52,6 +52,8 @@ class Matcher:
         Abstract method for computing match scores (implemented by subclasses).
     """
 
+    registry = {} # Holds all available matching classes
+
     def __init__(self, match_opts: MatchingOpts, Nt: int, sync: SyncEvents, match_path: str):
         """
         Initialize the Matcher.
