@@ -1,8 +1,34 @@
 import os.path as osp
 import pytest
+from unittest.mock import patch, mock_open
 
 from rtcog.utils.options import Options
 from rtcog.paths import CONFIG_DIR
+
+def test_init():
+    config = {'exp_type': 'basic', 'nvols': 100}
+    options = Options(config)
+    assert options.exp_type == 'basic'
+    assert options.nvols == 100
+
+
+@patch('rtcog.utils.options.Options.parse_cli_args')
+def test_from_cli(mock_parse):
+    mock_parse.return_value = {'exp_type': 'basic'}
+    options = Options.from_cli()
+    assert isinstance(options, Options)
+    assert options.exp_type == 'basic'
+
+
+@patch('builtins.open', new_callable=mock_open)
+@patch('yaml.safe_dump')
+def test_save_config(mock_dump, mock_file):
+    config = {'exp_type': 'basic', 'nvols': 100, 'out_dir': '/tmp', 'out_prefix': 'test'}
+    options = Options(config)
+    options.save_config()
+    mock_file.assert_called_once_with('/tmp/test_Options.yaml', 'w')
+    mock_dump.assert_called_once()
+
 
 def test_from_yaml():
     path = osp.join(CONFIG_DIR, 'default_config.yaml')
@@ -45,6 +71,61 @@ def test_from_yaml():
                 'mot_thr': 0.2}
     }
     assert opts.__dict__ == expected_dict
+
+
+def test_missing_required_args_raises():
+    with pytest.raises(SystemExit):
+        Options.parse_cli_args(["-e", "basic"])
+
+
+def test_esam_missing_matching_section(tmp_path, capsys):
+    config = tmp_path / "config.yaml"
+    config.write_text("exp_type: esam\n")
+
+    mask = tmp_path / "mask.nii"
+    mask.touch()
+
+    with pytest.raises(SystemExit):
+        Options.parse_cli_args(
+            [
+                "--config", str(config),
+                "--mask", str(mask),
+                "--nvols", "100",
+                "--out_dir", "/tmp",
+                "--out_prefix", "test"
+            ]
+        )
+
+    err = capsys.readouterr().err
+    assert "'matching' section is required for esam experiment" in err
+
+
+def test_esam_missing_required_args(tmp_path, capsys):
+    config = tmp_path / "config.yaml"
+    config.write_text("""
+        exp_type: esam
+        matching:
+           match_method: mask
+        """)
+
+    mask = tmp_path / "mask.nii"
+    mask.touch()
+
+    with pytest.raises(SystemExit):
+        Options.parse_cli_args(
+            [
+                "--config", str(config),
+                "--mask", str(mask),
+                "--nvols", "100",
+                "--out_dir", "/tmp",
+                "--out_prefix", "test"
+            ]
+        )
+
+    err = capsys.readouterr().err
+    assert "The following arguments are required:" in err
+    assert "--hit_thr" in err
+    assert "--match_path" in err
 
 
 if __name__ == "__main__":

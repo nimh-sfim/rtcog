@@ -87,7 +87,7 @@ class Options:
 
           # Override yaml file with any new options
           parser = argparse.ArgumentParser(
-          description = "rtCAPs experimental software. Based on NIH-neurofeedback software. "
+          description = "rtcog experimental software. Based on NIH-neurofeedback software. "
                         "Provide a yaml config file via --config/-c to set all options. "
                         "You can override some options via CLI."
           )
@@ -132,20 +132,26 @@ class Options:
                     config[k] = v
           
           if 'exp_type' not in config:
-               parser.error(f"++ ERROR: Please specify experiment type with -e/-exp_type.")
+               parser.error(f"Please specify experiment type with -e/-exp_type.")
 
           required_args = ['mask_path', 'nvols', 'out_dir', 'out_prefix']
+
           if config['exp_type'] == 'esam':
-               required_args.append('hit_thr')
-               if config['matching']['match_method'] in ['mask', 'svr']:
+               matching = config.get('matching')
+               if not isinstance(matching, dict):
+                    parser.error("'matching' section is required for esam experiment")
+
+               if matching.get('match_method') in ('mask', 'svr'):
                     required_args.append('match_path')
+
+               required_args.append('hit_thr')
 
           missing = []
           for arg in required_args:
                if not arg in config or config[arg] is None:
                     missing.append(f'--{arg}') 
           if missing:
-               parser.error(f"ERROR: The following arguments are required: {', '.join(missing)}")
+               parser.error(f"The following arguments are required: {', '.join(missing)}")
                     
           return config
 
@@ -200,5 +206,4 @@ class Options:
           with open(out_path, 'w') as file:
                yaml.safe_dump(self.__dict__, file, sort_keys=False)
           print(f"++ Options saved to {out_path}")
-
-        
+     
