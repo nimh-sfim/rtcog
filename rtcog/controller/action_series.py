@@ -207,10 +207,10 @@ class LatencyTestActionSeries(BasicActionSeries):
         """
         Save trigger timestamps, print info, and shut down GUI
         """
+        self.sync.hit.set()  # Ensure process waits for action end
         self.gui.save_trigger()
         self.gui.close_psychopy_infrastructure()
-        df = self._create_latency_metrics()
-        self._graph_latency(df)
+        self.sync.hit.clear()
     
     def _print_latency_metrics(self):
         """

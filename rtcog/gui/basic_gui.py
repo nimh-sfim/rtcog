@@ -96,8 +96,7 @@ class BasicGUI(BaseGUI):
         Cleanly close the PsychoPy display window and exit the experiment.
         """
         log.info('Closing psychopy window...')
-        self.ewin.flip()
-        self.ewin.close()
-        psychopy_logging.flush()
-        core.quit()
-    
+        try:
+            self.ewin.close()
+        except Exception as e:
+            log.error(f'Error closing PsychoPy window: {e}')
