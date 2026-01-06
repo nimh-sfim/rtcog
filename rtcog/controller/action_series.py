@@ -7,8 +7,12 @@ import matplotlib.pyplot as plt
 
 from rtcog.utils.log import get_logger
 from rtcog.gui.gui_utils import validate_likert_questions
+from rtcog.gui.base_gui import BaseGUI
 from rtcog.gui.basic_gui import BasicGUI
 from rtcog.gui.esam_gui import EsamGUI
+from rtcog.utils.core import SharedClock
+from rtcog.utils.sync import SyncEvents
+from rtcog.utils.options import Options
 
 log = get_logger()
 
@@ -21,7 +25,7 @@ class BaseActionSeries(ABC):
     when a hit event occurs, and at the end. Subclasses can override these methods
     to implement task-specific behavior.
     """
-    def __init__(self, sync, *, opts=None, gui=None, **kwargs):
+    def __init__(self, sync: SyncEvents, *, opts: Options=None, gui: BaseGUI=None, **kwargs):
         """
         Initialize the ActionSeries.
 
@@ -31,7 +35,7 @@ class BaseActionSeries(ABC):
             Shared synchronization events used to coordinate experiment state.
         opts : Options, optional
             Options object containing experiment settings.
-        gui : object, optional
+        gui : BaseGUI, optional
             GUI instance used by the action series.
         **kwargs
             Additional attributes to attach to the instance.
@@ -68,7 +72,7 @@ class BasicActionSeries(BaseActionSeries):
     This class displays a resting screen and monitors for
     user-triggered experiment termination.
     """
-    def __init__(self, sync, opts, gui=None, **kwargs):
+    def __init__(self, sync: SyncEvents, opts: Options, gui: BasicGUI=None, **kwargs):
         """
         Initialize the preprocessing action series.
 
@@ -120,7 +124,7 @@ class ESAMActionSeries(BasicActionSeries):
     and Likert-scale responses during action periods and saving them
     at experiment end.
     """
-    def __init__(self, sync, opts):
+    def __init__(self, sync: SyncEvents, opts: Options):
         """
         Initialize the ESAM action series.
 
@@ -131,7 +135,7 @@ class ESAMActionSeries(BasicActionSeries):
         ----------
         sync : SyncEvents
             Shared synchronization events.
-        opts : object
+        opts : Options
             Configuration options, including Likert question definitions.
         """
         opts.likert_questions = validate_likert_questions(opts.q_path)
@@ -182,7 +186,7 @@ class LatencyTestActionSeries(BasicActionSeries):
     This series timestamps trigger events during the controller loop and
     saves timing information at experiment end.
     """
-    def __init__(self, sync, opts, clock):
+    def __init__(self, sync: SyncEvents, opts: Options, clock: SharedClock):
         """
         Initialize the latency test action series.
 
@@ -196,6 +200,7 @@ class LatencyTestActionSeries(BasicActionSeries):
             Clock to timestamp triggers.
         """
         super().__init__(sync, opts=opts, clock=clock)
+
     
     def on_loop(self):
         """
@@ -205,43 +210,75 @@ class LatencyTestActionSeries(BasicActionSeries):
     
     def on_end(self):
         """
-        Save trigger timestamps, print info, and shut down GUI
+        Save trigger timestamps, print metrics, and shut down GUI
         """
         self.sync.hit.set()  # Ensure process waits for action end
         self.gui.save_trigger()
         self.gui.close_psychopy_infrastructure()
+        df = self._calculate_latency_metrics()
+        if df is not None:
+            self._graph_latency(df)
         self.sync.hit.clear()
     
-    def _print_latency_metrics(self):
+    def _calculate_latency_metrics(self) -> pd.DataFrame | None:
         """
         Print latency metrics to the log and create df for graphing.
+        
+        Discarded TRs are removed before calculation.
+        
+        Returns
+        -------
+        pd.DataFrame or None
+            DataFrame containing latency metrics, or None if missing triggers.
         """
-        trig_path = osp.join(self.opts.out_path, "trigger_timing.pkl")
-        rec_path = osp.join(self.opts.out_path, "receiver_timing.pkl")
+        trig_path = osp.join(f"{self.opts.out_prefix}_trigger_timing.pkl")
+        rec_path = osp.join(f"{self.opts.out_prefix}_receiver_timing.pkl")
         
         trig = pd.read_pickle(trig_path)
         rec = pd.read_pickle(rec_path)
         
         df = pd.DataFrame.from_dict(rec)
-        df.insert(0, 'trig', trig)
-        df.iloc[self.num_discard:].reset_index(drop=True)
-        
-        mean_latency_recv = (df['recv'] - df['trig']).mean()
-        log.info(f"Mean time between trigger and recv: {mean_latency_recv}")
+
+        if len(df) != self.opts.nvols:
+            log.warning(f"Number of received TRs ({len(df)}) does not match expected ({self.opts.nvols})")
+
+        if len(trig) == len(df):
+            df.insert(0, 'trig', trig)
+
+        # Drop discarded TRs
+        df = df.iloc[self.opts.discard:].reset_index(drop=True)
+        if 'trig' in df.columns:
+            trig = trig[self.opts.discard:]
+
+        df.index = range(self.opts.discard, self.opts.discard + len(df))
 
         mean_compute_time =  (df['proc'] - df['recv']).mean()
-        log.info(f"Mean time between recv and processing: {mean_compute_time}")
+        log.info(f"Mean time between recv and processing: {mean_compute_time:.3f} seconds")
 
-        mean_latency_proc = (df['proc'] - df['trig']).mean()
-        log.info(f"Mean time between trigger and processing: {mean_latency_proc}")
+        if 'trig' in df.columns:
+            mean_latency_recv = (df['recv'] - df['trig']).mean()
+            log.info(f"Mean time between trigger and recv: {mean_latency_recv:.3f} seconds")
 
+            mean_latency_proc = (df['proc'] - df['trig']).mean()
+            log.info(f"Mean time between trigger and processing: {mean_latency_proc:.3f} seconds")
+            return df
+
+        else: 
+            log.warning(f"Number of triggers ({len(trig)}) does not match number of received TRs ({len(df)})")
+            return None
+        
 
     def _graph_latency(self, df):
         """
         Graph latency metrics and save to disk.
+        
+        Parameters
+        ----------
+        df : pd.DataFrame
+            DataFrame containing latency metrics.
         """
         df_rel = pd.DataFrame({
-            't_trig': 0,  # always zero
+            't_trig': 0,  # always zero since metrics are relative to trigger
             't_recv': df['recv'] - df['trig'],
             't_proc': df['proc'] - df['trig']
         })
@@ -252,11 +289,17 @@ class LatencyTestActionSeries(BasicActionSeries):
         plt.scatter(df_rel.index, df_rel['t_recv'], label='Received', color='orange', marker='o')
         plt.scatter(df_rel.index, df_rel['t_proc'], label='Processed', color='green', marker='o')
         
+        plt.axvline(x=self.opts.discard, color='red', linestyle='--', label='Discard Boundary')
+        
         plt.xlabel('TR')
         plt.ylabel('Time Since Trigger (seconds)')
         plt.title(f'{self.opts.out_prefix}: Latency Relative to Trigger')
         plt.legend()
         plt.grid(True)
         plt.tight_layout()
-        plt.savefig(f"{self.opts.out_prefix}_latency.png", dpi=300)
+        
+        out = f"{self.opts.out_prefix}_latency.png"
+        plt.savefig(out, dpi=300)
         plt.close()
+        
+        log.info(f"Latency graph saved to {out}")
