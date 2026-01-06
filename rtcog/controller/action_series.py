@@ -1,6 +1,9 @@
+import os.path as osp
 from abc import ABC
 import multiprocessing as mp
 from psychopy import event
+import pandas as pd
+import matplotlib.pyplot as plt
 
 from rtcog.utils.log import get_logger
 from rtcog.gui.gui_utils import validate_likert_questions
@@ -202,8 +205,58 @@ class LatencyTestActionSeries(BasicActionSeries):
     
     def on_end(self):
         """
-        Save trigger timestamps and shut down GUI
+        Save trigger timestamps, print info, and shut down GUI
         """
         self.gui.save_trigger()
         self.gui.close_psychopy_infrastructure()
+        df = self._create_latency_metrics()
+        self._graph_latency(df)
     
+    def _print_latency_metrics(self):
+        """
+        Print latency metrics to the log and create df for graphing.
+        """
+        trig_path = osp.join(self.opts.out_path, "trigger_timing.pkl")
+        rec_path = osp.join(self.opts.out_path, "receiver_timing.pkl")
+        
+        trig = pd.read_pickle(trig_path)
+        rec = pd.read_pickle(rec_path)
+        
+        df = pd.DataFrame.from_dict(rec)
+        df.insert(0, 'trig', trig)
+        df.iloc[self.num_discard:].reset_index(drop=True)
+        
+        mean_latency_recv = (df['recv'] - df['trig']).mean()
+        log.info(f"Mean time between trigger and recv: {mean_latency_recv}")
+
+        mean_compute_time =  (df['proc'] - df['recv']).mean()
+        log.info(f"Mean time between recv and processing: {mean_compute_time}")
+
+        mean_latency_proc = (df['proc'] - df['trig']).mean()
+        log.info(f"Mean time between trigger and processing: {mean_latency_proc}")
+
+
+    def _graph_latency(self, df):
+        """
+        Graph latency metrics and save to disk.
+        """
+        df_rel = pd.DataFrame({
+            't_trig': 0,  # always zero
+            't_recv': df['recv'] - df['trig'],
+            't_proc': df['proc'] - df['trig']
+        })
+        
+        plt.figure(figsize=(12, 6))
+
+        plt.scatter(df_rel.index, df_rel['t_trig'], label='Trigger', color='blue', marker='o')
+        plt.scatter(df_rel.index, df_rel['t_recv'], label='Received', color='orange', marker='o')
+        plt.scatter(df_rel.index, df_rel['t_proc'], label='Processed', color='green', marker='o')
+        
+        plt.xlabel('TR')
+        plt.ylabel('Time Since Trigger (seconds)')
+        plt.title(f'{self.opts.out_prefix}: Latency Relative to Trigger')
+        plt.legend()
+        plt.grid(True)
+        plt.tight_layout()
+        plt.savefig(f"{self.opts.out_prefix}_latency.png", dpi=300)
+        plt.close()
