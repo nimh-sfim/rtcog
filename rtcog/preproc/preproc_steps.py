@@ -5,7 +5,7 @@ import numpy as np
 from rtcog.utils.log import get_logger
 from rtcog.utils.exceptions import VolumeOverflowError
 from rtcog.preproc.helpers.preproc_utils import gen_polort_regressors
-from rtcog.preproc.helpers.preproc_utils import rt_EMA_vol, rt_regress_vol, rt_smooth_vol, rt_snorm_vol, calculate_spc
+from rtcog.preproc.helpers.preproc_utils import rt_regress_vol, rt_smooth_vol, rt_snorm_vol, calculate_spc
 from rtcog.preproc.helpers.preproc_utils import create_win, CircularBuffer
 from rtcog.preproc.helpers.kalman_filter import KalmanFilter
 from rtcog.preproc.step_types import StepType
@@ -129,17 +129,29 @@ class PreprocStep:
 
 class EMAStep(PreprocStep):
     """Exponential moving average"""
-    def __init__(self, save, suffix='.pp_EMA.nii', ema_thr=0.98):
+    def __init__(self, save, suffix='.pp_EMA.nii', alpha=0.98):
         super().__init__(save, suffix)
-        self.EMA_thr = ema_thr
-        self.EMA_filt = None
+        self.alpha = alpha
+        self.filt = None
 
     def _run(self, pipeline):
-        Data_FromAFNI = pipeline.Data_FromAFNI[:, :pipeline.t + 1]
-        ema_data_out, self.EMA_filt = rt_EMA_vol(pipeline.n, self.EMA_thr, Data_FromAFNI, self.EMA_filt)
+        data = pipeline.Data_FromAFNI[:, :pipeline.t + 1]
         
-        return ema_data_out
-    
+        if pipeline.n == 1:  # First step
+            self.filt = data[:,-1][:, np.newaxis]
+            return (data[:,-1] - data[:,-2])[:,np.newaxis]
+
+        return self._apply_filter(data[:,-1][:,np.newaxis])
+
+    def _apply_filter(self, data):
+        """Apply the EMA filter to new data."""
+        A = np.array([[self.alpha, 1 - self.alpha]])
+
+        prev_filt = self.filt
+        self.filt = np.dot(A, np.hstack([prev_filt, data]).T).T
+
+        return data - self.filt
+
 
 class iGLMStep(PreprocStep):
     """Incremental generalized linear model"""

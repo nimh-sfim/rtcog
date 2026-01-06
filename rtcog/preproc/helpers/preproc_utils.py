@@ -153,44 +153,6 @@ def rt_regress_vol(n, Yn, Fn, prev):
     return Yn_d[:,np.newaxis], new, Bn[:,:,np.newaxis]
 
 
-# EMA Related Functions
-# =====================
-def _apply_EMA_filter(a, emaIn, filtInput):
-    A            = (np.array([a,1-a])[:,np.newaxis]).T
-    EMA_filt_out = np.dot(A, np.hstack([filtInput,emaIn]).T).T
-    EMA_out      = emaIn - EMA_filt_out
-    return EMA_out,EMA_filt_out
-
-def rt_EMA_vol(n, th, data, filt_in):
-    """
-    Calculate the rate of change of Exponential Moving Average (EMA) for a given time series data.
-
-    Parameters
-    ----------
-    n : int
-        Current volume number entering the function. Not to be confused with the current
-        acquisition number.
-    th : float
-        The threshold value for the EMA filter.
-    data : np.ndarray
-        The data to be processed.
-    filt_in : np.ndarray, shape (Nvoxels, 1)
-        The previous output of the EMA filter, used as an input to the next filtering step.
-
-    Returns
-    -------
-    data_out : np.ndarray, shape (Nvoxels, 1)
-        The output data after applying the operation.
-    filt_out : np.ndarray or None
-        The updated filter state after applying the EMA operation, or None if the operation is skipped.
-    """
-    if n == 1:   # First step
-        filt_out = data[:,-1][:,np.newaxis]
-        data_out = (data[:,-1] - data[:,-2])[:,np.newaxis] 
-    else:
-        data_out, filt_out = _apply_EMA_filter(th,data[:,-1][:,np.newaxis],filt_in)
-    return data_out, filt_out
-
 # Kalman Filter Functions
 # =======================
 def welford(k, x, M, S):

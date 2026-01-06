@@ -3,7 +3,6 @@ import numpy as np
 from numpy.testing import assert_array_equal
 
 from rtcog.preproc.helpers.preproc_utils import gen_polort_regressors, _is_pos_def, _iGLMVol, rt_regress_vol
-from rtcog.preproc.helpers.preproc_utils import rt_EMA_vol
 from rtcog.preproc.helpers.preproc_utils import rt_smooth_vol, rt_snorm_vol
 
 
@@ -47,59 +46,6 @@ def test_rt_regress_vol():
     assert Yn_d.shape == (5, 1)
     assert new['Cn'].shape == (3, 3)
 
-
-def test_rt_EMA_vol_first():
-    n = 1
-    th = 0.98
-    data = np.array([[1, 2, 3], [4, 5, 6]])
-    filt_in = None
-    
-    data_out, filt_out = rt_EMA_vol(n, th, data, filt_in)
-    
-    assert len(data_out) == 2
-    assert len(filt_out) == 2
-
-
-def test_rt_EMA_vol_second():
-    n = 2
-    th = 0.98
-    data = np.array([[1, 2, 3], [4, 5, 6]])
-    filt_in = [[1], [2]]
-    
-    data_out, filt_out = rt_EMA_vol(n, th, data, filt_in)
-    
-    assert len(data_out) == 2
-    assert len(filt_out) == 2
-
-
-# def test_rt_EMA_vol_real_data(sample_data):
-#     n = 1
-#     th = 0.98
-#     data = np.array([[1, 2, 3], [4, 5, 6]])
-#     filt_in = None
-    
-#     data_out, filt_out = rt_EMA_vol(n, th, data, filt_in, do_operation=True)
-    
-#     assert len(data_out) == 2
-#     assert len(filt_out) == 2
-
-
-def test_init_kalman():
-    res = init_kalman(2, 2)
-    
-    for i, x in enumerate(res):
-        if not np.array_equal(x, np.array([[0.0, 0.0], [0.0, 0.0]])):
-            raise AssertionError(f'Matrix at index {i} did not match the expected result. '
-                                 f'Expected:\n[[0.0, 0.0], [0.0, 0.0]]\n'
-                                 f'Got:\n{x}')
-
-
-def test_kalman_filter():
-    pass
-
-
-def test_kalman_filter_mv():
-    pass
 
 
 def test_rt_smooth_vol(sample_data):

@@ -42,7 +42,7 @@ def test_from_yaml():
         'tr': 1.0,
         'save_orig': False,
         'discard': 10,
-        'steps': [{'name': 'EMA', 'enabled': True, 'save': False, 'ema_thr': 0.98},
+        'steps': [{'name': 'EMA', 'enabled': True, 'save': False, 'alpha': 0.98},
                 {'name': 'iGLM',
                     'enabled': True,
                     'save': False,
