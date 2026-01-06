@@ -59,14 +59,5 @@ def test_rt_smooth_vol(sample_data):
     assert not np.allclose(res[:, 0], sample_data.this_t_data)
     
 
-def test_rt_snorm_vol(sample_data):
-    data_2d = sample_data.this_t_data[:, np.newaxis]
-    res = rt_snorm_vol(data_2d)
-
-    assert res.shape[0] == (sample_data.this_t_data.shape[0])
-    assert np.isclose(np.mean(res), 0.0)
-    assert np.isclose(np.std(res), 1.0)
-
-
 if __name__ == "__main__":
     pytest.main()

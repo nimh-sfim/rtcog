@@ -1,11 +1,12 @@
 import multiprocessing as mp
 import os.path as osp
 import numpy as np
+from sklearn.preprocessing import StandardScaler
 
 from rtcog.utils.log import get_logger
 from rtcog.utils.exceptions import VolumeOverflowError
 from rtcog.preproc.helpers.preproc_utils import gen_polort_regressors
-from rtcog.preproc.helpers.preproc_utils import rt_regress_vol, rt_smooth_vol, rt_snorm_vol, calculate_spc
+from rtcog.preproc.helpers.preproc_utils import rt_regress_vol, rt_smooth_vol, calculate_spc
 from rtcog.preproc.helpers.preproc_utils import create_win, CircularBuffer
 from rtcog.preproc.helpers.kalman_filter import KalmanFilter
 from rtcog.preproc.step_types import StepType
@@ -246,20 +247,17 @@ class SmoothStep(PreprocStep):
         self.fwhm = fwhm
 
     def _run(self, pipeline):
-        smooth_out = rt_smooth_vol(pipeline.processed_tr, pipeline.mask_img, fwhm=self.fwhm)
-            
-        return smooth_out
+        return rt_smooth_vol(pipeline.processed_tr, pipeline.mask_img, fwhm=self.fwhm)
 
-    
+
 class SnormStep(PreprocStep):
     """Spatial normalization"""
     def __init__(self, save=False, suffix='.pp_Zscore.nii'):
         super().__init__(save, suffix)
 
     def _run(self, pipeline):
-        norm_out = rt_snorm_vol(pipeline.processed_tr)
-        
-        return norm_out
+        sc = StandardScaler(with_mean=True, with_std=True)
+        return sc.fit_transform(pipeline.processed_tr)
 
                 
 class TnormStep(PreprocStep):

@@ -1,10 +1,8 @@
 import numpy as np
 from scipy.special import legendre
 from scipy import ndimage
-import itertools
 from numpy.linalg import cholesky, inv
 import logging
-from sklearn.preprocessing import StandardScaler
 from scipy.signal.windows import exponential
 
 from rtcog.utils.fMRI import unmask_fMRI_img, mask_fMRI_img
@@ -269,25 +267,6 @@ def rt_smooth_vol(data_arr, mask_img, fwhm=4):
     x_sm_v = mask_fMRI_img(x_sm, mask_img)
 
     return x_sm_v[:, np.newaxis]
-
-# Spatial Z-scoring Function
-# ==========================
-def rt_snorm_vol(data):
-    """Perform spatial Z-scoring on the input data.
-
-    Parameters
-    ----------
-    data : np.ndarray, shape (Nvoxels, 1)
-        The input data to be normalized.
-
-    Returns
-    -------
-    np.ndarray, shape (Nvoxels, 1)
-        The normalized data (Z-scored)
-    """
-    sc  = StandardScaler(with_mean=True, with_std=True)
-    return sc.fit_transform(data)
-
 
 # Temporal Normalization
 # ==========================
