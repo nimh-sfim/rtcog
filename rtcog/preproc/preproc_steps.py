@@ -6,8 +6,9 @@ from sklearn.preprocessing import StandardScaler
 from rtcog.utils.log import get_logger
 from rtcog.utils.exceptions import VolumeOverflowError
 from rtcog.preproc.helpers.preproc_utils import gen_polort_regressors
-from rtcog.preproc.helpers.preproc_utils import rt_regress_vol, rt_smooth_vol, calculate_spc
+from rtcog.preproc.helpers.preproc_utils import rt_smooth_vol, calculate_spc
 from rtcog.preproc.helpers.preproc_utils import create_win, CircularBuffer
+from rtcog.preproc.helpers.iglm import iGLM
 from rtcog.preproc.helpers.kalman_filter import KalmanFilter
 from rtcog.preproc.step_types import StepType
 from rtcog.utils.fMRI import unmask_fMRI_img
@@ -161,7 +162,7 @@ class iGLMStep(PreprocStep):
         self.num_polorts = num_polorts
         self.iGLM_motion = iGLM_motion
 
-        self.iGLM_prev = {}
+        self.iglm = iGLM()
 
         if self.save:
             self.iGLM_Coeffs = None
@@ -191,11 +192,10 @@ class iGLMStep(PreprocStep):
         except IndexError:
             raise VolumeOverflowError()
             
-        iGLM_data_out, self.iGLM_prev, Bn = rt_regress_vol(
+        iGLM_data_out, Bn = self.iglm.regress_vol(
             pipeline.n, 
             pipeline.processed_tr,
             this_t_nuisance,
-            self.iGLM_prev,
         )
 
         if self.save:

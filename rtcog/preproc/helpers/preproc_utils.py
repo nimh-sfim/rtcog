@@ -1,16 +1,12 @@
 import numpy as np
 from scipy.special import legendre
 from scipy import ndimage
-from numpy.linalg import cholesky, inv
 import logging
 from scipy.signal.windows import exponential
 
 from rtcog.utils.fMRI import unmask_fMRI_img, mask_fMRI_img
 
 log = logging.getLogger('online_preproc')
-
-def init_iGLM():
-    return 1, {}
 
 def gen_polort_regressors(polort, nt):
     """
@@ -35,121 +31,6 @@ def gen_polort_regressors(polort, nt):
         out[:,n] = Pn(x).T
     return(out)
 
-def _is_pos_def(x):
-    """
-    Checks if a matrix is positive definitive. This is needed for the cholesky decomposition.
-    
-    Parameters
-    -----------
-    x : np.array
-        Square matrix
-        
-    Returns
-    -------
-    out : bool
-    """
-    return np.all(np.linalg.eigvals(x) > 1e-10)
-
-def _iGLMVol(n,Yn,Fn,Dn,Cn,s2n):
-    """
-    Incremental GLM for detrending and removal of nuisance regressors in realtime.
-    Implementation of algorithm described in:
-    Bagarinao, E., Matsuo, K., Nakai, T., Sato, S., 2003. Estimation of
-    general linear model coefficients for real-time application. NeuroImage
-    19, 422-429.
-    
-    Parameters
-    ----------
-    n : int
-        Current volume number entering the GLM. Not to be confused with the current
-        acquisition number
-    Yn : np.array [Nvoxels,1]
-        Current masked data point
-    Fn : np.array [Nregressors,1]
-        Current regressor values (e.g., motion, trends, etc.)
-    Dn : np.array []
-        sum of (Yn * Ft') at time n-1  (Eq. 17) 
-    Cn : np.array []
-        matrix for Cholesky decomposition at time n-1 (Eq. 15)
-    s2n : np.array []
-        sigma square estimate for n-1
-
-    Returns
-    -------
-    Bn : np.array []
-        current estimates for linear regression coefficients at time n
-    Cn : np.array []
-        updated estimates of matrix for Cholesky decomposition at time n
-    Dn : np.array []
-        updated estimate of Dn matrix at time n
-    s2n : np.array []
-        updated estimate of sigma square at time n
-    """    
-    
-    nv       = Yn.shape[0]
-    nrBasFct = Fn.shape[0]  
-    df = n - nrBasFct                        # Degrees of Freedom
-    Dn = Dn + np.matmul(Yn,Fn.T)             # Eq. 17
-    Cn = (((n-1)/n) * Cn) + ((1/n)*np.matmul(Fn,Fn.T))  # Eq. 18
-    s2n = s2n + (Yn * Yn)            # Eq. 9 without the 1/n factor... see below
-    if (_is_pos_def(Cn) == True) and (n > nrBasFct + 2):
-        Nn = cholesky(Cn).T
-        iNn = inv(Nn.T)
-        An    = (1/n) * np.matmul(Dn,iNn.T)  # Eq. 14
-        Bn    = np.matmul(An,iNn)            # Eq. 16
-    else:
-        Bn = np.zeros((nv,nrBasFct))
-    return Bn,Cn,Dn,s2n
-
-def rt_regress_vol(n, Yn, Fn, prev):
-    """
-    Apply real-time regression to fMRI data.
-
-    This function performs real-time regression using a General Linear Model (GLM) to estimate the 
-    regression coefficients (Bn) and remove the effects of nuisance regressors from the input fMRI data 
-    (Yn). It updates the GLM matrices (Cn, Dn) and the sigma square estimate (s2n) for each new data point.
-
-    Parameters
-    ----------
-    n : int
-        Current volume number. Not to be confused with the current
-        acquisition number.
-    Yn : np.ndarray, shape (Nvoxels, 1)
-        The current fMRI data point (masked).
-    Fn : np.ndarray, shape (Nregressors, 1)
-        The current regressor values (e.g., motion, trends, etc.)
-    prev : dict
-        A dictionary containing the previous state of the GLM, including 'Cn', 'Dn', and 's2n' from 
-        the previous time point.
-
-    Returns
-    -------
-    np.ndarray, shape (Nvoxels, 1)
-        The residual (detrended) fMRI data after removing the effects of the nuisance regressors, 
-        reshaped into a 2D array.
-    dict
-        A dictionary containing the updated GLM state, including the updated 'Cn', 'Dn', and 's2n'.
-    np.ndarray
-        The updated regression coefficient estimates for the current volume (Bn), reshaped into a 3D array.
-    """
-    if n == 1:
-        L   = Fn.shape[0] # Number of Regressors
-        Nv  = Yn.shape[0]
-        Cn  = np.zeros((L,L), dtype='float64') # Matrix for Cholesky decomposition
-        Dn  = np.zeros((Nv, L), dtype='float64') # Dn
-        s2n = np.zeros((Nv, 1), dtype='float64') # Sigma Estimates
-    else:
-        Cn  = prev['Cn']
-        Dn  = prev['Dn']
-        s2n = prev['s2n']
-    
-    Bn,Cn,Dn,s2n = _iGLMVol(n,Yn,Fn,Dn,Cn,s2n)
-    Yn_d         = Yn - np.matmul(Bn,Fn)
-    Yn_d         = np.squeeze(Yn_d)
-    
-    new = {'Cn':Cn, 'Dn':Dn, 's2n': s2n}
-    return Yn_d[:,np.newaxis], new, Bn[:,:,np.newaxis]
-
 
 # Kalman Filter Functions
 # =======================
@@ -162,8 +43,6 @@ def welford(k, x, M, S):
     else:
             std = np.sqrt(Snext/(k-1))
     return Mnext, Snext, std
-
-
 
 
 # Smoothing Functions

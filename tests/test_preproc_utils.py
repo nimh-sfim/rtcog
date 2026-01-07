@@ -2,8 +2,9 @@ import pytest
 import numpy as np
 from numpy.testing import assert_array_equal
 
-from rtcog.preproc.helpers.preproc_utils import gen_polort_regressors, _is_pos_def, _iGLMVol, rt_regress_vol
-from rtcog.preproc.helpers.preproc_utils import rt_smooth_vol, rt_snorm_vol
+from rtcog.preproc.helpers.preproc_utils import gen_polort_regressors 
+from rtcog.preproc.helpers.preproc_utils import rt_smooth_vol
+from rtcog.preproc.helpers.iglm import iGLM
 
 
 def test_gen_polort_regressors():
@@ -11,40 +12,39 @@ def test_gen_polort_regressors():
     assert result.shape == (5, 3)
 
 
-def test_is_pos_def():
-    pos_def_mat = np.array([[1, 0], [0, 1]])
-    assert _is_pos_def(pos_def_mat)
-
-    not_pos_def_mat = np.array([[1, 2], [3, 4]])
-    assert not _is_pos_def(not_pos_def_mat)
-
-
 def test_iGLMVol():
+    iglm = iGLM()
     n = 10
     Yn = np.random.randn(5, 1)
     Fn = np.random.randn(3, 1)
-    Dn = np.zeros((5, 3))
-    Cn = np.zeros((3, 3))
-    s2n = np.zeros((5, 1))
+    iglm.Dn = np.zeros((5, 3))
+    iglm.Cn = np.zeros((3, 3))
+    iglm.s2n = np.zeros((5, 1))
     
-    Bn, Cn_updated, Dn_updated, s2n_updated = _iGLMVol(n, Yn, Fn, Dn, Cn, s2n)
+    Yn_d, Bn = iglm.regress_vol(n, Yn, Fn)
     
-    assert Bn.shape == (5, 3)
-    assert Cn_updated.shape == (3, 3)
-    assert Dn_updated.shape == (5, 3)
-    assert s2n_updated.shape == (5, 1)
+    assert Yn_d.shape == (5, 1)
+    assert Bn.shape == (5, 3, 1)
+    assert iglm.Cn.shape == (3, 3)
+    assert iglm.Dn.shape == (5, 3)
 
 
 def test_rt_regress_vol():
+    iglm = iGLM()
     n = 5
     Yn = np.random.randn(5, 1)
     Fn = np.random.randn(3, 1)
-    prev = {'Cn': np.zeros((3, 3)), 'Dn': np.zeros((5, 3)), 's2n': np.zeros((5, 1))}
 
-    Yn_d, new, Bn = rt_regress_vol(n, Yn, Fn, prev)
+    # Set state for n=5
+    iglm.Cn = np.zeros((3, 3))
+    iglm.Dn = np.zeros((5, 3))
+    iglm.s2n = np.zeros((5, 1))
+
+    Yn_d, Bn = iglm.regress_vol(n, Yn, Fn)
     
     assert Yn_d.shape == (5, 1)
-    assert new['Cn'].shape == (3, 3)
+    assert Bn.shape == (5, 3, 1)
+    assert iglm.Cn.shape == (3, 3)
 
 
 
