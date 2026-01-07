@@ -74,7 +74,7 @@ def test_from_yaml():
 
 
 def test_missing_required_args_raises():
-    with pytest.raises(SystemExit):
+    with pytest.raises(ValueError, match="Please specify a config file using --config/-c."):
         Options.parse_cli_args(["-e", "basic"])
 
 

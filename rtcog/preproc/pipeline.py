@@ -118,11 +118,10 @@ class Pipeline:
             If the input is not a NumPy array or has the wrong shape.
         """
         if not isinstance(value, np.ndarray):
-            log.error(f"pipeline.processed_tr must be a numpy array, but is of type {type(value)}")
-            sys.exit(-1)
+            raise ValueError(f"pipeline.processed_tr must be a numpy array, but is of type {type(value)}")
         if value.shape != (self.mask_Nv, 1):
             log.error(f'pipeline.processed_tr has incorrect shape. Expected: {self.mask_Nv, 1}. Actual: {value.shape}')
-            sys.exit(-1)
+            raise ValueError(f'pipeline.processed_tr has incorrect shape. Expected: {self.mask_Nv, 1}. Actual: {value.shape}')
         self._processed_tr = value
     
     def build_steps(self) -> None:
@@ -168,8 +167,7 @@ class Pipeline:
         """
         self.Nv = len(this_t_data)
         if self.mask_Nv != self.Nv:
-            log.error(f'Discrepancy across masks [data Nv = {self.Nv}, mask Nv = {self.mask_Nv}]')
-            sys.exit(-1)
+            raise ValueError(f'Discrepancy across masks [data Nv = {self.Nv}, mask Nv = {self.mask_Nv}]')
 
         self.Data_FromAFNI = np.zeros((self.Nv, self.Nt))
         self.Data_processed = np.zeros((self.Nv, self.Nt))

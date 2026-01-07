@@ -66,6 +66,15 @@ class ESAMProcessor(BasicProcessor):
         self.match_opts = MatchingOpts(**options.matching)
         self.hit_opts = HitOpts(**options.hits, hit_thr=options.hit_thr)
 
+        # Matcher setup
+        try:
+            matcher_cls = Matcher.from_name(self.match_opts.match_method)
+            self.matcher = matcher_cls(self.match_opts, self.Nt, sync, options.match_path)
+        except ValueError as e:
+            self.log.error(f"Matcher setup failed: {e}")
+            sync.end.set()
+            raise RuntimeError(f"Matcher setup failed: {e}")
+
         # Share memory with streaming process
         base_arr = np.zeros((self.mask_Nv, self.Nt), dtype=np.float32)
         self.shm_tr_manager = SharedMemoryManager("tr_data", create=True, size=base_arr.nbytes)
@@ -75,15 +84,6 @@ class ESAMProcessor(BasicProcessor):
         manager = Manager()
         self.shared_action_onsets = manager.list()
         self.shared_action_offsets = manager.list()
-
-        # Matcher setup
-        try:
-            matcher_cls = Matcher.from_name(self.match_opts.match_method)
-            self.matcher = matcher_cls(self.match_opts, self.Nt, sync, options.match_path)
-        except ValueError as e:
-            self.log.error(f"Matcher setup failed: {e}")
-            sync.end.set()
-            sys.exit(-1)
 
         # Hit detection setup
         self.hits = np.zeros((self.matcher.Ntemplates, self.Nt))

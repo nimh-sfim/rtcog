@@ -37,10 +37,14 @@ class BasicProcessor:
         self.this_motion = None
 
         if options.mask_path is None:
-            self.log.error('No mask was provided!')
-            sys.exit(-1)
+            self.sync.end.set()
+            raise ValueError('No mask was provided!')
         else:
-            self.mask_img  = load_fMRI_file(options.mask_path)
+            try:
+                self.mask_img  = load_fMRI_file(options.mask_path)
+            except Exception as e:
+                self.sync.end.set()
+                raise RuntimeError(f'Error loading mask file: {e}')
             self.mask_Nv = int(np.sum(self.mask_img.get_fdata()))
             self.log.debug(f'Number of Voxels in user-provided mask: {self.mask_Nv}')
 
@@ -68,11 +72,9 @@ class BasicProcessor:
         # Keep a record of motion estimates
         self.this_motion = [i[self.t] for i in motion]
         self.pipe.motion_estimates.append(self.this_motion)
-
+        
         if len(self.this_motion) != 6:
-            self.log.error('Motion not read in correctly.')
-            self.log.error(f'Expected length: 6 | Actual length: {len(self.this_motion)}')
-            sys.exit(-1)
+            raise ValueError(f'Motion not read in correctly. Expected length: 6 | Actual length: {len(self.this_motion)}')
         
         this_t_data = np.array([e[self.t] for e in extra])
         del extra
@@ -83,7 +85,7 @@ class BasicProcessor:
             if len(this_t_data) != self.Nv:
                 self.log.error(f'Extra data not read in correctly.')
                 self.log.error(f'Expected length: {self.Nv} | Actual length: {len(this_t_data)}')
-                sys.exit(-1)
+                raise ValueError('Extra data not read in correctly.')
         
         # Update n (only if not longer a discard volume)
         if self.t > self.nvols_discard - 1:

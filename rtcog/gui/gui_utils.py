@@ -18,8 +18,7 @@ log = get_logger()
 def validate_likert_questions(q_path):
     """Ensure the questions provided are valid."""
     if not q_path:
-            log.error('Path to Likert questions was not provided. Program will exit.')
-            sys.exit(-1)
+            raise ValueError('Path to Likert questions was not provided.')
     if not osp.isfile(q_path): # If not file, assume in RESOURCES_DIR
         fname = q_path + ".json" if not q_path.endswith(".json") else q_path 
         q_path = osp.join(RESOURCES_DIR, fname)
@@ -27,11 +26,9 @@ def validate_likert_questions(q_path):
         with open(q_path, 'r') as f:
             return json.load(f)
     except json.JSONDecodeError:
-        log.error(f'The question file at {q_path} is not a valid JSON.')
-        sys.exit(-1)
+        raise ValueError(f'The question file at {q_path} is not a valid JSON.')
     except Exception as e:
-        log.error(f'Error loading questions at {q_path}: {e}')
-        sys.exit(-1)
+        raise RuntimeError(f'Error loading questions at {q_path}: {e}')
 
 def get_avail_keyboards():
     available_keyboards = keyboard.getKeyboards()

@@ -22,8 +22,7 @@ log.addHandler(log_ch)
 class OfflineMask:
     def __init__(self, opts):
         if not osp.isdir(opts.out_dir):
-            log.error('Out directory does not exist')
-            sys.exit(-1)
+            raise FileNotFoundError('Out directory does not exist')
 
         self.templates_path = opts.templates_path
         self.data_path = opts.data_path
@@ -44,8 +43,7 @@ class OfflineMask:
                 lines = f.read()
                 self.template_labels = [label.strip() for label in lines.strip().split(',')]
         except Exception as e:
-            log.error(e)
-            sys.exit(-1)
+            raise RuntimeError(f'Error loading template labels from {self.template_labels_path}: {e}')
 
         log.info(f"Processing templates: {', '.join(self.template_labels)}")
         self.data_img = load_fMRI_file(self.data_path)

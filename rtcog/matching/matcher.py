@@ -190,17 +190,15 @@ class SVRMatcher(Matcher):
         super().__init__(match_opts, Nt, sync, match_path)
 
         if match_path is None:
-            log.error('SVR Model not provided. Program will exit.')
             self.mp_end.set()
-            sys.exit(-1)
+            raise ValueError('SVR Model not provided.')
         
         try:
             with open(match_path, "rb") as f:
                 self.input = pickle.load(f)
         except Exception as e:
-            log.error('Unable to open SVR model pickle file.')
-            log.error(e)
-            sys.exit(-1)
+            self.mp_end.set()
+            raise RuntimeError(f'Unable to open SVR model pickle file: {e}')
 
         self.Ntemplates = len(self.input.keys())
         self.template_labels = list(self.input.keys())
@@ -225,16 +223,14 @@ class MaskMatcher(Matcher):
         super().__init__(match_opts, Nt, sync, match_path)
 
         if match_path is None:
-            log.error('Template info for match method not provided. Program will exit.')
             self.mp_end.set()
-            sys.exit(-1)
-
+            raise ValueError('Template info for match method not provided.')
+        
         try:
             self.input = np.load(match_path, allow_pickle=True)
         except Exception as e:
-            log.error(f'Error loading mask method file: {e}')
-            log.error(e)
-            sys.exit(-1)
+            self.mp_end.set()
+            raise RuntimeError(f'Error loading mask method file: {e}')
         
         self.template_labels = list(self.input["labels"])
         self.Ntemplates = len(self.template_labels)

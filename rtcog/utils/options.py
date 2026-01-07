@@ -83,7 +83,7 @@ class Options:
                config = cls.load_yaml(pre_args.config_path)
           elif not (argv and ("--help" in argv or "-h" in argv)):
                print("++ ERROR: Please specify a config file using --config/-c.")
-               sys.exit(-1)
+               raise ValueError("Please specify a config file using --config/-c.")
 
           # Override yaml file with any new options
           parser = argparse.ArgumentParser(

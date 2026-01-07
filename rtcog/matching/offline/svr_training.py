@@ -53,8 +53,7 @@ class SVRtrainer(object):
 
         # Ensure outdir points to a file within an existing dir.
         if not osp.isdir(opts.outdir):
-            log.error('Output directory does not exist. Please correct.')
-            sys.exit(-1)
+            raise ValueError('Output directory does not exist.')
         self.outdir = opts.outdir
         self.prefix = opts.prefix
         self.outpkl     = osp.join(self.outdir,self.prefix+".pkl")
