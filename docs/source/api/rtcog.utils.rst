@@ -12,6 +12,8 @@ rtcog.utils.core module
    :undoc-members:
    :show-inheritance:
 
+   :show-inheritance:
+
 rtcog.utils.exceptions module
 -----------------------------
 
@@ -48,6 +50,14 @@ rtcog.utils.recorder module
 ---------------------------
 
 .. automodule:: rtcog.utils.recorder
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+rtcog.utils.shared\_memory\_manager module
+------------------------------------------
+
+.. automodule:: rtcog.utils.shared_memory_manager
    :members:
    :undoc-members:
    :show-inheritance:

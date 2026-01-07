@@ -9,14 +9,12 @@ This software offers two methods for spatial template matching:
 
 If you want a different way of deciding when a template matches the current TR,
 you can add your own matching method by defining a new Matcher as a
-subclass of ``Matcher``. Each Matcher operates on one TR at a time and
-integrates into the existing framework.
+subclass of ``Matcher``. Each Matcher operates on one TR at a time.
 
 1. **Create your matcher class**
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-In ``rtcog/matching/matching_methods.py`` (or wherever appropriate),
-define a new class that inherits from Matcher. Your class must implement
+Define a new class that inherits from Matcher. Your class must implement
 the following:
 
 
@@ -68,7 +66,8 @@ Private classes (classes that start with ``_``) are not registered.
 2. **Enable the matcher in your config**
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Specify the matcher in your YAML config file under the matching section:
+Specify the matcher in your YAML config file under the matching section
+using the registered name:
 
 .. code:: yaml
 

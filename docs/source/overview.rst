@@ -8,16 +8,27 @@ trigger adaptive experimental actions based on detected brain states. The softwa
 intended for use in closed-loop neuroimaging paradigms, including thought monitoring,
 neurofeedback, and other online cognitive or clinical applications.
 
+``rtcog`` includes two built-in experiment types:
+
+- **Basic**: Performs basic real-time fMRI preprocessing.
+
+- **ESAM** (Experience Sampling): Builds on Basic to support template matching, response collection,
+  and dynamic real-time data streaming.
+
+
 During an active scan, ``rtcog``:
 
 - Receives fMRI volumes from the scanner in real time
 - Applies a configurable preprocessing pipeline (e.g., smoothing, normalization)
 
-Then optionally:
+Then optionally (ESAM mode only):
 
 - Computes similarity between each incoming TR and predefined brain-state templates
 - Registers a *hit* when a TR sufficiently matches a target template and triggers
   experiment-specific actions (e.g., surveys)
+
+
+
 
 Purpose and Scope
 -----------------

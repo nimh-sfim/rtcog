@@ -42,8 +42,8 @@ Private classes (classes that start with ``_``) are not registered.
 2. Enable the step in your config file
 ---------------------------------------
 
-Add your step to the steps list in your YAML config file, in the order
-you want it to be applied during preprocessing:
+Add your step to the steps list in your YAML config file using the registered name,
+in the order you want it to be applied during preprocessing:
 
 .. code:: yaml
 

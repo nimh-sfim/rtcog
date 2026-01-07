@@ -1,6 +1,14 @@
 rtcog.preproc package
 =====================
 
+Subpackages
+-----------
+
+.. toctree::
+   :maxdepth: 4
+
+   rtcog.preproc.helpers
+
 Submodules
 ----------
 
@@ -11,21 +19,11 @@ rtcog.preproc.pipeline module
    :members:
    :undoc-members:
    :show-inheritance:
-   :noindex:
 
 rtcog.preproc.preproc\_steps module
 -----------------------------------
 
 .. automodule:: rtcog.preproc.preproc_steps
-   :members:
-   :undoc-members:
-   :show-inheritance:
-   :noindex:
-
-rtcog.preproc.preproc\_utils module
------------------------------------
-
-.. automodule:: rtcog.preproc.preproc_utils
    :members:
    :undoc-members:
    :show-inheritance:
@@ -45,4 +43,3 @@ Module contents
    :members:
    :undoc-members:
    :show-inheritance:
-   :noindex:

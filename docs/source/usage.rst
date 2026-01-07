@@ -49,7 +49,7 @@ Detailed AFNI setup instructions to come...
 Basic Mode
 ----------
 
-For basic preprocessing without template matching:
+For basic preprocessing *without* template matching:
 
 .. code:: bash
 
@@ -66,7 +66,7 @@ For basic preprocessing without template matching:
 ESAM Mode
 ---------
 
-For experiment control with template matching:
+For experiment control *with* template matching:
 
 .. code:: bash
 
@@ -85,7 +85,7 @@ For experiment control with template matching:
 Minimal Mode
 ------------
 
-For running without GUI dependencies, useful for testing purposes:
+For running without GUI dependencies (useful for testing purposes):
 
 .. code:: bash
 
@@ -106,7 +106,7 @@ General Options
 Data Options
 ------------
 
-- ``--nvols``: Number of volumes to process
+- ``--nvols``: Number of volumes expected during the scan
 - ``--mask``: Path to brain mask NIfTI file
 - ``--discard``: Number of initial volumes to discard
 

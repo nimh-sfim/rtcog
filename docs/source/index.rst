@@ -11,7 +11,6 @@ Documentation for rtcog: real-time fMRI monitoring of brain activity and cogniti
    usage
    customize
    transcribe
-   rtcog
    API <modules>
 
 

@@ -4,18 +4,18 @@ rtcog.processor package
 Submodules
 ----------
 
-rtcog.processor.esam\_processor module
---------------------------------------
+rtcog.processor.basic\_processor module
+---------------------------------------
 
-.. automodule:: rtcog.processor.esam_processor
+.. automodule:: rtcog.processor.basic_processor
    :members:
    :undoc-members:
    :show-inheritance:
 
-rtcog.processor.basic\_processor module
------------------------------------------
+rtcog.processor.esam\_processor module
+--------------------------------------
 
-.. automodule:: rtcog.processor.basic_processor
+.. automodule:: rtcog.processor.esam_processor
    :members:
    :undoc-members:
    :show-inheritance:

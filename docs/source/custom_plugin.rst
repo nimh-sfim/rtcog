@@ -115,7 +115,7 @@ You can inherit from:
 +================+===========================================================+
 | ``BaseGUI``    | Blank starting point                                      |
 +----------------+-----------------------------------------------------------+
-| ``BasicGUI`` | Displays a fixation cross and general instructions          |
+| ``BasicGUI``   | Displays a fixation cross and general instructions        |
 +----------------+-----------------------------------------------------------+
 | ``EsamGUI``    | Adds voice recording, question prompts, and response      |
 |                | collection                                                |
