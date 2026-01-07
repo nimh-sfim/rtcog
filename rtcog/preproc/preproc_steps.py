@@ -2,12 +2,13 @@ import multiprocessing as mp
 import os.path as osp
 import numpy as np
 from sklearn.preprocessing import StandardScaler
+from scipy.signal.windows import exponential
 
 from rtcog.utils.log import get_logger
 from rtcog.utils.exceptions import VolumeOverflowError
 from rtcog.preproc.helpers.preproc_utils import gen_polort_regressors
 from rtcog.preproc.helpers.preproc_utils import rt_smooth_vol, calculate_spc
-from rtcog.preproc.helpers.preproc_utils import create_win, CircularBuffer
+from rtcog.preproc.helpers.preproc_utils import CircularBuffer
 from rtcog.preproc.helpers.iglm import iGLM
 from rtcog.preproc.helpers.kalman_filter import KalmanFilter
 from rtcog.preproc.step_types import StepType
@@ -316,9 +317,10 @@ class WindowingStep(PreprocStep):
     def __init__(self, save=False, suffix='.pp_Windowed.nii', win_length=4):
         super().__init__(save, suffix)
         self.buffer = None
-
         self.win_length = win_length
-        self.hit_win_weights = create_win(self.win_length)
+        
+        win = exponential(self.win_length, center=0, tau=3, sym=False)
+        self.win_weights = win[:, np.newaxis]
     
     # NOTE: windowing used to only be done once matching began, now starting it along with all other preproc steps.
     def _run(self, pipeline):
@@ -326,8 +328,7 @@ class WindowingStep(PreprocStep):
             self.buffer = CircularBuffer(pipeline.processed_tr.shape[0], self.win_length)
         current_window = self.buffer.update(pipeline.processed_tr)
         if current_window is not None:
-            return np.dot(current_window, self.hit_win_weights)
+            return np.dot(current_window, self.win_weights)
 
         return pipeline.processed_tr
         
-    

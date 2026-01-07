@@ -2,7 +2,6 @@ import numpy as np
 from scipy.special import legendre
 from scipy import ndimage
 import logging
-from scipy.signal.windows import exponential
 
 from rtcog.utils.fMRI import unmask_fMRI_img, mask_fMRI_img
 
@@ -182,15 +181,32 @@ def calculate_spc(current_signal, baseline_signal, mean_removed):
 
 # Windowing utilities
 # ==========================
-def create_win(M, center=0, tau=3):
-    win = exponential(M, center, tau, False)
-    return win[:, np.newaxis]
-
 class CircularBuffer:
+    """
+    Circular buffer for storing recent fMRI volumes for windowed operations.
+
+    Parameters
+    ----------
+    Nv : int
+        Number of voxels in each volume.
+    size : int
+        Size of the circular buffer (number of volumes to store).
+
+    Attributes
+    ----------
+    buffer : np.ndarray, shape (Nv, size)
+        The circular buffer storing the recent volumes.
+    insert_idx : int
+        Current insertion index in the buffer.
+    size : int
+        Size of the buffer.
+    full : bool
+        Whether the buffer has been filled at least once.
+    """
     def __init__(self, Nv, size):
+        self.buffer = np.zeros((Nv, size))
         self.insert_idx = 0
         self.size = size
-        self.buffer = np.zeros((Nv, size))
         self.full = False
     
     def update(self, data):
