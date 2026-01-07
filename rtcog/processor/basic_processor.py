@@ -36,17 +36,24 @@ class BasicProcessor:
 
         self.this_motion = None
 
+        if self.Nt == 0:
+            self.sync.end.set()
+            raise ValueError('Number of expected volumes (--nvols) is zero.')
+
         if options.mask_path is None:
             self.sync.end.set()
             raise ValueError('No mask was provided!')
-        else:
-            try:
-                self.mask_img  = load_fMRI_file(options.mask_path)
-            except Exception as e:
-                self.sync.end.set()
-                raise RuntimeError(f'Error loading mask file: {e}')
-            self.mask_Nv = int(np.sum(self.mask_img.get_fdata()))
-            self.log.debug(f'Number of Voxels in user-provided mask: {self.mask_Nv}')
+        try:
+            self.mask_img  = load_fMRI_file(options.mask_path)
+        except Exception as e:
+            self.sync.end.set()
+            raise RuntimeError(f'Error loading mask file: {e}')
+        self.mask_Nv = int(np.sum(self.mask_img.get_fdata()))
+        self.log.debug(f'Number of Voxels in user-provided mask: {self.mask_Nv}')
+        
+        if self.mask_Nv == 0:
+            self.sync.end.set()
+            raise ValueError('Provided mask file is empty.')
 
         self.pipe = Pipeline(options, self.Nt, self.mask_Nv, self.mask_img)        
         

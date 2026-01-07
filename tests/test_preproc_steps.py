@@ -24,7 +24,7 @@ def test_EMAStep_first():
                      [4, 5, 6]])
 
     pipeline = DummyPipeline(data=data, n=1)
-    ema = EMAStep(save=False, alpha=0.98)
+    ema = EMAStep(save=False, alpha=0.98, Nv=2, Nt=3)
 
     out = ema._run(pipeline)
 
@@ -36,7 +36,7 @@ def test_EMAStep_second():
     data = np.array([[1, 2, 3, 4],
                      [4, 5, 6, 7]])
 
-    ema = EMAStep(save=False, alpha=0.98)
+    ema = EMAStep(save=False, alpha=0.98, Nv=2, Nt=4)
 
     # first volume
     pipeline1 = DummyPipeline(data=data[:, :3], n=1)
@@ -54,7 +54,7 @@ def test_SnormStep(sample_data):
     data_2d = sample_data.this_t_data[:, np.newaxis]
 
     pipeline = DummyPipeline(processed_tr=data_2d)
-    step = SnormStep(save=False)
+    step = SnormStep(save=False, Nv=1, Nt=1)
 
     res = step._run(pipeline)
 

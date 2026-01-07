@@ -32,6 +32,10 @@ class PreprocStep:
         Whether to save the output from this step to disk.
     suffix : str or None
         Filename suffix to use for saving a NIfTI file (if `save=True`).
+    Nv: int
+        Number of voxels.
+    Nt: int
+        Number of time points.
     data_out : np.ndarray or None
         Cached 2D array of shape (N_voxels, N_timepoints) storing output for each TR, 
         populated if `save=True`.
@@ -57,11 +61,14 @@ class PreprocStep:
     """
     registry = {} # Holds all available step classes that can be instantiated later on in Pipeline.
 
-    def __init__(self, save=False, suffix=None, **kwargs):
+    def __init__(self, *, save=False, suffix=None, Nv, Nt, **kwargs):
         self.save = save
         self.suffix = suffix
+        self.Nv = Nv
+        self.Nt = Nt
 
-        self.data_out = None
+        if self.save:
+            self.data_out = np.zeros((self.Nv, self.Nt))
 
     @property
     def name(self):
@@ -96,8 +103,6 @@ class PreprocStep:
         return cls.registry.get(name.lower())
 
     def start_step(self, pipeline):
-        if self.save:
-            self.data_out = np.zeros((pipeline.Nv, pipeline.Nt))
         self._start(pipeline)
 
     def run(self, pipeline):
@@ -132,8 +137,8 @@ class PreprocStep:
 
 class EMAStep(PreprocStep):
     """Exponential moving average"""
-    def __init__(self, save, suffix='.pp_EMA.nii', alpha=0.98):
-        super().__init__(save, suffix)
+    def __init__(self, *, save=False, suffix='.pp_EMA.nii', Nv, Nt, alpha=0.98):
+        super().__init__(save=save, suffix=suffix, Nv=Nv, Nt=Nt)
         self.alpha = alpha
         self.filt = None
 
@@ -158,8 +163,8 @@ class EMAStep(PreprocStep):
 
 class iGLMStep(PreprocStep):
     """Incremental generalized linear model"""
-    def __init__(self, save, suffix='.pp_iGLM.nii', num_polorts=2, iGLM_motion=True):
-        super().__init__(save, suffix)
+    def __init__(self, *, save=False, suffix='.pp_iGLM.nii', Nv, Nt, num_polorts=2, iGLM_motion=True):
+        super().__init__(save=save, suffix=suffix, Nv=Nv, Nt=Nt)
         self.num_polorts = num_polorts
         self.iGLM_motion = iGLM_motion
 
@@ -168,7 +173,6 @@ class iGLMStep(PreprocStep):
         if self.save:
             self.iGLM_Coeffs = None
         
-    def _start(self, pipeline):
         if self.iGLM_motion:
             self.iGLM_num_regressors = self.num_polorts + 6
             self.nuisance_labels = ['Polort'+str(i) for i in np.arange(self.num_polorts)] + ['roll','pitch','yaw','dS','dL','dP']
@@ -177,12 +181,12 @@ class iGLMStep(PreprocStep):
             self.nuisance_labels = ['Polort'+str(i) for i in np.arange(self.num_polorts)]
         
         if self.num_polorts > -1:
-            self.legendre_pols = gen_polort_regressors(self.num_polorts, pipeline.Nt)
+            self.legendre_pols = gen_polort_regressors(self.num_polorts, self.Nt)
         else:
             self.legendre_pols = None
 
         if self.save:
-            self.iGLM_Coeffs = np.zeros((pipeline.Nv, self.iGLM_num_regressors, pipeline.Nt))
+            self.iGLM_Coeffs = np.zeros((self.Nv, self.iGLM_num_regressors, self.Nt))
 
     def _run(self, pipeline): 
         try:
@@ -213,19 +217,15 @@ class iGLMStep(PreprocStep):
 
 class KalmanStep(PreprocStep):
     """Kalman filter for low pass filtering, spike removal, and signal smoothing"""
-    def __init__(self, save, suffix='.pp_LPfilter.nii', n_cores=10, mask_Nv=None):
-        super().__init__(save, suffix)
+    def __init__(self, *, save=False, suffix='.pp_Kalman_LPfilter.nii', Nv, Nt, n_cores=10):
+        super().__init__(save=save, suffix=suffix, Nv=Nv, Nt=Nt)
         
         self.n_cores = n_cores
         self.pool = mp.Pool(processes=self.n_cores)
-        self.mask_Nv = mask_Nv
-        self.kalman_filter = KalmanFilter(self.mask_Nv, self.n_cores, self.pool)
+        self.kalman_filter = KalmanFilter(self.Nv, self.n_cores, self.pool)
 
         log.info(f'Initializing Kalman pool with {self.n_cores} processes ...')
         self.kalman_filter.initialize_pool()        
-
-    def _start(self, pipeline):
-        pass
 
     def _run(self, pipeline):
         self.kalman_filter.update_welford(pipeline.n, pipeline.Data_FromAFNI[:, pipeline.t])
@@ -243,8 +243,8 @@ class KalmanStep(PreprocStep):
 
 class SmoothStep(PreprocStep):
     """Smoothing with Gaussian filter"""
-    def __init__(self, save=False, suffix='.pp_Smooth.nii', fwhm=4):
-        super().__init__(save, suffix)
+    def __init__(self, *, save=False, suffix='.pp_Smooth.nii', Nv, Nt, fwhm=4):
+        super().__init__(save=save, suffix=suffix, Nv=Nv, Nt=Nt)
         self.fwhm = fwhm
 
     def _run(self, pipeline):
@@ -253,8 +253,8 @@ class SmoothStep(PreprocStep):
 
 class SnormStep(PreprocStep):
     """Spatial normalization"""
-    def __init__(self, save=False, suffix='.pp_Zscore.nii'):
-        super().__init__(save, suffix)
+    def __init__(self, *, save=False, Nv, Nt, suffix='.pp_Zscore.nii'):
+        super().__init__(save=save, suffix=suffix, Nv=Nv, Nt=Nt)
 
     def _run(self, pipeline):
         sc = StandardScaler(with_mean=True, with_std=True)
@@ -263,18 +263,17 @@ class SnormStep(PreprocStep):
                 
 class TnormStep(PreprocStep):
     """Temporal normalization"""
-    def __init__(self, save=False, suffix='.pp_Tnorm.nii', nvols_to_compute=50):
-        super().__init__(save, suffix)
+    def __init__(self, *, save=False, Nv, Nt, suffix='.pp_Tnorm.nii', nvols_to_compute=50):
+        super().__init__(save=save, suffix=suffix, Nv=Nv, Nt=Nt)
+ 
         self.nvols_to_compute = nvols_to_compute
         self.mean_removed = False
         self.fwhm = None
 
-        self.orig_data = None
+        self.orig_data = np.zeros((self.Nv, self.nvols_to_compute))
         self.baseline_signal = None
 
     def _start(self, pipeline):
-        self.orig_data = np.zeros((pipeline.Nv, self.nvols_to_compute))
-
         smooth_step = next((step for step in pipeline.steps if step.name == StepType.SMOOTH.value), None)
         if smooth_step:
             self.fwhm = smooth_step.fwhm
@@ -314,8 +313,8 @@ class TnormStep(PreprocStep):
         
 
 class WindowingStep(PreprocStep):
-    def __init__(self, save=False, suffix='.pp_Windowed.nii', win_length=4):
-        super().__init__(save, suffix)
+    def __init__(self, *, save=False, suffix='.pp_Windowed.nii', Nv, Nt, win_length=4):
+        super().__init__(save=save, suffix=suffix, Nv=Nv, Nt=Nt)
         self.buffer = None
         self.win_length = win_length
         

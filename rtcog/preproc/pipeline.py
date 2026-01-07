@@ -143,12 +143,8 @@ class Pipeline:
             save = step.pop("save", False)
             step.pop("enabled", None)
             step.pop("name", None)
-
-            kwargs = step.copy()
-            if name == StepType.KALMAN.value:
-                kwargs["mask_Nv"] = self.mask_Nv
             
-            self.steps.append(StepClass(save=save, **kwargs))
+            self.steps.append(StepClass(save=save, Nv=self.mask_Nv, Nt=self.Nt, **step))
         log.info(f"Steps used: {', '.join([step.name for step in self.steps])}")
 
     def process_first_volume(self, this_t_data: np.ndarray) -> None:
