@@ -30,7 +30,6 @@ class BasicProcessor:
         self.t = -1 # Counter for number of received volumes (Start = 0
         self.Nv= None # Number of voxels in data mask
         self.Nt = options.nvols # Number acquisitions
-        self.TR = options.tr # TR [seconds]
 
         self.nvols_discard = options.discard # Number of volumes to discard from any analysis (won't enter pre-processing)
 

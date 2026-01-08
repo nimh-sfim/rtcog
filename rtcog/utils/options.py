@@ -97,7 +97,6 @@ class Options:
           parser_gen.add_argument("-s", "--silent",   action="store_true", dest="silent", help="Minimal text messages", default=None)
           parser_gen.add_argument("-p", "--tcp_port", help="TCP port for incoming connections", action="store", type=int, dest='tcp_port')
           parser_gen.add_argument("-S", "--show_data", action="store_true",help="display received data in terminal if this option is specified", default=None)
-          parser_gen.add_argument("--tr", help="Repetition time [sec]", dest="tr", action="store", type=float)
           parser_gen.add_argument("--ncores", help="Number of cores to use in the parallel processing part of the code", dest="n_cores", action="store",type=int)
           parser_gen.add_argument("-m","--mask", help="Path to mask", dest="mask_path", action="store", type=file_exists)
           parser_gen.add_argument("--nvols", help="Number of expected volumes (for legendre pols only)", dest="nvols", action="store", type=int)
@@ -111,9 +110,7 @@ class Options:
           parser_exp = parser.add_argument_group('Experiment/GUI Options')
           parser_exp.add_argument("-e","--exp_type", help="Type of Experimental Run", type=str)
           parser_exp.add_argument("--no_action", help="Do not perform any action (ex. GUI)", action="store_true", dest='no_action', default=None)
-          parser_exp.add_argument("--no_proc_chair", help="Hide crosshair during preprocessing run", action="store_true", dest='no_proc_chair', default=None)
           parser_exp.add_argument("--fscreen", help="Use full screen for Experiment", action="store_true", dest="fullscreen", default=None)
-          parser_exp.add_argument("--screen", help="Monitor to use", action="store", dest="screen",type=int)
           parser_exp.add_argument("--q_path", help="The path to the questions json file containing the question stimuli. If not a full path, it will look for the file in RESOURCES_DIR", type=str, dest='q_path', action="store")
 
           parser_dec = parser.add_argument_group('Matching Options')

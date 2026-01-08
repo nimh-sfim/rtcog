@@ -3,7 +3,6 @@ debug: false # set logger level to debug
 silent: false # set logger level to warning
 tcp_port: 53214
 show_data: false
-tr: 1.0
 save_orig: False # save the unprocessed image data
 discard: 10
 
@@ -40,9 +39,7 @@ steps:
 
 # Experiment/GUI Options
 no_action: false
-no_proc_chair: false # no crosshair
 fullscreen: false
-screen: 1
 q_path: questions_v1 # path to the questions used for the experiment TODO: FIX
 
 # Testing option2
