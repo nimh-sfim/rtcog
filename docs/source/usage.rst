@@ -43,7 +43,7 @@ You can start up afni in real-time mode by executing:
 
 Detailed AFNI setup instructions to come...
 
-1. Running ``rtcog``
+3. Running ``rtcog``
 =====================
 
 Basic Mode

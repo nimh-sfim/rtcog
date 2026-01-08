@@ -84,7 +84,7 @@ Example for an ESAM experiment:
            apply_stimulation()
        def on_end(self):
            teardown_function()
-           self.gui.close_psychopy_infrastructure()
+           self.gui.close_psychopy_window()
 
 The GUI Class (Optional)
 ------------------------

@@ -48,8 +48,8 @@ class BaseGUI(ABC):
         pass
 
     @abstractmethod
-    def close_psychopy_infrastructure(self) -> None:
-        """Close any GUI windows and clean up PsychoPy resources."""
+    def close_psychopy_window(self) -> None:
+        """Close the PsychoPy window."""
         pass
 
     @abstractmethod

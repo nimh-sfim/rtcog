@@ -81,7 +81,7 @@ class BasicGUI(BaseGUI):
                 print(f"Trig @ {now:.3f}                 - Time point [t={len(self.triggers)}]", flush=True)
             elif key == 'escape':
                 self.save_trigger()
-                self.close_psychopy_infrastructure()
+                self.close_psychopy_window()
 
     def save_trigger(self):
         """
@@ -91,11 +91,11 @@ class BasicGUI(BaseGUI):
             pickle.dump(self.triggers, f)
         print(f'Timing saved to {self.trigger_path}')
 
-    def close_psychopy_infrastructure(self):
+    def close_psychopy_window(self):
         """
-        Cleanly close the PsychoPy display window and exit the experiment.
+        Close the PsychoPy window.
         """
-        log.info('Closing psychopy window...')
+        log.debug('Closing psychopy window...')
         try:
             self.ewin.close()
         except Exception as e:

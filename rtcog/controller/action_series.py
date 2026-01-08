@@ -113,7 +113,7 @@ class BasicActionSeries(BaseActionSeries):
         """
         Shut down GUI at experiment termination.
         """
-        self.gui.close_psychopy_infrastructure()
+        self.gui.close_psychopy_window()
 
 
 class ESAMActionSeries(BasicActionSeries):
@@ -176,7 +176,7 @@ class ESAMActionSeries(BasicActionSeries):
         Save Likert responses and shut down GUI resources.
         """
         self.gui.save_likert_files()
-        self.gui.close_psychopy_infrastructure()
+        self.gui.close_psychopy_window()
 
     
 class LatencyTestActionSeries(BasicActionSeries):
@@ -214,7 +214,7 @@ class LatencyTestActionSeries(BasicActionSeries):
         """
         self.sync.hit.set()  # Ensure process waits for action end
         self.gui.save_trigger()
-        self.gui.close_psychopy_infrastructure()
+        self.gui.close_psychopy_window()
         df = self._calculate_latency_metrics()
         if df is not None:
             self._graph_latency(df)
