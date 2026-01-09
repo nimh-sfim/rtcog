@@ -8,8 +8,8 @@ This software offers two methods for spatial template matching:
 * ``MaskMatcher``: Uses template masks.
 
 If you want a different way of deciding when a template matches the current TR,
-you can add your own matching method by defining a new Matcher as a
-subclass of ``Matcher``. Each Matcher operates on one TR at a time.
+you can add your own matching method by defining a new Matcher as a subclass of
+``Matcher``.
 
 1. **Create your matcher class**
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

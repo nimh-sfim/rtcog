@@ -24,24 +24,7 @@ Key configuration sections:
 2. Real-Time Scanner Setup
 ===========================
 
-``rtcog`` integrates with AFNI's real-time fMRI infrastructure.
-
-
-You can start up afni in real-time mode by executing:
-
-.. code:: bash
-
-   export AFNI_REALTIME_Registration=3D:_realtime
-   export AFNI_REALTIME_MP_HOST_PORT=localhost:53214
-   export AFNI_REALTIME_SEND_VER=YES
-   export AFNI_REALTIME_SHOW_TIMES=YES
-   export AFNI_REALTIME_Function=FIM
-   export AFNI_REALTIME_Graph=Realtime
-   export AFNI_REALTIME_Mask_Vals=All_Data_light
-
-   afni -rt
-
-Detailed AFNI setup instructions to come...
+See :doc:`startup_afni`.
 
 3. Running ``rtcog``
 =====================

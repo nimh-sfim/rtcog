@@ -81,9 +81,9 @@ The Pipeline
 
 Within ``rtcog``, incoming volumes pass through a configurable preprocessing
 pipeline that may include spatial smoothing, normalization, and other user-defined
-operations. The preprocessing pipeline is modular and extensible, allowing
-researchers to tailor processing steps to specific experimental requirements without
-modifying the core runtime logic.
+operations. The preprocessing pipeline is designed to be modular and extensible.
+Preprocessing step parameters can be modified via a configuration file. New steps
+can also be easily created (refer to :doc:`custom_preproc`).
 
 Pattern Matching and Detection
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -99,7 +99,7 @@ pattern-matching approaches:
 
 A *hit* is registered when the similarity between a TR and a target template exceeds
 user-defined criteria (e.g., the score exceeds a certain threshold for a specified
-duration). Hits can be used to trigger downstream experimental logic, such as survey
+duration). Hits can be used to trigger downstream experimental action, such as survey
 presentation or feedback delivery.
 
 .. figure:: /_static/images/minimal_software_arch.png
