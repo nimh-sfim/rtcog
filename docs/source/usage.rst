@@ -49,7 +49,7 @@ For basic preprocessing *without* template matching:
 ESAM Mode
 ---------
 
-For experiment control *with* template matching:
+For preprocessing *with* template matching:
 
 .. code:: bash
 
@@ -68,11 +68,12 @@ For experiment control *with* template matching:
 Minimal Mode
 ------------
 
-For running without GUI dependencies (useful for testing purposes):
+If you installed Minimal mode to run without GUI dependencies, simply replace
+``rtcog`` in the above commands with ``rtcog_min``:
 
 .. code:: bash
 
-   python -m rtcog.run_minimal [options]
+   rtcog_min [options]
 
 Command Line Options
 ====================

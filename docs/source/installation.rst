@@ -19,9 +19,25 @@ Installation
 3. Create environment
 ---------------------
 
+For access to all of rtcog's features, install as normal:
+
 .. code-block:: bash
 
    conda env create -f env.yml
 
-   conda install rtcog
+   conda activate rtcog
    pip install .  # or `pip install -e .` for editable mode
+
+If you do not require rtcog's GUI features, you can install a
+minimal version instead:
+
+.. code-block:: bash
+
+   conda env create -f mininal_env.yml
+
+   conda activate rtcog_min
+   pip install .  # or `pip install -e .` for editable mode
+
+This version does not have Psychopy GUI presentation and will only
+run the real-time preprocessing pipeline. This is useful for testing
+purposes.
