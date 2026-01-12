@@ -23,7 +23,7 @@ For access to all of rtcog's features, install as normal:
 
 .. code-block:: bash
 
-   conda env create -f env.yml
+   conda env create -f env.yaml
 
    conda activate rtcog
    pip install .  # or `pip install -e .` for editable mode
@@ -33,7 +33,7 @@ minimal version instead:
 
 .. code-block:: bash
 
-   conda env create -f mininal_env.yml
+   conda env create -f minimal_env.yaml
 
    conda activate rtcog_min
    pip install .  # or `pip install -e .` for editable mode
