@@ -18,9 +18,11 @@ Start AFNI in realtime mode:
 
 ``afni -rt``
 
-Go to Plugins > RT Options
+Go to Define Datamode > Plugins > RT Options
 
-Set ``Reg Base`` to your EPI reference dataset (e.g., ``EPIREF+orig``).
+Set ``Reg Base`` to ``External Dataset``.
+
+Set ``Extern Dset`` to your EPI reference dataset (e.g., ``EPIREF+orig``).
 
 Set ``Mask`` to your mask dataset (e.g., ``GMribbon_R4Feed.nii``).
 

@@ -148,7 +148,7 @@ On the new window, ensure the following configurations:
 - Val to Send = All Data (light)
 
 
-8. Start ``rtcog`` in Basic in the **Laptop** terminal.
+8. Start ``rtcog`` in Basic mode in the **Laptop** terminal.
 
 See :doc:`/usage` for instructions.
 
@@ -180,7 +180,8 @@ you should have the following files:
 
 10. Train the SVR
 
-Select the templates of interest and create txt file with labels:
+Select the templates of interest and create a txt file with labels. The txt file should be comma-separated
+and in the same order as your templates file. For example:
 
 .. code:: bash
 
@@ -191,14 +192,14 @@ Go to the **Laptop** terminal and run:
 
 .. code:: bash
 
-    python ../../rtcog/bin/online_trainSVRs.py \
-           -d ./training.pp_Zscore.nii \
-           -m ./GMribbon_R4Feed.nii \
-           -t ./Templates_R4Feed.nii \
-           -l ./template_labels.txt \
-           -o ./ \
-           -p training_svr \
-           --no_lasso
+    python rtcog/matching/offline/svr.py \
+          --data path/to/training_data.nii \                   # The final preprocessed data from Basic run
+          --mask path/to/your_mask.nii \                       # Your mask file
+          --templates_path path/to/your_templates.nii \        # The templates of interest
+          --template_labels_path path/to/template_labels.txt \ # The names of your templates
+          --out_dir ./output_directory  \                      # Where results will be saved
+          --prefix training_svr \                              # Prefix for output files
+          --no_lasso
 
 This will generate the following additional files in the **Laptop**
 folder:
@@ -224,13 +225,14 @@ you. You can adjust the threshold with ``--thr``.
 
 .. code:: bash
 
-   python ../../rtcog/bin/mask.py \
-           --data online_preproc.pp_Zscore.nii \
-           --mask GMribbon_R4Feed.nii \
-           --templates_path ROI_Data.nii \
-           --template_labels_path ROI_Defs.txt \
-           --out_dir ./ \
-           --prefix mask_method
+   python rtcog/matching/offline/mask.py \
+          --data path/to/training_data.nii \                   # The final preprocessed data from Basic run
+          --mask path/to/your_mask.nii \                       # Your mask file
+          --templates_path path/to/your_templates.nii \        # The templates of interest
+          --template_labels_path path/to/template_labels.txt \ # The names of your templates
+          --out_dir ./output_directory  \                      # Where results will be saved
+          --prefix mask_method \                               # Prefix for output files
+          --template_type binary \                             # Template type: "binary" or "normal" [default: binary]
 
 This will generate the following additional files in the **Laptop**
 folder:
@@ -245,12 +247,16 @@ folder:
 Using the output of this method, decide on a threshold to use in the
 experimental run (``--hit_thr``)
 
-11. Start rtcog to deal with a real Experience Sampling Run
+1.  Run rtcog in ESAM mode
 
 Now that you have trained the SVR (or created the mask method templates),
 you can simulate a real experience sampling run. First set ``match_method``
 in the config yaml to either ``svr`` or ``mask_method`` depending on which
-approach you want to use.  Then, start the experiment. Refer to :doc:`/usage`
-for instructions.
+approach you want to use.
+
+Then, start the experiment. Refer to :doc:`/usage` for instructions.
+Note that the input for ``--match_path`` will be:
+- ``training_svr.pkl`` for SVR method
+- ``mask_method.template_data.npz`` for mask method
 
 NOTE: This doc is a work in process

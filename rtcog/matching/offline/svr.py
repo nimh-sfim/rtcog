@@ -30,7 +30,7 @@ def processProgramOptions (self, options=None):
     parser_inopts.add_argument("-m","--mask", action="store", type=str, dest="mask_path", default=None, help="path to mask [Default: %(default)s]", required=True)
     parser_inopts.add_argument("--discard",   action="store", type=int, dest="nvols_discard",   default=100,  help="number of volumes [Default: %(default)s]")
     parser_outopts = parser.add_argument_group('Output Options','Were to save results')
-    parser_outopts.add_argument("-o","--outdir",  action="store", type=str, dest="outdir",  default='./', help="output directory [Default: %(default)s]")
+    parser_outopts.add_argument("-o","--out_dir",  action="store", type=str, dest="outdir",  default='./', help="output directory [Default: %(default)s]")
     parser_outopts.add_argument("-p","--prefix", action="store", type=str, dest="prefix", default="svr", help="prefix for output file [Default: %(default)s]")
     parser_svropts = parser.add_argument_group('Training Options','Different Training Options')
     parser_svropts.add_argument("--no_lasso",          action="store_true", default=False, dest="no_lasso", help="Generate Labels with Linear Regression (No Lasso) [Default: %(default)s]")
