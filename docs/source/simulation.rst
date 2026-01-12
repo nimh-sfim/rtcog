@@ -218,10 +218,7 @@ Here is an example of the static training report
 .. figure:: _static/images/training_svr.png
    :alt: Sample of Training SVR Static Report
 
-Instead of training SVRs, you can also use the mask method for spatial
-matching. The program expects a binarized templates. If you pass in
-``--template_type normal``, the program will do the thresholding for
-you. You can adjust the threshold with ``--thr``.
+Instead of training SVRs, you can also use the mask method for spatial matching. 
 
 .. code:: bash
 
@@ -232,7 +229,9 @@ you. You can adjust the threshold with ``--thr``.
           --template_labels_path path/to/template_labels.txt \ # The names of your templates
           --out_dir ./output_directory  \                      # Where results will be saved
           --prefix mask_method \                               # Prefix for output files
-          --template_type binary \                             # Template type: "binary" or "normal" [default: binary]
+          --template_type binary \                             # Template type: "binary" or "normal"
+          --thr 10 \                                           # Threshold (float) to use for the templates
+          
 
 This will generate the following additional files in the **Laptop**
 folder:
@@ -252,10 +251,11 @@ experimental run (``--hit_thr``)
 Now that you have trained the SVR (or created the mask method templates),
 you can simulate a real experience sampling run. First set ``match_method``
 in the config yaml to either ``svr`` or ``mask_method`` depending on which
-approach you want to use.
+approach you are using.
 
 Then, start the experiment. Refer to :doc:`/usage` for instructions.
 Note that the input for ``--match_path`` will be:
+
 - ``training_svr.pkl`` for SVR method
 - ``mask_method.template_data.npz`` for mask method
 
