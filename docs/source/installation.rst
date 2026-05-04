@@ -15,6 +15,7 @@ Installation
 * `portaudio <https://www.portaudio.com/>`_
 * afni (version AFNI_25.0.07)
 * conda
+* Docker, if using the Minimal mode Docker image
 
 3. Create environment
 ---------------------
@@ -41,3 +42,20 @@ minimal version instead:
 This version does not have Psychopy GUI presentation and will only
 run the real-time preprocessing pipeline. This is useful for testing
 purposes.
+
+Alternatively, you can use the Docker image for the minimal version.
+We use this image for testing the real-time preprocessing pipeline
+locally and on HPC systems.
+
+Build the image from the repository root:
+
+.. code-block:: bash
+
+   docker build --platform linux/amd64 -t rtcog .
+
+
+After building the Docker image, run a smoke test:
+
+.. code:: bash
+
+   docker run --rm --platform linux/amd64 rtcog

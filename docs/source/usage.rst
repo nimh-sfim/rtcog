@@ -39,12 +39,12 @@ For basic preprocessing *without* template matching:
    conda activate rtcog
 
    rtcog \
-     -c path/to/your_config.yaml \            # Path to your YAML config
-     --exp_type basic \                       # Experiment type
-     --nvols 300 \                            # Number of volumes in your dataset
-     --mask path/to/your_mask.nii \           # Your mask file
-     --out_dir ./output_directory \           # Where results will be saved
-     --out_prefix your_output_prefix \        # Prefix for output files
+     -c path/to/your_config.yaml \
+     --exp_type basic \
+     --nvols number_of_volumes \
+     --mask path/to/your_mask.nii \
+     --out_dir path/to/output_directory \
+     --out_prefix your_output_prefix
 
 ESAM Mode
 ---------
@@ -54,19 +54,22 @@ For preprocessing *with* template matching:
 .. code:: bash
 
    conda activate rtcog
-
+ 
    rtcog \
-     -c path/to/your_config.yaml \            # Path to your YAML config
-     --exp_type esam \                        # Experiment type
-     --nvols 300 \                            # Number of volumes in your scan
-     --mask_path path/to/your_mask.nii \      # Your mask file
-     --out_dir ./output_directory \           # Where results will be saved
-     --out_prefix your_output_prefix \        # Prefix for output files
-     --hit_thr your_threshold                 # Threshold for hit (float)
-     --match_path path/to/template_data.npz \ # Template matching input
+     -c path/to/your_config.yaml \
+     --exp_type esam \
+     --nvols number_of_volumes \
+     --mask path/to/your_mask.nii \
+     --out_dir path/to/output_directory \
+     --out_prefix your_output_prefix \
+     --hit_thr your_threshold \
+     --match_path path/to/template_data.npz
 
 Minimal Mode
 ------------
+
+With conda
+^^^^^^^^^^
 
 If you installed Minimal mode to run without GUI dependencies, simply replace
 ``rtcog`` in the above commands with ``rtcog_min``:
@@ -74,6 +77,37 @@ If you installed Minimal mode to run without GUI dependencies, simply replace
 .. code:: bash
 
    rtcog_min [options]
+
+With Docker
+^^^^^^^^^^^^
+
+If you're using the Docker image instead, publish the scanner TCP port and mount a
+local directory containing your config, mask, input data, and output location:
+
+.. code:: bash
+
+   docker run --rm --platform linux/amd64 \
+     -p 53214:53214 \
+     -v "$PWD:/work" \
+     rtcog -c /work/path/to/your_config.yaml \
+       --exp_type basic \
+       --out_dir /work/path/to/output_directory \
+       --nvols number_of_volumes \
+       --out_prefix your_output_prefix \
+       --mask /work/path/to/your_mask.nii
+
+
+Any paths passed to ``rtcog_min`` or written inside the YAML config must be valid
+inside the container. For example, a local file mounted with ``-v "$PWD:/work"``
+should be referenced as ``/work/<filename>`` from inside the container.
+
+Tip: snapshot testing normally writes to the repository's configured
+``Simulation/outputs`` location. If you are generating snapshots from Docker,
+you can direct them into a mounted path with ``--snapshot_dir``:
+
+.. code:: bash
+
+   --snapshot_dir /work/path/to/snapshot_outputs
 
 Command Line Options
 ====================
@@ -99,7 +133,8 @@ Output Options
 
 - ``--out_dir``: Output directory path
 - ``--out_prefix``: Prefix for output files
-- ``--save_orig``: Save original preprocessed data
+- ``--snapshot_dir``: Directory for snapshot test outputs
+- ``--auto_save``: Automatically save outputs when an error is encountered
 
 Experiment Options
 ------------------
