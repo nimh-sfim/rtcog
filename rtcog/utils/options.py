@@ -105,6 +105,7 @@ class Options:
           parser_save = parser.add_argument_group("Saving Options")
           parser_save.add_argument("--out_dir", help="Output directory", dest="out_dir", action="store", type=str)
           parser_save.add_argument("--out_prefix", help="Prefix for outputs", dest="out_prefix", action="store", type=str)
+          parser_save.add_argument("--snapshot_dir", help="Directory for snapshot test outputs", dest="snapshot_dir", action="store", type=str)
           parser_save.add_argument("--auto_save", help="Automatically save all outputs even if error is encountered during processing.", dest="auto_save", action="store_true", default=None)
           
           parser_exp = parser.add_argument_group('Experiment/GUI Options')

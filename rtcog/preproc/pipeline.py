@@ -1,4 +1,5 @@
 import sys
+import os
 import os.path as osp
 import numpy as np
 from typing import Optional
@@ -87,6 +88,7 @@ class Pipeline:
         self.out_prefix = options.out_prefix
         
         self.snapshot = options.snapshot
+        self.snapshot_dir = getattr(options, "snapshot_dir", None) or OUTPUT_DIR
 
         self.Data_FromAFNI = None # np.array (Nv,Nt) for incoming data
         self.Data_processed = None
@@ -263,9 +265,10 @@ class Pipeline:
                 'Data_processed': self.Data_processed
             })
         
-            snap_path = osp.join(OUTPUT_DIR, f'new_snapshots.npz')
+            os.makedirs(self.snapshot_dir, exist_ok=True)
+            snap_path = osp.join(self.snapshot_dir, f'new_snapshots.npz')
             np.savez(snap_path, **var_dict) 
-            log.info(f'Snapshot saved to OUTPUT_DIR at {snap_path}')
+            log.info(f'Snapshot saved to snapshot_dir at {snap_path}')
         
     def save_motion_estimates(self) -> None:
         """

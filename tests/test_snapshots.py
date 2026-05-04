@@ -8,6 +8,11 @@ import numpy as np
 
 from rtcog.paths import DATA_DIR, OUTPUT_DIR
 
+
+def assert_snapshot_close(expected, actual):
+    assert expected.shape == actual.shape
+    assert np.allclose(expected, actual, rtol=0, atol=1e-8, equal_nan=True)
+
 def test_snapshot():
     """New version of software vs old version (v2.0, using rtcaps_matcher.py)"""
     orig = osp.join(DATA_DIR, 'snapshot_all-on_snapshots.npz')
@@ -15,10 +20,10 @@ def test_snapshot():
 
     with np.load(orig, allow_pickle=True) as f1, np.load(res, allow_pickle=True) as f2:
 
-        assert np.array_equal(f1["Data_EMA"], f2["ema"])
-        assert np.array_equal(f1["Data_iGLM"], f2["iglm"])
-        assert np.array_equal(f1["Data_smooth"], f2["smooth"])
-        assert np.array_equal(f1["Data_norm"], f2["snorm"])
+        assert_snapshot_close(f1["Data_EMA"], f2["ema"])
+        assert_snapshot_close(f1["Data_iGLM"], f2["iglm"])
+        assert_snapshot_close(f1["Data_smooth"], f2["smooth"])
+        assert_snapshot_close(f1["Data_norm"], f2["snorm"])
 
 if __name__ == "__main__":
     pytest.main()

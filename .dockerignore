@@ -1,4 +1,25 @@
-# Project Directories
+.git
+**/.gitignore
+
+# Large files
+*.pkl
+*.npy
+*.zip
+*.mp3
+
+# Temp files
+tmp*
+x.*
+
+# Directories
+Simulation/
+data/
+TrainingMaterials/
+
+# OS and editor junk
+.DS_Store
+.vscode/
+.pytest_cache/
 PrcsData/
 Others/
 OpenNFT/
@@ -14,8 +35,8 @@ deprecated/
 Papers/
 ScanNotes/
 
-# Python and Jupyter stuff
 __pycache__/
+.venv
 *.pyc
 *egg*
 .ipynb_checkpoints/
@@ -23,10 +44,8 @@ __pycache__/
 a.pkl.npy
 kl_devel.ipynb
 
-# Sphinx stuff
 docs/_build/
 
-# Scripts and Notebooks
 Scripts/60min_Preproc/
 Scripts/Realtime_Scanner/Not_Used/
 Scripts/Realtime_Scanner/afni_start.sh
@@ -35,17 +54,14 @@ Scripts/Testing_Scripts/
 Scripts/AfniProc/.ipynb_checkpoints/Untitled-checkpoint.ipynb
 testing.ipynb
 
-# Old stuff
 rtcaps/
 afni_plugin/
 
-# Config and Hidden files
 .vscode/
 .DS_Store
 psychopy-env.yml
 new_env.yml
 
-# Etc
 Orange_Introspection.ows
 Scripts/Realtime_Scanner/01_BringROIsToSubjectSpace.old.sh
 *.hdf5
