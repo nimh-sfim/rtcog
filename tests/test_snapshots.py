@@ -13,6 +13,8 @@ def assert_snapshot_close(expected, actual):
     assert expected.shape == actual.shape
     assert np.allclose(expected, actual, rtol=0, atol=1e-8, equal_nan=True)
 
+@pytest.mark.local_data
+@pytest.mark.snapshot
 def test_snapshot():
     """New version of software vs old version (v2.0, using rtcaps_matcher.py)"""
     orig = osp.join(DATA_DIR, 'snapshot_all-on_snapshots.npz')

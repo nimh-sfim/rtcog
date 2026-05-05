@@ -34,6 +34,9 @@ Scripts/TechScans/
 Scripts/Testing_Scripts/
 Scripts/AfniProc/.ipynb_checkpoints/Untitled-checkpoint.ipynb
 testing.ipynb
+tests/Test_Overall.py
+tests/Test_Smoothing.py
+tests/Test_iGLM.py
 
 # Old stuff
 rtcaps/

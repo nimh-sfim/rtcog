@@ -1,10 +1,15 @@
 from unittest.mock import MagicMock, patch
+
+from headless_gui_stubs import install_headless_gui_stubs
+
+install_headless_gui_stubs()
+
 from rtcog.controller.controller import Controller
 
 
 @patch('time.sleep')
-def test_controller_run(mock_sleep):
-    sync = MagicMock()
+def test_controller_run(mock_sleep, make_sync_mock):
+    sync = make_sync_mock()
     action_series = MagicMock()
 
     sync.end.is_set.side_effect = [False, False, True]  # End after 2 loops
@@ -24,8 +29,8 @@ def test_controller_run(mock_sleep):
 
 
 @patch('time.sleep')
-def test_controller_run_no_hit(mock_sleep):
-    sync = MagicMock()
+def test_controller_run_no_hit(mock_sleep, make_sync_mock):
+    sync = make_sync_mock()
     action_series = MagicMock()
 
     sync.end.is_set.side_effect = [False, True]
@@ -42,8 +47,8 @@ def test_controller_run_no_hit(mock_sleep):
 
 
 @patch('time.sleep')
-def test_controller_run_immediate_end(mock_sleep):
-    sync = MagicMock()
+def test_controller_run_immediate_end(mock_sleep, make_sync_mock):
+    sync = make_sync_mock()
     action_series = MagicMock()
 
     sync.end.is_set.return_value = True
