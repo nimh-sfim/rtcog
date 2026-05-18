@@ -49,6 +49,7 @@ def test_rt_regress_vol():
 
 
 
+@pytest.mark.local_data
 def test_rt_smooth_vol(sample_data):
     data_2d = sample_data.this_t_data[:, np.newaxis]
     res = rt_smooth_vol(data_2d, sample_data.mask_img, fwhm=4)

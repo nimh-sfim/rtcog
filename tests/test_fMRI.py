@@ -3,6 +3,8 @@ import numpy as np
 
 from rtcog.utils.fMRI import mask_fMRI_img, unmask_fMRI_img
 
+pytestmark = pytest.mark.local_data
+
 def test_mask_fMRI_img(sample_data):
     masked_data = mask_fMRI_img(sample_data.orig_img,sample_data. mask_img)
     expected_shape = (np.sum(sample_data.mask_img.get_fdata() == 1), sample_data.orig_img.shape[3])

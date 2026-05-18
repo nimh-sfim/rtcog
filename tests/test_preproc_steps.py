@@ -1,4 +1,5 @@
 import numpy as np
+import pytest
 
 from rtcog.preproc.preproc_steps import EMAStep
 from rtcog.preproc.preproc_steps import SnormStep
@@ -50,6 +51,7 @@ def test_EMAStep_second():
     assert ema.filt.shape == (2, 1)
 
 
+@pytest.mark.local_data
 def test_SnormStep(sample_data):
     data_2d = sample_data.this_t_data[:, np.newaxis]
 
