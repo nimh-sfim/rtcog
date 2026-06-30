@@ -1,15 +1,10 @@
-#######################
-Adding matching methods
-#######################
+##############################
+Adding custom matching methods
+##############################
 
-This software offers two methods for spatial template matching:
-
-* ``SVRMatcher``: Uses a pretrained SVR model.
-* ``MaskMatcher``: Uses template masks.
-
-If you want a different way of deciding when a template matches the current TR,
-you can add your own matching method by defining a new Matcher as a subclass of
-``Matcher``.
+For the built-in matching methods, see :doc:`matching`. If you want a different
+way of deciding when a template matches the current TR, you can add your own
+matching method by defining a new ``Matcher`` subclass.
 
 1. **Create your matcher class**
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -23,7 +18,7 @@ the following:
   TR. It must return a 1D NumPy array of length ``Ntemplates`` containing
   the match scores for each template at the current TR.
 
-During initalization, your matcher must:
+During initialization, your matcher must:
 
 - Set ``self.template_labels``: List of template labels used for scoring.
 - Set ``self.Ntemplates``: Number of templates.

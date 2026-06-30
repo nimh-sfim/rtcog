@@ -44,6 +44,14 @@ rtcog.matching.matching\_utils module
    :undoc-members:
    :show-inheritance:
 
+rtcog.matching.offline.nmi module
+---------------------------------
+
+.. automodule:: rtcog.matching.offline.nmi
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 rtcog.matching.transcribe module
 --------------------------------
 

@@ -1,0 +1,106 @@
+################
+Matching methods
+################
+
+``rtcog`` supports three built-in spatial matching methods for ESAM mode. Select
+the method in the ``matching`` section of your YAML config with ``match_method``.
+
+All three matchers require an input file, which is created offline
+(detailed instruction below).
+
+To implement a new matching method, see :doc:`custom_matcher`.
+
+Built-in methods
+================
+
+``svr``
+   Uses a pretrained support vector regression model. Prepare the model with
+   ``rtcog/matching/offline/svr.py`` and pass the resulting pickle file with
+   ``--match_path``.
+
+``mask``
+   Uses template masks and average masked activity. Prepare the template file
+   with ``rtcog/matching/offline/mask.py`` and pass the resulting ``.npz`` file
+   with ``--match_path``.
+
+``nmi``
+   Uses positive-gated normalized mutual information against template maps.
+   Prepare the template file with ``rtcog/matching/offline/nmi.py`` and pass the
+   resulting ``.npz`` file with ``--match_path``.
+
+NMI matching
+============
+
+The NMI matcher can use any template-map file that can be masked into the same
+voxel space as incoming processed TRs.
+
+Input shape determines how templates are read:
+
+- A 3D image is treated as one template.
+- A 4D image is treated as multiple templates, with one template per volume in
+  file order.
+
+Convert the template maps into an ``rtcog`` template file *before* the real-time
+run:
+
+.. code:: bash
+
+   python rtcog/matching/offline/nmi.py \
+      --templates_path path/to/templates.nii \
+      --mask path/to/mask.nii \
+      --template_labels_path path/to/template_labels.txt \
+      --out_dir ./output_directory \
+      --prefix prefix
+
+Template labels are optional:
+
+- If ``--template_labels_path`` is omitted, labels default to ``T01``, ``T02``,
+  and so on.
+- If labels are provided for a 4D image, they should be comma-separated and in
+  the same order as the volumes in the template file.
+
+The output ``prefix.nmi_templates.npz`` contains:
+
+``labels``
+   Template labels in template-map order.
+
+``templates``
+   Raw masked templates with shape ``(n_templates, n_voxels)``. These are
+   required for the positive-correlation gate.
+
+``template_bins``
+   Precomputed binned templates used for the NMI score.
+
+``n_bins``
+   Number of bins used for all templates.
+
+At run time, each processed TR is compared with each template in two steps:
+
+1. The matcher computes Pearson correlation between the raw template and the
+   processed TR. Templates with non-positive correlation receive a score of
+   zero.
+
+   - This gate keeps the NMI score positive-polarity only. Mutual information
+     can be high for inverted patterns, so Pearson correlation is used first to
+     reject templates with the opposite sign.
+
+2. Positively correlated templates are scored with binned normalized mutual
+   information. The reported score is ``NMI - 1``.
+
+Configure the run with:
+
+.. code:: yaml
+
+   matching:
+     match_method: nmi
+     match_start: 100
+     vols_noaction: 45
+
+Then pass the template file to ``rtcog``:
+
+.. code:: bash
+
+   rtcog \
+      --exp_type esam \
+      --match_path path/to/prefix.nmi_templates.npz \
+      --hit_thr your_threshold
