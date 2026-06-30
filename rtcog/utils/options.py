@@ -139,7 +139,7 @@ class Options:
                if not isinstance(matching, dict):
                     parser.error("'matching' section is required for esam experiment")
 
-               if matching.get('match_method') in ('mask', 'svr'):
+               if matching.get('match_method') in ('mask', 'svr', 'nmi'):
                     required_args.append('match_path')
 
                required_args.append('hit_thr')
