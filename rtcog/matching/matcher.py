@@ -3,6 +3,7 @@ import pickle
 import numpy as np
 
 from rtcog.matching.matching_opts import MatchingOpts
+from rtcog.matching.matching_utils import nmi_bin_data, nmi_n_bins, nmi_from_bins
 from rtcog.utils.log import get_logger
 from rtcog.utils.shared_memory_manager import SharedMemoryManager
 from rtcog.utils.sync import SyncEvents
@@ -255,3 +256,126 @@ class MaskMatcher(Matcher):
         return np.array(out)
         
 
+class NMIMatcher(Matcher):
+    """
+    Match TRs to templates using positive normalized mutual information.
+
+    This matcher scores TRs with binned normalized mutual information inspired
+    by gRAICAR (https://github.com/yangzhi-psy/gRAICAR). We also include the raw
+    templates for a positive correlateion gate: only positively correlated TRs
+    can be considered a match.
+
+    Parameters
+    ----------
+    match_opts : MatchingOpts
+        Runtime matching options.
+    Nt : int
+        Total number of time points.
+    sync : SyncEvents
+        Synchronization events shared with the processor.
+    match_path : str
+        Path to an ``.npz`` file containing ``labels`` and raw ``templates``.
+        Templates must have shape ``(n_templates, n_voxels)``. ``template_bins``
+        and ``n_bins`` may also be supplied as precomputed cache values.
+    """
+    def __init__(self, match_opts, Nt, sync, match_path):
+        super().__init__(match_opts, Nt, sync, match_path)
+
+        if match_path is None:
+            self.mp_end.set()
+            raise ValueError('NMI template data not provided.')
+
+        try:
+            self.input = np.load(match_path, allow_pickle=True)
+        except Exception as e:
+            self.mp_end.set()
+            raise RuntimeError(f'Error loading NMI template file: {e}')
+
+        self.template_labels = list(self.input["labels"])
+        self.Ntemplates = len(self.template_labels)
+
+        if "templates" not in self.input:
+            self.mp_end.set()
+            raise ValueError('NMI template file must contain raw "templates" for the positive-correlation gate.')
+
+        templates = np.asarray(self.input["templates"], dtype=np.float32)
+        if templates.ndim != 2 or templates.shape[0] != self.Ntemplates:
+            self.mp_end.set()
+            raise ValueError(
+                f'NMI templates must have shape (n_templates, n_voxels); '
+                f'got {templates.shape} for {self.Ntemplates} labels.'
+            )
+
+        self.templates = templates
+        self.Nvoxels = self.templates.shape[1]
+        self.n_bins = int(np.asarray(self.input["n_bins"]).item()) if "n_bins" in self.input else nmi_n_bins(self.Nvoxels)
+
+        if "template_bins" in self.input:
+            template_bins = np.asarray(self.input["template_bins"])
+            if template_bins.shape != self.templates.shape:
+                self.mp_end.set()
+                raise ValueError(
+                    f'NMI template_bins shape {template_bins.shape} does not match '
+                    f'templates shape {self.templates.shape}.'
+                )
+            self.template_bins = template_bins.astype(np.int16)
+        else:
+            self.template_bins = np.vstack([
+                nmi_bin_data(template, self.n_bins) for template in self.templates
+            ])
+
+        self.template_centered = self.templates - self.templates.mean(axis=1, keepdims=True)
+        self.template_norms = np.linalg.norm(self.template_centered, axis=1)
+
+        log.info(f'List of templates to be tested: {self.template_labels}')
+
+        self.setup_shared_memory()
+        self.mp_shm_ready.set()
+
+    def _match(self, tr_data):
+        """
+        Compute positive-gated NMI scores for one processed TR.
+
+        Parameters
+        ----------
+        tr_data : array_like
+            Processed TR data vector in mask space.
+
+        Returns
+        -------
+        np.ndarray
+            One score per template. Scores are zero for non-positive
+            correlations and ``NMI - 1`` for positively correlated templates.
+
+        Raises
+        ------
+        ValueError
+            If ``tr_data`` does not contain the expected number of voxels.
+        """
+        data = np.squeeze(tr_data).astype(np.float32).ravel()
+        if data.size != self.Nvoxels:
+            raise ValueError(
+                f'NMI matcher expected {self.Nvoxels} voxels, got {data.size}'
+            )
+
+        data_centered = data - data.mean()
+        data_norm = np.linalg.norm(data_centered)
+        if data_norm == 0:
+            return np.zeros(self.Ntemplates, dtype=np.float32)
+
+        # Compute correlation so that only positively correlated templates continue
+        with np.errstate(divide="ignore", invalid="ignore"):
+            correlations = (self.template_centered @ data_centered) / (self.template_norms * data_norm)
+
+        positive = np.isfinite(correlations) & (correlations > 0)
+        if not np.any(positive):
+            return np.zeros(self.Ntemplates, dtype=np.float32)
+
+        # Perform gRAICAR-style binned NMI
+        data_bins = nmi_bin_data(data, self.n_bins)
+        scores = np.zeros(self.Ntemplates, dtype=np.float32)
+        for idx in np.flatnonzero(positive):
+            score = nmi_from_bins(data_bins, self.template_bins[idx], self.n_bins) - 1
+            scores[idx] = max(score, 0)
+
+        return scores

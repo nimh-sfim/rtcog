@@ -3,7 +3,7 @@ import numpy as np
 import pytest
 from unittest.mock import MagicMock, patch, mock_open
 
-from rtcog.matching.matcher import Matcher, SVRMatcher, MaskMatcher
+from rtcog.matching.matcher import Matcher, SVRMatcher, MaskMatcher, NMIMatcher
 from rtcog.matching.matching_opts import MatchingOpts
 
 # ----------------------
@@ -141,3 +141,120 @@ def test_maskmatcher_match_logic(match_opts):
     scores = matcher._match(tr_data)
     assert scores.shape == (1,)
     assert np.isclose(scores[0], 10)
+
+
+# ----------------------
+# NMIMatcher Tests
+# ----------------------
+@patch.object(NMIMatcher, "setup_shared_memory")
+def test_nmimatcher_loads_file(mock_setup_shm, tmp_path, match_opts, make_sync_mock):
+    sync_events = make_sync_mock()
+    match_path = tmp_path / "nmi_templates.npz"
+    np.savez(
+        match_path,
+        labels=np.array(["ac001"]),
+        templates=np.array([[0, 1, 2, 3, 4, 5, 6, 7]], dtype=np.float32),
+        n_bins=np.array(2),
+    )
+
+    matcher = NMIMatcher(match_opts, Nt=5, sync=sync_events, match_path=str(match_path))
+
+    assert matcher.Ntemplates == 1
+    assert matcher.template_labels == ["ac001"]
+    assert matcher.template_bins.shape == (1, 8)
+    mock_setup_shm.assert_called_once()
+    sync_events.shm_ready.set.assert_called_once()
+
+
+@patch.object(NMIMatcher, "setup_shared_memory")
+def test_nmimatcher_accepts_precomputed_bins_with_raw_templates(mock_setup_shm, tmp_path, match_opts, make_sync_mock):
+    sync_events = make_sync_mock()
+    match_path = tmp_path / "nmi_templates.npz"
+    precomputed_bins = np.array([[1, 1, 1, 2, 2, 2, 2, 2]], dtype=np.int16)
+    np.savez(
+        match_path,
+        labels=np.array(["ac001"]),
+        templates=np.array([[0, 1, 2, 3, 4, 5, 6, 7]], dtype=np.float32),
+        template_bins=precomputed_bins,
+        n_bins=np.array(2),
+    )
+
+    matcher = NMIMatcher(match_opts, Nt=5, sync=sync_events, match_path=str(match_path))
+
+    np.testing.assert_array_equal(matcher.template_bins, precomputed_bins)
+    mock_setup_shm.assert_called_once()
+    sync_events.shm_ready.set.assert_called_once()
+
+
+@patch.object(NMIMatcher, "setup_shared_memory")
+def test_nmimatcher_rejects_bins_without_raw_templates(mock_setup_shm, tmp_path, match_opts, make_sync_mock):
+    sync_events = make_sync_mock()
+    match_path = tmp_path / "nmi_bins_only.npz"
+    np.savez(
+        match_path,
+        labels=np.array(["ac001"]),
+        template_bins=np.array([[1, 1, 1, 1, 2, 2, 2, 2]], dtype=np.int16),
+        n_bins=np.array(2),
+    )
+
+    with pytest.raises(ValueError, match='raw "templates"'):
+        NMIMatcher(match_opts, Nt=5, sync=sync_events, match_path=str(match_path))
+
+    mock_setup_shm.assert_not_called()
+    sync_events.end.set.assert_called_once()
+
+
+@pytest.mark.parametrize(
+    ("labels", "templates"),
+    [
+        (["ac001"], np.array([0, 1, 2, 3, 4, 5, 6, 7], dtype=np.float32)),
+        (["ac001", "ac002"], np.arange(16, dtype=np.float32).reshape(8, 2)),
+    ],
+)
+@patch.object(NMIMatcher, "setup_shared_memory")
+def test_nmimatcher_rejects_noncanonical_template_shape(
+    mock_setup_shm,
+    labels,
+    templates,
+    tmp_path,
+    match_opts,
+    make_sync_mock,
+):
+    sync_events = make_sync_mock()
+    match_path = tmp_path / "nmi_bad_templates.npz"
+    np.savez(
+        match_path,
+        labels=np.array(labels),
+        templates=templates,
+        n_bins=np.array(2),
+    )
+
+    with pytest.raises(ValueError, match="must have shape"):
+        NMIMatcher(match_opts, Nt=5, sync=sync_events, match_path=str(match_path))
+
+    mock_setup_shm.assert_not_called()
+    sync_events.end.set.assert_called_once()
+
+
+def test_nmimatcher_only_counts_positive_similarity(match_opts):
+    matcher = NMIMatcher.__new__(NMIMatcher)
+    matcher.Ntemplates = 2
+    matcher.template_labels = ["positive", "negative"]
+    matcher.templates = np.array([
+        [0, 1, 2, 3, 4, 5, 6, 7],
+        [7, 6, 5, 4, 3, 2, 1, 0],
+    ], dtype=np.float32)
+    matcher.template_bins = np.array([
+        [1, 1, 1, 1, 2, 2, 2, 2],
+        [2, 2, 2, 2, 1, 1, 1, 1],
+    ], dtype=np.int16)
+    matcher.template_centered = matcher.templates - matcher.templates.mean(axis=1, keepdims=True)
+    matcher.template_norms = np.linalg.norm(matcher.template_centered, axis=1)
+    matcher.Nvoxels = 8
+    matcher.n_bins = 2
+
+    scores = matcher._match(np.array([0, 1, 2, 3, 4, 5, 6, 7], dtype=np.float32))
+
+    assert scores.shape == (2,)
+    assert np.isclose(scores[0], 1.0)
+    assert scores[1] == 0.0

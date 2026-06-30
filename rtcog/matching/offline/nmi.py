@@ -4,6 +4,7 @@ import os.path as osp
 
 import numpy as np
 
+from rtcog.matching.matching_utils import nmi_bin_data, nmi_n_bins
 from rtcog.utils.core import file_exists
 from rtcog.utils.fMRI import load_fMRI_file, mask_fMRI_img
 
@@ -14,30 +15,6 @@ log_ch = logging.StreamHandler()
 log_ch.setFormatter(log_fmt)
 log.setLevel(logging.INFO)
 log.addHandler(log_ch)
-
-
-def _nmi_n_bins(n_voxels):
-    return int(np.ceil(n_voxels ** (1 / 3)))
-
-
-def _nmi_bin_data(data, n_bins):
-    data = np.asarray(data, dtype=np.float64).ravel()
-    n_voxels = data.size
-    if n_voxels == 0:
-        raise ValueError("Cannot bin an empty vector")
-
-    data_min = np.min(data)
-    data_max = np.max(data)
-    if data_max == data_min:
-        return np.ones(n_voxels, dtype=np.int16)
-
-    delta = (data_max - data_min) / n_voxels
-    lower = data_min - delta / 2
-    upper = data_max + delta / 2
-    scaled = (data - lower) / (upper - lower) * n_bins + 0.5
-
-    bins = np.floor(scaled + 0.5).astype(np.int16)
-    return np.clip(bins, 1, n_bins)
 
 
 def load_template_labels(labels_path, n_templates):
@@ -111,9 +88,9 @@ def build_nmi_template_data(templates_path, mask_path, template_labels_path=None
     templates = templates.astype(np.float32)
     n_templates, n_voxels = templates.shape
     labels = load_template_labels(template_labels_path, n_templates)
-    n_bins = _nmi_n_bins(n_voxels)
+    n_bins = nmi_n_bins(n_voxels)
     template_bins = np.vstack([
-        _nmi_bin_data(template, n_bins) for template in templates
+        nmi_bin_data(template, n_bins) for template in templates
     ])
 
     return {
