@@ -15,6 +15,7 @@ from rtcog.processor.esam_processor import ESAMProcessor
 def main():
     opts = Options.from_cli()
     opts.save_config()
+    opts.save_command()
 
     set_logger(debug=opts.debug, silent=opts.silent)
     sync = create_sync_events()

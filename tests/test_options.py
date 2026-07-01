@@ -30,6 +30,15 @@ def test_save_config(mock_dump, mock_file):
     mock_dump.assert_called_once()
 
 
+@patch('builtins.open', new_callable=mock_open)
+def test_save_command(mock_file):
+    config = {'exp_type': 'basic', 'nvols': 100, 'out_dir': '/tmp', 'out_prefix': 'test'}
+    options = Options(config)
+    options.save_command(["rtcog", "--config", "my config.yaml", "--out_prefix", "test"])
+    mock_file.assert_called_once_with('/tmp/test_Command.txt', 'w')
+    mock_file().write.assert_called_once_with("rtcog --config 'my config.yaml' --out_prefix test\n")
+
+
 def test_from_yaml():
     path = osp.join(CONFIG_DIR, 'default_config.yaml')
     opts = Options.from_yaml(path)
