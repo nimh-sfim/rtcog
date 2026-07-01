@@ -215,7 +215,7 @@ class Options:
                argv = sys.argv
 
           command = shlex.join([str(arg) for arg in argv])
-          out_path = osp.join(self.out_dir, f'{self.out_prefix}_Command.txt')
+          out_path = osp.join(self.out_dir, f'{self.out_prefix}_command.txt')
           with open(out_path, 'w') as file:
                file.write(f"{command}\n")
           print(f"++ Command saved to {out_path}")

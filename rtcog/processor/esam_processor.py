@@ -70,6 +70,11 @@ class ESAMProcessor(BasicProcessor):
         try:
             matcher_cls = Matcher.from_name(self.match_opts.match_method)
             self.matcher = matcher_cls(self.match_opts, self.Nt, sync, options.match_path)
+        except KeyError:
+            message = "Match input missing required keys. Did you mean to use a different matcher?"
+            self.log.error(message)
+            sync.end.set()
+            raise RuntimeError(message) from None
         except ValueError as e:
             self.log.error(f"Matcher setup failed: {e}")
             sync.end.set()
