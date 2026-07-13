@@ -334,7 +334,10 @@ class NMIMatcher(Matcher):
 
     def _match(self, tr_data):
         """
-        Compute positive-gated NMI scores for one processed TR.
+        Compute MI scores for one processed TR.
+        
+        Because NMI can be high for inverted maps, the map and the template
+        must be positively correlated.
 
         Parameters
         ----------

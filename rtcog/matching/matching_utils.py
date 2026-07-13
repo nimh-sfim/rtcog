@@ -22,6 +22,8 @@ def nmi_bin_data(data, n_bins=None):
     """
     Bin a spatial vector for normalized mutual information.
 
+    Port of ``NMI_binData.m`` from gRAICAR.
+
     Parameters
     ----------
     data : array_like
@@ -51,6 +53,7 @@ def nmi_bin_data(data, n_bins=None):
     data_min = np.min(data)
     data_max = np.max(data)
     if data_max == data_min:
+        # Constant vector: single bin
         return np.ones(n_voxels, dtype=np.int16)
 
     delta = (data_max - data_min) / n_voxels
@@ -58,13 +61,18 @@ def nmi_bin_data(data, n_bins=None):
     upper = data_max + delta / 2
     scaled = (data - lower) / (upper - lower) * n_bins + 0.5
 
+    # MATLAB-style rounded bin coordinates
     bins = np.floor(scaled + 0.5).astype(np.int16)
+
+    # Restrict to MATLAB-style 1-based bin labels
     return np.clip(bins, 1, n_bins)
 
 
 def nmi_from_bins(x_bins, y_bins, n_bins=None):
     """
     Compute normalized mutual information for binned vectors.
+    
+    Port of ``calcNMI.m`` from gRAICAR.
 
     The estimate is ``(Hx + Hy) / Hxy``. Callers that need the MICM-style score
     used by the online NMI matcher should subtract one from this value.
@@ -99,6 +107,7 @@ def nmi_from_bins(x_bins, y_bins, n_bins=None):
     if n_bins is None:
         n_bins = int(max(np.max(x_bins), np.max(y_bins)))
 
+    # Joint-histogram indices
     x_idx = np.clip(x_bins, 1, n_bins) - 1
     y_idx = np.clip(y_bins, 1, n_bins) - 1
     flat_idx = x_idx * n_bins + y_idx
@@ -110,6 +119,7 @@ def nmi_from_bins(x_bins, y_bins, n_bins=None):
     hx = np.sum(hist, axis=1)
     hy = np.sum(hist, axis=0)
 
+    # Marginal and joint entropies from calcNMI.m
     hx = -np.sum(hx * np.log2(hx + eps))
     hy = -np.sum(hy * np.log2(hy + eps))
     hxy = -np.sum(hist * np.log2(hist + eps)) + eps
