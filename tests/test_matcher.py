@@ -236,7 +236,7 @@ def test_nmimatcher_rejects_noncanonical_template_shape(
     sync_events.end.set.assert_called_once()
 
 
-def test_nmimatcher_only_counts_positive_similarity(match_opts):
+def test_nmimatcher_returns_signed_similarity(match_opts):
     matcher = NMIMatcher.__new__(NMIMatcher)
     matcher.Ntemplates = 2
     matcher.template_labels = ["positive", "negative"]
@@ -257,4 +257,4 @@ def test_nmimatcher_only_counts_positive_similarity(match_opts):
 
     assert scores.shape == (2,)
     assert np.isclose(scores[0], 1.0)
-    assert scores[1] == 0.0
+    assert np.isclose(scores[1], -1.0)

@@ -258,12 +258,12 @@ class MaskMatcher(Matcher):
 
 class NMIMatcher(Matcher):
     """
-    Match TRs to templates using positive normalized mutual information.
+    Match TRs to templates using signed normalized mutual information.
 
     This matcher scores TRs with binned normalized mutual information inspired
     by gRAICAR (https://github.com/yangzhi-psy/gRAICAR). We also include the raw
-    templates for a positive correlateion gate: only positively correlated TRs
-    can be considered a match.
+    templates so Pearson correlation can supply the score sign. High NMI with
+    negative correlation is reported as a negative score.
 
     Parameters
     ----------
@@ -296,7 +296,7 @@ class NMIMatcher(Matcher):
 
         if "templates" not in self.input:
             self.mp_end.set()
-            raise ValueError('NMI template file must contain raw "templates" for the positive-correlation gate.')
+            raise ValueError('NMI template file must contain raw "templates" for signed-correlation scoring.')
 
         templates = np.asarray(self.input["templates"], dtype=np.float32)
         if templates.ndim != 2 or templates.shape[0] != self.Ntemplates:
@@ -336,8 +336,8 @@ class NMIMatcher(Matcher):
         """
         Compute MI scores for one processed TR.
         
-        Because NMI can be high for inverted maps, the map and the template
-        must be positively correlated.
+        Because NMI can be high for inverted maps, Pearson correlation supplies
+        the sign of the binned NMI score.
 
         Parameters
         ----------
@@ -347,8 +347,8 @@ class NMIMatcher(Matcher):
         Returns
         -------
         np.ndarray
-            One score per template. Scores are zero for non-positive
-            correlations and ``NMI - 1`` for positively correlated templates.
+            One score per template. Scores are ``sign(correlation) * (NMI - 1)``.
+            Zero or non-finite correlations receive a score of zero.
 
         Raises
         ------
@@ -366,19 +366,20 @@ class NMIMatcher(Matcher):
         if data_norm == 0:
             return np.zeros(self.Ntemplates, dtype=np.float32)
 
-        # Compute correlation so that only positively correlated templates continue
+        # Compute correlation so NMI can distinguish positive from inverted maps.
         with np.errstate(divide="ignore", invalid="ignore"):
             correlations = (self.template_centered @ data_centered) / (self.template_norms * data_norm)
 
-        positive = np.isfinite(correlations) & (correlations > 0)
-        if not np.any(positive):
+        valid = np.isfinite(correlations) & (correlations != 0)
+        if not np.any(valid):
             return np.zeros(self.Ntemplates, dtype=np.float32)
 
         # Perform gRAICAR-style binned NMI
         data_bins = nmi_bin_data(data, self.n_bins)
         scores = np.zeros(self.Ntemplates, dtype=np.float32)
-        for idx in np.flatnonzero(positive):
+        for idx in np.flatnonzero(valid):
             score = nmi_from_bins(data_bins, self.template_bins[idx], self.n_bins) - 1
-            scores[idx] = max(score, 0)
+            strength = max(score, 0)
+            scores[idx] = strength if correlations[idx] > 0 else -strength
 
         return scores

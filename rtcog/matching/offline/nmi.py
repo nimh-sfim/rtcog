@@ -16,8 +16,10 @@ log_ch.setFormatter(log_fmt)
 log.setLevel(logging.INFO)
 log.addHandler(log_ch)
 
+#TODO: add offline NMI to help user establish threshold
 
 def load_template_labels(labels_path, n_templates):
+    # TODO: reuse this fn for other methods
     """
     Load template labels for an NMI template file.
 
@@ -74,7 +76,7 @@ def build_nmi_template_data(templates_path, mask_path, template_labels_path=None
     dict
         Dictionary with ``labels``, raw ``templates``, precomputed
         ``template_bins``, and ``n_bins``. Raw templates are kept because the
-        online matcher uses them for the positive-correlation gate.
+        online matcher uses them for signed-correlation scoring.
     """
     templates_img = load_fMRI_file(templates_path)
     mask_img = load_fMRI_file(mask_path)

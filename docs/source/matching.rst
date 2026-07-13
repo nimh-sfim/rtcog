@@ -24,7 +24,7 @@ Built-in methods
    with ``--match_path``.
 
 ``nmi``
-   Uses positive-gated normalized mutual information against template maps.
+   Uses signed normalized mutual information against template maps.
    Prepare the template file with ``rtcog/matching/offline/nmi.py`` and pass the
    resulting ``.npz`` file with ``--match_path``.
 
@@ -66,7 +66,7 @@ The output ``prefix.nmi_templates.npz`` contains:
 
 ``templates``
    Raw masked templates with shape ``(n_templates, n_voxels)``. These are
-   required for the positive-correlation gate.
+   required to assign the Pearson-correlation sign.
 
 ``template_bins``
    Precomputed binned templates used for the NMI score.
@@ -77,15 +77,19 @@ The output ``prefix.nmi_templates.npz`` contains:
 At run time, each processed TR is compared with each template in two steps:
 
 1. The matcher computes Pearson correlation between the raw template and the
-   processed TR. Templates with non-positive correlation receive a score of
-   zero.
+   processed TR. The correlation supplies the sign of the NMI score.
 
-   - This gate keeps the NMI score positive-polarity only. Mutual information
-     can be high for inverted patterns, so Pearson correlation is used first to
-     reject templates with the opposite sign.
+   - Mutual information can be high for inverted patterns, so Pearson
+     correlation is used to preserve whether a high-NMI pattern is template-like
+     or inverted.
 
-2. Positively correlated templates are scored with binned normalized mutual
-   information. The reported score is ``NMI - 1``.
+2. Templates are scored with binned normalized mutual information. The reported
+   score is ``sign(correlation) * max(NMI - 1, 0)``. Zero or non-finite
+   correlations receive a score of zero.
+
+   - Positive ``hit_thr`` values only trigger positive template-like matches;
+     negative scores remain available for interpreting inverted high-NMI
+     patterns.
 
 Configure the run with:
 
