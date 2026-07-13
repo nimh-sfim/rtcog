@@ -40,6 +40,9 @@ class ScorePlotter(Plotter):
         """
         super().__init__(config)
         self._hit_thr = config.hit_thr
+        self._match_start = config.matching_opts.match_start
+        self._vols_noaction = config.matching_opts.vols_noaction
+        self._y_range = self._threshold_y_range()
 
         # DataFrame storing scores for each template across time
         self._df = pd.DataFrame(np.nan, index=np.arange(self._Nt), columns=self._template_labels)
@@ -55,7 +58,7 @@ class ScorePlotter(Plotter):
 
         # Gray box before matching starts
         self._no_match_poly = self._draw_poly(
-                0, config.matching_opts.match_start
+                0, self._match_start
             ).opts(color='gray', line_color=None, alpha=0.2)
 
         self._action_state = None
@@ -88,6 +91,9 @@ class ScorePlotter(Plotter):
             self.dmap.event(t=t)
 
     def _plot(self, t: int) -> hv.Overlay:
+        return self._build_overlay(t, update_polys=True)
+
+    def _build_overlay(self, t: int, update_polys: bool) -> hv.Overlay:
         """
         Construct the full plot overlay for a given time point.
 
@@ -118,7 +124,7 @@ class ScorePlotter(Plotter):
         overlays = [line_plot, self._no_match_poly]
 
         if self._action_state is None:
-            return hv.Overlay(overlays)
+            return hv.Overlay(overlays).opts(ylim=self._y_range)
 
         # Threshold line
         overlays.append(
@@ -130,29 +136,30 @@ class ScorePlotter(Plotter):
         # Hit markers
         overlays.append(self._draw_hit_markers())
 
-        # Action state-dependent dynamic shaded regions
-        if self._action_state.in_action:
-            overlays.append(self._draw_dynamic_box(t))
-        elif self._action_state.action_offsets and t == self._action_state.action_offsets[-1]:
-            # Final action box
-            self._polys_static.append(
-                    self._draw_poly(self._action_state.action_onsets[-1], t
-                ).opts(alpha=0.2, color='blue', line_color=None))
-        elif self._action_state.in_cooldown:
-            # Cooldown box
-            if self._action_state.cooldown_end != self._last_cooldown_shown:
+        if update_polys:
+            # Action state-dependent dynamic shaded regions
+            if self._action_state.in_action:
+                overlays.append(self._draw_dynamic_box(t))
+            elif self._action_state.action_offsets and t == self._action_state.action_offsets[-1]:
+                # Final action box
                 self._polys_static.append(
-                    self._draw_poly(self._action_state.action_offsets[-1], self._action_state.cooldown_end)
-                    .opts(alpha=0.2, color='cyan', line_color=None)
-                )
-                self._last_cooldown_shown = self._action_state.cooldown_end
+                        self._draw_poly(self._action_state.action_onsets[-1], t
+                    ).opts(alpha=0.2, color='blue', line_color=None))
+            elif self._action_state.in_cooldown:
+                # Cooldown box
+                if self._action_state.cooldown_end != self._last_cooldown_shown:
+                    self._polys_static.append(
+                        self._draw_poly(self._action_state.action_offsets[-1], self._action_state.cooldown_end)
+                        .opts(alpha=0.2, color='cyan', line_color=None)
+                    )
+                    self._last_cooldown_shown = self._action_state.cooldown_end
         
         overlays.append(
             hv.Overlay(self._polys_static)
             if self._polys_static else hv.Overlay([])
         )
         
-        return hv.Overlay(overlays)
+        return hv.Overlay(overlays).opts(ylim=self._y_range)
 
     def _draw_dynamic_box(self, t: int) -> hv.Polygons:
         """
@@ -187,9 +194,56 @@ class ScorePlotter(Plotter):
             Rectangle covering the interval.
         """
         end = min(end, self._Nt)
+        y_min, y_max = self._y_range
         return hv.Polygons([
-            [(start, -5), (end, -5), (end, 5), (start, 5)]
+            [(start, y_min), (end, y_min), (end, y_max), (start, y_max)]
         ])
+
+    def _threshold_y_range(self) -> tuple[float, float]:
+        """
+        Return a stable live y-range based on the hit threshold.
+        """
+        limit = abs(self._hit_thr) * 5.0
+        return (-limit, limit)
+
+    def _data_y_range(self) -> tuple[float, float]:
+        """
+        Return a final y-range based on all saved scores and the hit threshold.
+        """
+        scores = self._df.to_numpy(dtype=float).ravel()
+        finite_scores = scores[np.isfinite(scores)]
+        if finite_scores.size == 0:
+            return self._threshold_y_range()
+
+        values = np.concatenate([finite_scores, np.array([0.0, self._hit_thr])])
+        y_min = float(values.min())
+        y_max = float(values.max())
+        if y_min == y_max:
+            return self._threshold_y_range()
+
+        padding = (y_max - y_min) * 0.25
+        return (y_min - padding, y_max + padding)
+
+    def _redraw_static_polys(self, t: int) -> None:
+        """
+        Rebuild static action and cooldown boxes using the active y-range.
+        """
+        self._polys_static = []
+        if self._action_state is None:
+            return
+
+        for onset, offset in zip(self._action_state.action_onsets, self._action_state.action_offsets):
+            self._polys_static.append(
+                self._draw_poly(onset, offset).opts(alpha=0.2, color='blue', line_color=None)
+            )
+            self._polys_static.append(
+                self._draw_poly(offset, offset + self._vols_noaction).opts(alpha=0.2, color='cyan', line_color=None)
+            )
+
+        if self._action_state.in_action and len(self._action_state.action_onsets) > len(self._action_state.action_offsets):
+            self._polys_static.append(
+                self._draw_poly(self._action_state.action_onsets[-1], t).opts(alpha=0.2, color='blue', line_color=None)
+            )
 
     def _draw_hit_markers(self) -> hv.Scatter:
         """
@@ -253,8 +307,12 @@ class ScorePlotter(Plotter):
         renderer = hv.renderer('bokeh')
 
         # Get last time index with valid data
-        last_valid_idx = self._df.dropna(how='all').index.max()
-        final_plot = self._plot(last_valid_idx)
+        valid_scores = self._df.dropna(how='all')
+        last_valid_idx = valid_scores.index.max() if not valid_scores.empty else 0
+        self._y_range = self._data_y_range()
+        self._no_match_poly = self._draw_poly(0, self._match_start).opts(color='gray', line_color=None, alpha=0.2)
+        self._redraw_static_polys(last_valid_idx)
+        final_plot = self._build_overlay(last_valid_idx, update_polys=False)
 
         renderer.save(final_plot, out_html)
         print(f'++ Score report written to disk: [{out_html}.html]')
