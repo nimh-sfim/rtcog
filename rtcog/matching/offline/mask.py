@@ -8,7 +8,7 @@ import hvplot.pandas
 import panel as pn
 import matplotlib.pyplot as plt
 
-from rtcog.utils.fMRI import load_fMRI_file, mask_fMRI_img
+from rtcog.utils.fMRI import load_fMRI_file, mask_fMRI_img, unmask_fMRI_img
 from rtcog.utils.core import file_exists
 
 import logging
@@ -51,6 +51,10 @@ class OfflineMask:
         self.templates_img = load_fMRI_file(self.templates_path)
         
         masked_template_array = mask_fMRI_img(self.templates_img, mask_img)
+        masked_template_img_out = self.out_path + '.masked_templates.nii.gz'
+        unmask_fMRI_img(masked_template_array, mask_img, masked_template_img_out)
+        log.info(f'Saved masked input templates to: {masked_template_img_out}')
+
         self.templates_masked = [masked_template_array[:, i] for i in range(masked_template_array.shape[1])]
         full_data_masked = mask_fMRI_img(self.data_img, mask_img)
         self.data_masked = full_data_masked[:, self.nvols_discard:]

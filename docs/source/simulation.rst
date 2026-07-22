@@ -239,6 +239,8 @@ folder:
 - ``mask_method.template_data.npz``: template data (needed for the rest
   of the experimental runs, to be passed in with ``--match_path``
   argument)
+- ``mask_method.masked_templates.nii.gz``: template image after applying
+  the analysis mask
 - ``mask_method.act_traces.npz``: The activity traces from this method
 - ``mask_method.traces.png``: static summary of the activity traces
 - ``mask_method.traces.html``: dynamic summary of the activity traces
