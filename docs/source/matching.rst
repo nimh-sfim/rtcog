@@ -41,16 +41,22 @@ Input shape determines how templates are read:
   file order.
 
 Convert the template maps into an ``rtcog`` template file *before* the real-time
-run:
+run. If you also provide processed training data with ``--data``, the command
+scores that run offline with the same signed-NMI calculation used online:
 
 .. code:: bash
 
    python rtcog/matching/offline/nmi.py \
+      --data path/to/training_data.nii \
       --templates_path path/to/templates.nii \
       --mask path/to/mask.nii \
       --template_labels_path path/to/template_labels.txt \
+      --discard 100 \
       --out_dir ./output_directory \
       --prefix prefix
+
+Omit ``--data`` when you only want to prepare the template file and template
+statistics.
 
 Template labels are optional:
 
@@ -73,6 +79,35 @@ The output ``prefix.nmi_templates.npz`` contains:
 
 ``n_bins``
    Number of bins used for all templates.
+
+The offline command also writes a CSV sidecar with pairwise template statistics:
+overlap voxels and spatial Pearson correlation. If ``--data`` is omitted,
+spatial correlations are shown as a heatmap in a
+``prefix.nmi_template_stats.html`` report. For continuous templates,
+selected-mask overlap is based on nonzero voxels, so spatial correlation is
+usually the more informative statistic.
+
+When ``--data`` is provided, the offline command also writes:
+
+``prefix.nmi_scores.npy``
+   Signed NMI scores with shape ``(n_templates, n_timepoints)``.
+
+``prefix.nmi_raw_scores.npy``
+   Unsigned raw ``NMI - 1`` scores before applying the Pearson-correlation sign.
+
+``prefix.nmi_correlations.npy``
+   Pearson correlations used to assign the sign of each NMI score.
+
+``prefix.nmi_score_traces.npz``
+   Label-keyed signed NMI traces.
+
+``prefix.nmi_scores.png`` and ``prefix.nmi_scores.html``
+   Static and interactive score summaries. The HTML report includes spatial
+   template-correlation and temporal score-trace correlation heatmaps.
+
+``prefix.nmi_score_pairwise_stats.csv``
+   Pairwise Pearson correlations for the signed NMI score traces after
+   discarded volumes.
 
 At run time, each processed TR is compared with each template in two steps:
 

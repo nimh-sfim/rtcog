@@ -10,6 +10,12 @@ import matplotlib.pyplot as plt
 
 from rtcog.utils.fMRI import load_fMRI_file, mask_fMRI_img, unmask_fMRI_img
 from rtcog.utils.core import file_exists
+from rtcog.matching.offline.stats import (
+    pairwise_template_stats,
+    pairwise_trace_stats,
+    pairwise_value_heatmap,
+    save_stats_csvs,
+)
 
 import logging
 log     = logging.getLogger("offline_mask")
@@ -121,9 +127,21 @@ class OfflineMask:
 
         log.info(f'Saved traces to: {trace_out}')
         log.info(f'Saved thresholded template data to: {template_out}')
+
+    def build_stats_tables(self):
+        templates = np.vstack(self.templates_masked)
+        masks = np.vstack([self.mask_vectors[label] for label in self.template_labels])
+        return {
+            'template_pairwise_stats': pairwise_template_stats(self.template_labels, templates, masks),
+            'trace_pairwise_stats': pairwise_trace_stats(self.template_labels, self.act_traces, self.nvols_discard),
+        }
     
     def save_figures(self):
         df = pd.DataFrame.from_dict(self.act_traces, orient='index').T
+        stats_tables = self.build_stats_tables()
+        stats_csvs = save_stats_csvs(stats_tables, self.out_path)
+        for stats_csv in stats_csvs.values():
+            log.info(f'Saved stats table to: {stats_csv}')
 
         # Static figure
         fig = plt.figure(figsize=(20,5))
@@ -141,7 +159,27 @@ class OfflineMask:
         # Dynamic figure
         plot = df.hvplot(width=1000)
         html_out = self.out_path + '.traces.html'
-        pn.Column(plot).save(html_out)
+        spatial_heatmap = pairwise_value_heatmap(
+            stats_tables["template_pairwise_stats"],
+            self.template_labels,
+            "template_a",
+            "template_b",
+            "spatial_pearson_r",
+            "Spatial Correlation Between Templates",
+        )
+        temporal_heatmap = pairwise_value_heatmap(
+            stats_tables["trace_pairwise_stats"],
+            self.template_labels,
+            "trace_a",
+            "trace_b",
+            "pearson_r",
+            "Temporal Correlation Between Traces",
+        )
+        report_items = [
+            plot,
+            pn.Row(spatial_heatmap, temporal_heatmap),
+        ]
+        pn.Column(*report_items).save(html_out)
         log.info(f'Saved dynamic figure to: {html_out}')
 
 def process_options():

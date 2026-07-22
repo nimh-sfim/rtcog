@@ -243,7 +243,13 @@ folder:
   the analysis mask
 - ``mask_method.act_traces.npz``: The activity traces from this method
 - ``mask_method.traces.png``: static summary of the activity traces
-- ``mask_method.traces.html``: dynamic summary of the activity traces
+- ``mask_method.traces.html``: dynamic summary of the activity traces,
+  including spatial template-correlation and temporal trace-correlation
+  heatmaps
+- ``mask_method.template_pairwise_stats.csv``: pairwise template correlation,
+  and overlap voxel counts
+- ``mask_method.trace_pairwise_stats.csv``: pairwise activity-trace
+  correlations after discarded volumes
 
 Using the output of this method, decide on a threshold to use in the
 experimental run (``--hit_thr``)

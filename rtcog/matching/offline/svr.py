@@ -55,10 +55,9 @@ def main():
     # 4) Generate Training labels via Linear Regression + Z-scoring
     if svr_trainer.do_lasso:
         log.info('4) Generating training labels (LASSO)...')
-        svr_trainer.generate_training_labels_lasso()
     else:
         log.info('4) Generating training labels (Linear Regression)...')
-        svr_trainer.generate_training_labels()
+    svr_trainer.generate_training_labels()
 
     # 5) Train the SVRs
     log.info('5) Training SVRs...')
