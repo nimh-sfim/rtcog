@@ -149,7 +149,7 @@ Outputs
 ``rtcog`` generates several output files in the specified output directory:
 
 - ``{prefix}_Options.yaml``: Copy of the configuration used
-- ``{prefix}_Command.txt``: Command used to launch ``rtcog`` or ``rtcog_min``
+- ``{prefix}_command.txt``: Command used to launch ``rtcog`` or ``rtcog_min``
 - ``{prefix}_match_scores.npy``: Template matching scores (ESAM mode)
 - To be continued...
 

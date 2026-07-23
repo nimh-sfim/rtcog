@@ -209,7 +209,7 @@ class Options:
      def save_command(self, argv=None):
           """
           Save the command used to launch rtcog to a text file.
-          The filename will include the out_prefix (e.g., `Run01_Command.txt`).
+          The filename will include the out_prefix (e.g., `Run01_command.txt`).
           """
           if argv is None:
                argv = sys.argv
