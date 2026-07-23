@@ -1,7 +1,49 @@
 import numpy as np
 import pytest
 
-from rtcog.matching.matching_utils import nmi_bin_data, nmi_from_bins, nmi_n_bins
+from rtcog.matching.matching_utils import (
+    nmi_bin_data,
+    nmi_from_bins,
+    nmi_n_bins,
+    pearson_correlations,
+)
+
+
+def test_pearson_correlations_scores_multiple_templates():
+    templates = np.array([
+        [0, 1, 2, 3],
+        [3, 2, 1, 0],
+        [0, 1, 0, 1],
+    ], dtype=np.float32)
+    template_centered = templates - templates.mean(axis=1, keepdims=True)
+    template_norms = np.linalg.norm(template_centered, axis=1)
+
+    correlations = pearson_correlations(
+        [0, 1, 2, 3],
+        template_centered,
+        template_norms,
+    )
+
+    np.testing.assert_allclose(correlations, [1, -1, 0.4472136], rtol=1e-6)
+
+
+def test_pearson_correlations_returns_zero_for_degenerate_inputs():
+    templates = np.array([[1, 1, 1], [0, 1, 2]], dtype=np.float32)
+    template_centered = templates - templates.mean(axis=1, keepdims=True)
+    template_norms = np.linalg.norm(template_centered, axis=1)
+
+    np.testing.assert_array_equal(
+        pearson_correlations([2, 2, 2], template_centered, template_norms),
+        [0, 0],
+    )
+    np.testing.assert_array_equal(
+        pearson_correlations([0, 1, 2], template_centered, template_norms),
+        [0, 1],
+    )
+    np.testing.assert_array_equal(
+        pearson_correlations([0, np.nan, 2], template_centered, template_norms),
+        [0, 0],
+    )
 
 
 def test_nmi_n_bins_uses_ceiling_cube_root():

@@ -2,10 +2,10 @@
 Matching methods
 ################
 
-``rtcog`` supports three built-in spatial matching methods for ESAM mode. Select
+``rtcog`` supports four built-in spatial matching methods for ESAM mode. Select
 the method in the ``matching`` section of your YAML config with ``match_method``.
 
-All three matchers require an input file, which is created offline
+All four matchers require an input file, which is created offline
 (detailed instruction below).
 
 To implement a new matching method, see :doc:`custom_matcher`.
@@ -23,10 +23,33 @@ Built-in methods
    with ``rtcog/matching/offline/mask.py`` and pass the resulting ``.npz`` file
    with ``--match_path``.
 
+``pearson``
+   Uses plain spatial Pearson correlation between each template map and the
+   processed TR. Pass an ``.npz`` file containing ``labels`` and raw
+   ``templates`` with shape ``(n_templates, n_voxels)``. The template file
+   produced by ``rtcog/matching/offline/nmi.py`` is compatible.
+
 ``nmi``
    Uses signed normalized mutual information against template maps.
    Prepare the template file with ``rtcog/matching/offline/nmi.py`` and pass the
    resulting ``.npz`` file with ``--match_path``.
+
+Pearson matching
+================
+
+The Pearson matcher reports one correlation coefficient in the range
+``[-1, 1]`` for each template. Constant templates, constant TRs, and non-finite
+correlations receive a score of zero.
+
+Prepare templates with the NMI offline command shown below, then configure the
+run with:
+
+.. code:: yaml
+
+   matching:
+     match_method: pearson
+
+Pass the generated ``prefix.nmi_templates.npz`` file with ``--match_path``.
 
 NMI matching
 ============
@@ -132,8 +155,6 @@ Configure the run with:
 
    matching:
      match_method: nmi
-     match_start: 100
-     vols_noaction: 45
 
 Then pass the template file to ``rtcog``:
 

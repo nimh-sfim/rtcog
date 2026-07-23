@@ -3,7 +3,12 @@ import pickle
 import numpy as np
 
 from rtcog.matching.matching_opts import MatchingOpts
-from rtcog.matching.matching_utils import nmi_bin_data, nmi_n_bins, nmi_from_bins
+from rtcog.matching.matching_utils import (
+    nmi_bin_data,
+    nmi_from_bins,
+    nmi_n_bins,
+    pearson_correlations,
+)
 from rtcog.utils.log import get_logger
 from rtcog.utils.shared_memory_manager import SharedMemoryManager
 from rtcog.utils.sync import SyncEvents
@@ -11,7 +16,7 @@ from rtcog.utils.sync import SyncEvents
 log = get_logger()
 
 
-# TODO: accept SyncEvents instead of individual mp events
+# TODO: big refactor of on/offline matching (see docs/matching_architecture_plan.md)
 class Matcher:
     """
     Base class for matching processed TR data to given templates.
@@ -256,6 +261,60 @@ class MaskMatcher(Matcher):
         return np.array(out)
         
 
+class PearsonMatcher(Matcher):
+    """Match TRs to template maps using spatial Pearson correlation."""
+
+    def __init__(self, match_opts, Nt, sync, match_path):
+        super().__init__(match_opts, Nt, sync, match_path)
+
+        if match_path is None:
+            self.mp_end.set()
+            raise ValueError('Pearson template data not provided.')
+
+        try:
+            self.input = np.load(match_path, allow_pickle=True)
+        except Exception as e:
+            self.mp_end.set()
+            raise RuntimeError(f'Error loading Pearson template file: {e}')
+
+        if "labels" not in self.input or "templates" not in self.input:
+            self.mp_end.set()
+            raise ValueError('Pearson template file must contain "labels" and "templates".')
+
+        self.template_labels = list(self.input["labels"])
+        self.Ntemplates = len(self.template_labels)
+        templates = np.asarray(self.input["templates"], dtype=np.float32)
+        if templates.ndim != 2 or templates.shape[0] != self.Ntemplates:
+            self.mp_end.set()
+            raise ValueError(
+                f'Pearson templates must have shape (n_templates, n_voxels); '
+                f'got {templates.shape} for {self.Ntemplates} labels.'
+            )
+
+        self.Nvoxels = templates.shape[1]
+        self.template_centered = templates - templates.mean(axis=1, keepdims=True)
+        self.template_norms = np.linalg.norm(self.template_centered, axis=1)
+
+        log.info(f'List of templates to be tested: {self.template_labels}')
+
+        self.setup_shared_memory()
+        self.mp_shm_ready.set()
+
+    def _match(self, tr_data):
+        """Return the spatial Pearson correlation with each template."""
+        data = np.squeeze(tr_data).astype(np.float32).ravel()
+        if data.size != self.Nvoxels:
+            raise ValueError(
+                f'Pearson matcher expected {self.Nvoxels} voxels, got {data.size}'
+            )
+
+        return pearson_correlations(
+            data,
+            self.template_centered,
+            self.template_norms,
+        )
+
+
 class NMIMatcher(Matcher):
     """
     Match TRs to templates using signed normalized mutual information.
@@ -361,14 +420,11 @@ class NMIMatcher(Matcher):
                 f'NMI matcher expected {self.Nvoxels} voxels, got {data.size}'
             )
 
-        data_centered = data - data.mean()
-        data_norm = np.linalg.norm(data_centered)
-        if data_norm == 0:
-            return np.zeros(self.Ntemplates, dtype=np.float32)
-
-        # Compute correlation so NMI can distinguish positive from inverted maps.
-        with np.errstate(divide="ignore", invalid="ignore"):
-            correlations = (self.template_centered @ data_centered) / (self.template_norms * data_norm)
+        correlations = pearson_correlations(
+            data,
+            self.template_centered,
+            self.template_norms,
+        )
 
         valid = np.isfinite(correlations) & (correlations != 0)
         if not np.any(valid):

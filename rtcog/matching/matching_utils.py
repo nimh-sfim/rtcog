@@ -1,6 +1,46 @@
 import numpy as np
 
 
+def pearson_correlations(data, template_centered, template_norms):
+    """
+    Compute spatial Pearson correlations between one vector and many templates.
+
+    Template centering and norms are accepted as precomputed inputs so callers
+    can reuse them across real-time volumes.
+
+    Parameters
+    ----------
+    data : array_like
+        Spatial data vector with shape ``(n_voxels,)``.
+    template_centered : array_like
+        Mean-centered templates with shape ``(n_templates, n_voxels)``.
+    template_norms : array_like
+        Euclidean norm of each centered template with shape ``(n_templates,)``.
+
+    Returns
+    -------
+    np.ndarray
+        Pearson correlation for each template. Constant or non-finite inputs
+        receive a correlation of zero.
+    """
+    data = np.asarray(data, dtype=np.float32).ravel()
+    template_centered = np.asarray(template_centered, dtype=np.float32)
+    template_norms = np.asarray(template_norms, dtype=np.float32).ravel()
+
+    data_centered = data - data.mean()
+    data_norm = np.linalg.norm(data_centered)
+    if data_norm == 0 or not np.isfinite(data_norm):
+        return np.zeros(template_norms.size, dtype=np.float32)
+
+    with np.errstate(divide="ignore", invalid="ignore"):
+        correlations = (
+            (template_centered @ data_centered) / (template_norms * data_norm)
+        ).astype(np.float32)
+
+    correlations[~np.isfinite(correlations)] = 0
+    return np.clip(correlations, -1, 1)
+
+
 def nmi_n_bins(n_voxels):
     """
     Return the NMI bin count for a spatial vector.

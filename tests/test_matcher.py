@@ -3,7 +3,7 @@ import numpy as np
 import pytest
 from unittest.mock import MagicMock, patch, mock_open
 
-from rtcog.matching.matcher import Matcher, SVRMatcher, MaskMatcher, NMIMatcher
+from rtcog.matching.matcher import Matcher, SVRMatcher, MaskMatcher, PearsonMatcher, NMIMatcher
 from rtcog.matching.matching_opts import MatchingOpts
 
 # ----------------------
@@ -141,6 +141,67 @@ def test_maskmatcher_match_logic(match_opts):
     scores = matcher._match(tr_data)
     assert scores.shape == (1,)
     assert np.isclose(scores[0], 10)
+
+
+# ----------------------
+# PearsonMatcher Tests
+# ----------------------
+@patch.object(PearsonMatcher, "setup_shared_memory")
+def test_pearsonmatcher_loads_file(mock_setup_shm, tmp_path, match_opts, make_sync_mock):
+    sync_events = make_sync_mock()
+    match_path = tmp_path / "pearson_templates.npz"
+    np.savez(
+        match_path,
+        labels=np.array(["positive", "negative"]),
+        templates=np.array([[0, 1, 2], [2, 1, 0]], dtype=np.float32),
+    )
+
+    matcher = PearsonMatcher(match_opts, Nt=5, sync=sync_events, match_path=str(match_path))
+
+    assert Matcher.from_name("pearson") is PearsonMatcher
+    assert matcher.Ntemplates == 2
+    assert matcher.template_labels == ["positive", "negative"]
+    assert matcher.Nvoxels == 3
+    mock_setup_shm.assert_called_once()
+    sync_events.shm_ready.set.assert_called_once()
+
+
+def test_pearsonmatcher_returns_spatial_correlations():
+    matcher = PearsonMatcher.__new__(PearsonMatcher)
+    templates = np.array([
+        [0, 1, 2, 3],
+        [3, 2, 1, 0],
+        [0, 1, 0, 1],
+    ], dtype=np.float32)
+    matcher.Ntemplates = 3
+    matcher.Nvoxels = 4
+    matcher.template_centered = templates - templates.mean(axis=1, keepdims=True)
+    matcher.template_norms = np.linalg.norm(matcher.template_centered, axis=1)
+
+    scores = matcher._match(np.array([0, 1, 2, 3], dtype=np.float32))
+
+    np.testing.assert_allclose(scores, [1, -1, 0.4472136], rtol=1e-6)
+
+
+def test_pearsonmatcher_returns_zero_for_constant_data_and_templates():
+    matcher = PearsonMatcher.__new__(PearsonMatcher)
+    templates = np.array([[1, 1, 1], [0, 1, 2]], dtype=np.float32)
+    matcher.Ntemplates = 2
+    matcher.Nvoxels = 3
+    matcher.template_centered = templates - templates.mean(axis=1, keepdims=True)
+    matcher.template_norms = np.linalg.norm(matcher.template_centered, axis=1)
+
+    np.testing.assert_array_equal(matcher._match([2, 2, 2]), [0, 0])
+    np.testing.assert_array_equal(matcher._match([0, 1, 2]), [0, 1])
+
+
+def test_pearsonmatcher_rejects_wrong_voxel_count():
+    matcher = PearsonMatcher.__new__(PearsonMatcher)
+    matcher.Ntemplates = 1
+    matcher.Nvoxels = 3
+
+    with pytest.raises(ValueError, match="expected 3 voxels, got 2"):
+        matcher._match([0, 1])
 
 
 # ----------------------

@@ -162,5 +162,32 @@ def test_esam_nmi_requires_match_path(tmp_path, capsys):
     assert "--match_path" in err
 
 
+def test_esam_pearson_requires_match_path(tmp_path, capsys):
+    config = tmp_path / "config.yaml"
+    config.write_text("""
+        exp_type: esam
+        matching:
+           match_method: pearson
+        """)
+
+    mask = tmp_path / "mask.nii"
+    mask.touch()
+
+    with pytest.raises(SystemExit):
+        Options.parse_cli_args(
+            [
+                "--config", str(config),
+                "--mask", str(mask),
+                "--nvols", "100",
+                "--out_dir", "/tmp",
+                "--out_prefix", "test",
+                "--hit_thr", "0.5"
+            ]
+        )
+
+    err = capsys.readouterr().err
+    assert "--match_path" in err
+
+
 if __name__ == "__main__":
     pytest.main()
