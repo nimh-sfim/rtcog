@@ -493,6 +493,8 @@ Testing Options
 - ``--snapshot``: Save a pipeline-state snapshot at the end of the run
 - ``--latency``: Enable receiver and trigger latency diagnostics
 
+.. _output-files:
+
 Outputs
 =======
 

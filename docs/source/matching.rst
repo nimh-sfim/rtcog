@@ -133,8 +133,7 @@ The command writes:
 ``mask_method.traces.png`` and ``mask_method.traces.html``
    Static and interactive activity summaries.
 
-``mask_method.template_pairwise_stats.csv`` and
-``mask_method.trace_pairwise_stats.csv``
+``mask_method.template_pairwise_stats.csv`` and ``mask_method.trace_pairwise_stats.csv``
    Spatial template comparisons and temporal trace correlations.
 
 Configure the real-time run with ``match_method: mask``—not ``mask_method``—and

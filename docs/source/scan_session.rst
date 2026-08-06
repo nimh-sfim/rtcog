@@ -1,7 +1,14 @@
-A typical scanning session
-==========================
+.. warning::
 
-Note: this is currently out of date
+   This page contains historical, site-specific setup notes. It is not a
+   maintained general operating procedure. Use :doc:`startup_afni` for the
+   current AFNI-to-``rtcog`` interface requirements.
+
+Archived scanning-session notes
+===============================
+
+The remaining content is retained as project history and may refer to files,
+hardware, or paths that are not distributed with this repository.
 
 |image1|
 

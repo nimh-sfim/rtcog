@@ -1,6 +1,15 @@
 Simulate an experiment
 ======================
 
+.. important::
+
+   The repository tracks empty ``Simulation/Scanner``, ``Simulation/Realtime``,
+   and ``Simulation/Laptop`` directories, but it does not distribute the sample
+   imaging datasets, ``01_BringROIsToSubjectSpace.sh``, or the original CAP
+   template. Obtain protocol-compatible copies from the study team before using
+   this workflow. There is currently no public download location recorded in
+   the repository.
+
 This section describes how to simulate experiments without access to the
 scanner. This is very useful during software development and testing, as
 all functionalities can be tested without having to request scanner time.
@@ -46,17 +55,17 @@ directory, then ``cd`` to the following directories:
 .. figure:: _static/images/simulation_terminals.png
    :alt: Simulation Terminals
 
-2. Download the sample data
+2. Stage the external sample data
 
 - Enter the empty **Scanner** folder.
-- Download sample datasets to the **Scanner** folder.
+- Copy the protocol's sample datasets to the **Scanner** folder.
 
 To a minimum you should have an anatomical dataset, a short EPI dataset
 to use as reference for alignment, and then two additional long EPI
 datasets: one will be used for training the classifier and the second
 one to simulate a real experience sampling run.
 
-3. Go to the **Realtime** teminal:
+3. Go to the **Realtime** terminal:
 
 - Enter the empty **Realtime** folder.
 - Copy the 01_BringROIsToSubjectSpace.sh script here.
@@ -73,6 +82,11 @@ one to simulate a real experience sampling run.
    export AFNI_REALTIME_SHOW_TIMES=YES
    export AFNI_REALTIME_Mask_Vals=ROI_means
    export AFNI_REALTIME_Function=FIM
+
+These variables belong to the historical reference-dataset preparation stage.
+Before connecting ``rtcog`` for the functional run, apply the current
+``All_Data_light`` connection settings from :doc:`startup_afni` and the plugin
+settings in step 7.
 
 - Start AFNI in realtime mode
 
@@ -128,8 +142,8 @@ The last two files need to be transfered (i.e., copied) to the
 
 .. code:: bash
 
-   $cp ${REALTIME_FOLDER}/GMribbon_R4Feed.nii ${LAPTOP_FOLDER}
-   $cp ${REALTIME_FOLDER}/Frontiers2013_R4Feed.nii ${LAPTOP_FOLDER}
+   cp ${REALTIME_FOLDER}/GMribbon_R4Feed.nii ${LAPTOP_FOLDER}
+   cp ${REALTIME_FOLDER}/Frontiers2013_R4Feed.nii ${LAPTOP_FOLDER}
 
 7. Configure the realtime plugin for the rest of the experiment.
 
@@ -163,100 +177,42 @@ In the **Scanner** console, type:
 The data will be send to AFNI, who in turn will do motion correction
 (towards the EPI reference dataset), and then send the values of each
 voxel in the GMribbon mask to the rtcog program that is listening by
-default on port 53214. By the end of this step, in the **Laptop** folder
-you should have the following files:
+default on port 53214. By the end of this step, the configured output directory
+should contain the standard Basic outputs from :ref:`output-files`, including:
 
-- ``$prefix_Options.yaml``: record of all the options.
-- ``$prefix.Motion.1D``: motion estimates.
-- ``$prefix.Zscore.nii``: final per-TR activity map?
-- ``$prefix.pp_EMA.nii``: data following the EMA step.
-- ``$prefix.pp_iGLM.nii``: data following the incremental GLM step.
-- ``$prefix.pp_iGLM_$regressor.nii``: fitting (beta value) of each
-  nuisance regressor.
-- ``$prefix.pp_LPfilter.nii``: data following the low pass filtering
-  step.
-- ``$prefix.pp_Smotth.nii``: data following the spatial smoothing step.
+- ``<prefix>_Options.yaml``: record of all the options.
+- ``<prefix>.Motion.1D``: motion estimates.
+- ``<prefix>.pp_Final.nii``: final preprocessed time series.
+- Per-step NIfTI files only for steps configured with ``save: true``.
 
 
-10. Train the SVR
+10. Prepare the matcher
 
-Select the templates of interest and create a txt file with labels. The txt file should be comma-separated
-and in the same order as your templates file. For example:
+Select templates of interest and create a comma-separated label file in the
+same order as the template volumes. For example:
 
 .. code:: bash
 
    3dTcat -prefix Templates_R4Feed.nii Frontier2013_CAPs_R4Feed.nii"[25, 4, 18, 28, 24, 11, 21]"
-   echo "VPol,DMN,SMot,Audi,ExCn,rFPa,lFPa" >> template_labels.txt
+   echo "VPol,DMN,SMot,Audi,ExCn,rFPa,lFPa" > template_labels.txt
 
-Go to the **Laptop** terminal and run:
+Follow :doc:`matching` to prepare and evaluate the input for ``svr``, ``mask``,
+``pearson``, or ``nmi``. That page contains current commands, exact output names,
+and the correct ``match_method`` values.
 
-.. code:: bash
-
-    python rtcog/matching/offline/svr.py \
-          --data path/to/training_data.nii \                   # The final preprocessed data from Basic run
-          --mask path/to/your_mask.nii \                       # Your mask file
-          --templates_path path/to/your_templates.nii \        # The templates of interest
-          --template_labels_path path/to/template_labels.txt \ # The names of your templates
-          --out_dir ./output_directory  \                      # Where results will be saved
-          --prefix training_svr \                              # Prefix for output files
-          --no_lasso
-
-This will generate the following additional files in the **Laptop**
-folder:
-
-- ``training_svr.pkl``: trained SVRs (needed for the rest of the
-  experimental runs)
-- ``training_svr_training_vols.csv``: ?
-- ``training_svr_lm_R2.csv``: R2 for linear regerssion on training data
-- ``training_svr_lm_z_labels.csv``: TR-by-TR labels of SVRs (after
-  Z-scoring)
-- ``training_svr.png``: static summary of SVR traning
-- ``training_svr.html``: dynamic summary of SVR traning
-
-Here is an example of the static training report
+Here is an example of the static SVR training report:
 
 .. figure:: _static/images/training_svr.png
-   :alt: Sample of Training SVR Static Report
-
-Instead of training SVRs, you can also use the mask method for spatial matching. 
-
-.. code:: bash
-
-   python rtcog/matching/offline/mask.py \
-          --data path/to/training_data.nii \                   # The final preprocessed data from Basic run
-          --mask path/to/your_mask.nii \                       # Your mask file
-          --templates_path path/to/your_templates.nii \        # The templates of interest
-          --template_labels_path path/to/template_labels.txt \ # The names of your templates
-          --out_dir ./output_directory  \                      # Where results will be saved
-          --prefix mask_method \                               # Prefix for output files
-          --template_type binary \                             # Template type: "binary" or "normal"
-          --thr 10 \                                           # Threshold (float) to use for the templates
-          
-
-This will generate the following additional files in the **Laptop**
-folder:
-
-- ``mask_method.template_data.npz``: template data (needed for the rest
-  of the experimental runs, to be passed in with ``--match_path``
-  argument)
-- ``mask_method.act_traces.npz``: The activity traces from this method
-- ``mask_method.traces.png``: static summary of the activity traces
-- ``mask_method.traces.html``: dynamic summary of the activity traces
-
-Using the output of this method, decide on a threshold to use in the
-experimental run (``--hit_thr``)
+   :alt: Sample SVR training report
 
 11. Run rtcog in ESAM mode
 
-Now that you have trained the SVR (or created the mask method templates),
-you can simulate a real experience sampling run. First set ``match_method``
-in the config YAML to either ``svr`` or ``mask`` depending on which
-approach you are using.
+After preparing the selected matcher, simulate an experience-sampling run. Set
+``match_method`` to ``svr``, ``mask``, ``pearson``, or ``nmi`` and set
+``match_path`` to the corresponding output described in :doc:`matching`.
 
 Then, start the experiment. Refer to :doc:`/usage` for instructions.
-Note that the input for ``--match_path`` will be:
+For example, ``match_path`` is:
 
 - ``training_svr.pkl`` for SVR method
 - ``mask_method.template_data.npz`` for mask method
-
-NOTE: This doc is a work in process
