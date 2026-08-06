@@ -43,9 +43,12 @@ The short version is:
    load and therefore cannot be placed inside that file.
 2. Every top-level option in the table below may be supplied **either in YAML or
    on the CLI**. If both are present, the explicitly supplied CLI value wins.
-3. ``steps``, ``matching``, ``hits``, and all values nested inside them are
+3. ``save_orig`` is a **YAML-only top-level option** because the parser has no
+   corresponding CLI flag. Custom plugin settings without a registered CLI flag
+   are YAML-only for the same reason.
+4. ``steps``, ``matching``, ``hits``, and all values nested inside them are
    **YAML-only**.
-4. ``-h`` / ``--help`` is a CLI action rather than a configuration value.
+5. ``-h`` / ``--help`` is a CLI action rather than a configuration value.
 
 For reproducible runs, the recommended approach is to keep run settings in YAML
 and launch with only ``rtcog -c run_config.yaml``. Use CLI values for deliberate,
@@ -123,9 +126,11 @@ Top-level YAML and CLI names are not always identical:
      - ``--latency``
      - Note the different CLI spelling.
 
-The YAML-only structure is:
+The built-in YAML-only options and structure are:
 
 .. code:: yaml
+
+   save_orig: false
 
    steps:
      - name: smooth
@@ -220,7 +225,8 @@ General and saving options
    ``10``.
 
 ``save_orig``
-   Save the incoming masked data as ``<prefix>.orig.nii``. Default: ``false``.
+   Save the incoming masked data as ``<prefix>.orig.nii``. This option is
+   YAML-only. Default: ``false``.
 
 ``auto_save``
    Attempt to finalize and save processor outputs when the receiver encounters
