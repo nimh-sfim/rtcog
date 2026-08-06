@@ -69,8 +69,10 @@ Example for an ESAM experiment:
 
 .. code:: python
 
+   from rtcog.controller.action_series import BaseActionSeries
+
    class MyActionSeries(BaseActionSeries):
-       def __init__(self):
+       def __init__(self, sync, opts):
            gui = MyGUI(opts=opts)
            super().__init__(sync, opts=opts, gui=gui)
            
@@ -95,13 +97,19 @@ If you only want to change the Likert questions displayed to the participant, yo
 simply create a json file with your custom questions and put the path in your config yaml
 file under ``q_path``. Define the text, labels, and name for each question: 
 
+The file must contain a JSON list. Every question requires ``text`` and ``name``
+fields, and question names should be unique because responses are keyed by name.
+``labels`` is optional; omitting it uses the default five-point agreement scale.
+
 .. code-block:: json
 
-    {
-        "text": "Q1/11. How alert were you?",
-        "labels": ["Fully asleep", "Somewhat sleepy", "Somewhat alert", "Fully alert"],
-        "name": "alert"
-    }
+    [
+        {
+            "text": "Q1/1. How alert were you?",
+            "labels": ["Fully asleep", "Somewhat sleepy", "Somewhat alert", "Fully alert"],
+            "name": "alert"
+        }
+    ]
 
 See ``questions_v1.json`` for a full example.
 
@@ -151,8 +159,8 @@ To make your plugin available to ``rtcog``, register it in
 
    "my_custom_experiment": {
        "processor": ESAMProcessor, # Or BasicProcessor
-       "action" MyActionSeries     # Optional
-   }
+       "action": MyActionSeries,   # Optional
+   },
 
 Now, you can pass the name of your experiment plugin when running ``rtcog`` and
 it will look it up in the registry: ``--exp_type my_custom_experiment``

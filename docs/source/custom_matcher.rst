@@ -2,14 +2,9 @@
 Adding matching methods
 #######################
 
-This software offers two methods for spatial template matching:
-
-* ``SVRMatcher``: Uses a pretrained SVR model.
-* ``MaskMatcher``: Uses template masks.
-
-If you want a different way of deciding when a template matches the current TR,
-you can add your own matching method by defining a new Matcher as a subclass of
-``Matcher``.
+For the built-in spatial matching methods, see :doc:`matching`. If you want a
+different way of deciding when a template matches the current TR, define a
+subclass of ``Matcher``.
 
 1. **Create your matcher class**
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -23,7 +18,7 @@ the following:
   TR. It must return a 1D NumPy array of length ``Ntemplates`` containing
   the match scores for each template at the current TR.
 
-During initalization, your matcher must:
+During initialization, your matcher must:
 
 - Set ``self.template_labels``: List of template labels used for scoring.
 - Set ``self.Ntemplates``: Number of templates.
@@ -32,17 +27,23 @@ During initalization, your matcher must:
 - Call ``self.mp_shm_ready.set()`` once your matcher is fully
   initialized. This allows for integration with the streaming process.
 
-If needed, you can load any templates or models it needs from a filepath.
-Add ``--match_path <filepath>`` when running `rtcog`.
+If needed, load templates or models from ``match_path``. Put the subclass in
+``rtcog/matching/matcher.py`` or ensure its module is imported before
+``Matcher.from_name`` is called; importing the class performs its automatic
+registration.
 
 
 Example:
 
 .. code:: python
 
+   import numpy as np
+
+   from rtcog.matching.matcher import Matcher
+
    class CustomMatcher(Matcher):
        def __init__(self, match_opts, Nt, sync, match_path):
-        super().__init__(match_opts, Nt, sync, match_path)
+           super().__init__(match_opts, Nt, sync, match_path)
            
            self.input = load_custom_model(match_path)  # Load your templates/model
            self.template_labels = list(self.input["labels"])
@@ -51,10 +52,9 @@ Example:
            self.setup_shared_memory()
            self.mp_shm_ready.set()
 
-        def _match(self, tr_data):
-            # Implement your matching logic here
-            scores = compute_custom_scores(self.input, tr_data)
-            return scores  
+       def _match(self, tr_data):
+           scores = compute_custom_scores(self.input, tr_data)
+           return np.asarray(scores)
 
 **Naming convention**: Class names ending with “Matcher” are registered
 using the lowercase prefix (e.g., ``CustomMatcher`` → ``"custom"``). If
