@@ -1,38 +1,51 @@
 # rtcog
 
-This project contains the code to perform realtime fMRI experiments in the following form:
+`rtcog` is a Python package for closed-loop real-time fMRI experiments. It
+receives masked voxel data and motion estimates from AFNI, applies a configurable
+preprocessing pipeline, and can trigger experimental actions when incoming brain
+volumes match selected templates.
 
-1. The system monitors brain activity on a TR-by-TR basis
-2. If the subject brain looks like one of a subset of templates, then the program fires a survey
-3. The program continues monitoring the brain in the background.
-
-Documentation can be found at https://rtcog.readthedocs.io.
+The full documentation is available at <https://rtcog.readthedocs.io>.
 
 ## Installation
 
-### 1. Clone the Repository
+Clone the repository and create either the full environment (including the
+PsychoPy participant GUI) or the minimal headless environment.
 
 ```bash
 git clone https://github.com/nimh-sfim/rtcog.git
 cd rtcog
-```
 
-### 2. Install dependencies
-
-#### Prerequisites
-
-- [portaudio](https://www.portaudio.com/)
-- afni (version AFNI_25.0.07)
-
-#### Create environment
-
-```bash
-conda env create -f env.yml
-```
-
-```bash
+# Full installation
+conda env create -f env.yaml
 conda activate rtcog
-pip install . # or `pip install -e .` for editable mode
+python -m pip install -e .
 ```
 
+For preprocessing without PsychoPy GUI dependencies:
 
+```bash
+conda env create -f minimal_env.yaml
+conda activate rtcog_min
+python -m pip install -e .
+```
+
+Native real-time scanner use also requires AFNI. The full GUI environment uses
+PortAudio for audio recording. See the
+[installation guide](https://rtcog.readthedocs.io/en/latest/installation.html)
+for the Docker option and additional prerequisites.
+
+## Verify the installation
+
+Use the entry point for the environment you installed. It should display its
+command-line help without starting an experiment:
+
+```bash
+rtcog --help      # Full environment
+rtcog_min --help  # Minimal environment
+```
+
+An experiment requires a YAML configuration, a mask matching the voxel stream,
+the expected number of volumes, and an existing output directory. See the
+[usage guide](https://rtcog.readthedocs.io/en/latest/usage.html) for complete
+Basic and ESAM examples.

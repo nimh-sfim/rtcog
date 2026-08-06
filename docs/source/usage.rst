@@ -81,6 +81,8 @@ If you installed Minimal mode to run without GUI dependencies, simply replace
 With Docker
 ^^^^^^^^^^^^
 
+.. _docker-usage:
+
 If you're using the Docker image instead, publish the scanner TCP port and mount a
 local directory containing your config, mask, input data, and output location:
 
@@ -100,6 +102,9 @@ local directory containing your config, mask, input data, and output location:
 Any paths passed to ``rtcog_min`` or written inside the YAML config must be valid
 inside the container. For example, a local file mounted with ``-v "$PWD:/work"``
 should be referenced as ``/work/<filename>`` from inside the container.
+
+The output directory must already exist on the host before the command starts.
+The full and minimal native entry points have the same requirement.
 
 Tip: snapshot testing normally writes to the repository's configured
 ``Simulation/outputs`` location. If you are generating snapshots from Docker,

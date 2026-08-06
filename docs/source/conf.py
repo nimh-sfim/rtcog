@@ -5,7 +5,7 @@
 
 import os
 import sys
-from unittest import mock
+from importlib.metadata import PackageNotFoundError, version
 
 sys.path.insert(0, os.path.abspath('../..'))
 
@@ -13,9 +13,12 @@ sys.path.insert(0, os.path.abspath('../..'))
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
 project = 'rtcog'
-copyright = '2025, Javier Gonzalez-Castillo, Marly Rubin'
+copyright = '2026, Javier Gonzalez-Castillo, Marly Rubin'
 author = 'Javier Gonzalez-Castillo, Marly Rubin'
-release = '1.0'
+try:
+    release = version('rtcog')
+except PackageNotFoundError:
+    release = '3.0.0.dev0'
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
