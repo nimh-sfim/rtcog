@@ -21,8 +21,6 @@ class Matcher:
 
     Attributes
     ----------
-    registry : dict
-        Class-level registry mapping matcher names to their classes.
     match_start : int
         First volume index to start computing match scores.
     Nt : int
@@ -38,18 +36,6 @@ class Matcher:
     mp_shm_ready : multiprocessing.Event
         Event indicating shared memory is ready.
 
-    Methods
-    -------
-    from_name(name)
-        Factory method to instantiate a matcher by name.
-    match(t, n, tr_data)
-        Compute similarity scores for a TR and update shared memory.
-    setup_shared_memory()
-        Initialize shared memory for score storage.
-    cleanup_shared_memory()
-        Clean up shared memory resources.
-    _match(tr_data)
-        Abstract method for computing match scores (implemented by subclasses).
     """
 
     registry = {} # Holds all available matching classes
@@ -254,4 +240,3 @@ class MaskMatcher(Matcher):
 
         return np.array(out)
         
-

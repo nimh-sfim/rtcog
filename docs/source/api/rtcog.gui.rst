@@ -28,8 +28,8 @@ rtcog.gui.gui\_utils module
    :undoc-members:
    :show-inheritance:
 
-rtcog.gui.preproc\_gui module
------------------------------
+rtcog.gui.basic\_gui module
+---------------------------
 
 .. automodule:: rtcog.gui.basic_gui
    :members:

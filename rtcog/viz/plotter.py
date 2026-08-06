@@ -11,10 +11,6 @@ class Plotter(ABC):
     Subclasses should implement specific plotting behavior using the `update()` method,
     and may optionally override `close()` for cleanup at the end of the experiment.
 
-    Attributes
-    ----------
-    data_key : str
-        Identifier for the type of data this plotter displays.
     """
 
     data_key: str = None

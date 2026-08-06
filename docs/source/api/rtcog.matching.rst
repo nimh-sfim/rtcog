@@ -44,6 +44,30 @@ rtcog.matching.matching\_utils module
    :undoc-members:
    :show-inheritance:
 
+rtcog.matching.offline.mask module
+----------------------------------
+
+.. automodule:: rtcog.matching.offline.mask
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+rtcog.matching.offline.svr module
+---------------------------------
+
+.. automodule:: rtcog.matching.offline.svr
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+rtcog.matching.offline.svr\_training module
+-------------------------------------------
+
+.. automodule:: rtcog.matching.offline.svr_training
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 rtcog.matching.transcribe module
 --------------------------------
 

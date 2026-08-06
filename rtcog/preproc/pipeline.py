@@ -44,8 +44,6 @@ class Pipeline:
         Raw input data from AFNI with shape (Nv, Nt).
     Data_processed : np.ndarray or None
         Fully processed data with shape (Nv, Nt).
-    processed_tr : np.ndarray
-        Last processed TR as a column vector (Nv, 1).
     out_dir : str
         Directory where outputs will be written.
     out_prefix : str

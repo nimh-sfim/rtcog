@@ -40,12 +40,6 @@ class PreprocStep:
         Cached 2D array of shape (N_voxels, N_timepoints) storing output for each TR, 
         populated if `save=True`.
 
-    Class Attributes
-    ----------------
-    registry : dict
-        Mapping of registered step names (e.g., "ema", "iglm") to class objects. Automatically
-        populated via `__init_subclass__`.
-
     Methods
     -------
     start_step(pipeline):
@@ -310,7 +304,6 @@ class TnormStep(PreprocStep):
 
         # During discard volumes
         return pipeline.processed_tr
-        
 
 class WindowingStep(PreprocStep):
     def __init__(self, *, save=False, suffix='.pp_Windowed.nii', Nv, Nt, win_length=4):
@@ -330,4 +323,3 @@ class WindowingStep(PreprocStep):
             return np.dot(current_window, self.win_weights)
 
         return pipeline.processed_tr
-        
