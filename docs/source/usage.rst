@@ -496,10 +496,84 @@ Testing Options
 Outputs
 =======
 
-``rtcog`` generates several output files in the specified output directory:
+Output names below use ``<prefix>`` for ``out_prefix``. Unless another location
+is stated, files are written under ``out_dir``.
 
-- ``{prefix}_Options.yaml``: Copy of the configuration used
-- ``{prefix}_match_scores.npy``: Template matching scores (ESAM mode)
-- To be continued...
+Every completed Basic or ESAM run
+---------------------------------
 
-Log files are also created for debugging and monitoring.
+``<prefix>_Options.yaml``
+   Resolved configuration after applying CLI overrides.
+
+``<prefix>_command.txt``
+   Shell-quoted command used to start the run.
+
+``<prefix>.Motion.1D``
+   Six AFNI motion estimates per received volume, tab-delimited.
+
+``<prefix>.pp_Final.nii``
+   Final preprocessed time series reconstructed into the supplied mask space.
+
+Optional preprocessing outputs
+------------------------------
+
+``<prefix>.orig.nii``
+   Original incoming masked time series when ``save_orig: true``.
+
+When a preprocessing step has ``save: true``, its full output is retained and
+written at the end of the run:
+
+- ``<prefix>.pp_EMA.nii``
+- ``<prefix>.pp_iGLM.nii`` and one
+  ``<prefix>.pp_iGLM_<regressor>.nii`` file per nuisance regressor
+- ``<prefix>.pp_Kalman_LPfilter.nii``
+- ``<prefix>.pp_Smooth.nii``
+- ``<prefix>.pp_Zscore.nii`` for ``snorm``
+- ``<prefix>.pp_Tnorm.nii``
+- ``<prefix>.pp_Windowed.nii``
+
+With ``snapshot: true``, ``new_snapshots.npz`` is written to ``snapshot_dir``.
+This filename does not include the run prefix, so use separate snapshot
+directories when retaining multiple runs.
+
+ESAM outputs
+------------
+
+``<prefix>.<match_method>_scores.npy``
+   Match score array with shape ``(n_templates, nvols)``. For example, mask
+   matching writes ``<prefix>.mask_scores.npy``.
+
+``<prefix>.hits.npy``
+   Binary hit array with shape ``(n_templates, nvols)``.
+
+``<prefix>.action_onsets.txt`` and ``<prefix>.action_offsets.txt``
+   Zero-based volume indices for action starts and ends, one index per line.
+
+``<prefix>.Hit_<template>_<NN>.nii``
+   Mean processed map contributing to each detected hit.
+
+``<prefix>.dyn_report.html``
+   Final matching-score report. It is produced when the full ESAM operator
+   stream runs and by headless ``rtcog_min`` ESAM runs.
+
+When the full ESAM ActionSeries is enabled, each completed action can also
+produce:
+
+``<prefix>.hit<NNN>.wav``
+   Participant audio recording.
+
+``<prefix>.<YYYYMMDD-HHMMSS>.LikertResponses<NNN>.txt``
+   CSV-formatted question, rating, and response-time data despite the ``.txt``
+   extension.
+
+Diagnostic outputs and logs
+---------------------------
+
+Latency mode writes receiver timing data and, when the full GUI is active,
+trigger timing data and a latency plot. These diagnostics are intended for
+hardware validation rather than normal analysis outputs.
+
+``main.log`` is created in the directory from which ``rtcog`` is launched, not
+in ``out_dir``. It is opened in write mode, so starting another run from the same
+working directory replaces the previous log. Preserve or rename it between runs
+when the log is part of the experiment record.
