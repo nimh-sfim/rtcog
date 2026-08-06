@@ -246,11 +246,11 @@ folder:
 Using the output of this method, decide on a threshold to use in the
 experimental run (``--hit_thr``)
 
-1.  Run rtcog in ESAM mode
+11. Run rtcog in ESAM mode
 
 Now that you have trained the SVR (or created the mask method templates),
 you can simulate a real experience sampling run. First set ``match_method``
-in the config yaml to either ``svr`` or ``mask_method`` depending on which
+in the config YAML to either ``svr`` or ``mask`` depending on which
 approach you are using.
 
 Then, start the experiment. Refer to :doc:`/usage` for instructions.
