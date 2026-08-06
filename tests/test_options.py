@@ -75,6 +75,59 @@ def test_missing_required_args_raises():
         Options.parse_cli_args(["-e", "basic"])
 
 
+def test_basic_required_args_can_all_come_from_yaml(tmp_path):
+    mask = tmp_path / "mask.nii"
+    mask.touch()
+    out_dir = tmp_path / "output"
+    out_dir.mkdir()
+    config = tmp_path / "config.yaml"
+    config.write_text(
+        f"""
+        exp_type: basic
+        mask_path: {mask}
+        nvols: 100
+        out_dir: {out_dir}
+        out_prefix: test
+        """
+    )
+
+    parsed = Options.parse_cli_args(["--config", str(config)])
+
+    assert parsed["exp_type"] == "basic"
+    assert parsed["mask_path"] == str(mask)
+    assert parsed["nvols"] == 100
+    assert parsed["out_dir"] == str(out_dir)
+    assert parsed["out_prefix"] == "test"
+
+
+def test_esam_required_args_can_all_come_from_yaml(tmp_path):
+    mask = tmp_path / "mask.nii"
+    mask.touch()
+    match = tmp_path / "templates.npz"
+    match.touch()
+    out_dir = tmp_path / "output"
+    out_dir.mkdir()
+    config = tmp_path / "config.yaml"
+    config.write_text(
+        f"""
+        exp_type: esam
+        mask_path: {mask}
+        nvols: 100
+        out_dir: {out_dir}
+        out_prefix: test
+        match_path: {match}
+        hit_thr: 0.5
+        matching:
+          match_method: mask
+        """
+    )
+
+    parsed = Options.parse_cli_args(["--config", str(config)])
+
+    assert parsed["match_path"] == str(match)
+    assert parsed["hit_thr"] == 0.5
+
+
 def test_esam_missing_matching_section(tmp_path, capsys):
     config = tmp_path / "config.yaml"
     config.write_text("exp_type: esam\n")

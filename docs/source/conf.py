@@ -5,7 +5,7 @@
 
 import os
 import sys
-from importlib.metadata import PackageNotFoundError, version
+from importlib.metadata import PackageNotFoundError, version as package_version
 
 sys.path.insert(0, os.path.abspath('../..'))
 
@@ -16,7 +16,7 @@ project = 'rtcog'
 copyright = '2026, Javier Gonzalez-Castillo, Marly Rubin'
 author = 'Javier Gonzalez-Castillo, Marly Rubin'
 try:
-    release = version('rtcog')
+    release = package_version('rtcog')
 except PackageNotFoundError:
     release = '3.0.0.dev0'
 
