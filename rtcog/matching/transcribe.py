@@ -1,13 +1,20 @@
 import glob
+import os
 import os.path as osp
 import argparse
-import whisper
 
 def transcribe(file, model):
     result = model.transcribe(file)
     return result["text"]
 
+def transcript_path(file_path, out_dir):
+    """Return the transcript path for an input audio file."""
+    audio_name = osp.splitext(osp.basename(file_path))[0]
+    return osp.join(out_dir, f"{audio_name}.transcript.txt")
+
 def main():
+    import whisper
+
     parser = argparse.ArgumentParser(description="Transcribe audio using OpenAI Whisper.")
     parser.add_argument("-i", "--in_dir", required=True, help="The input directory where the audio files are located.", dest="in_dir")
     parser.add_argument("-o", "--out_dir", required=True, help="The output directory where the transcripts will be saved.", dest="out_dir")
@@ -20,6 +27,7 @@ def main():
     prefix = args.prefix
     model_name = args.model
 
+    os.makedirs(out_dir, exist_ok=True)
     model = whisper.load_model(model_name)
 
     pattern = osp.join(in_dir, f"{prefix}.hit???.wav")
@@ -33,9 +41,7 @@ def main():
         print(f"++ Transcribing {file_path}")
         transcript = transcribe(file_path, model)
 
-        # Save transcript to a .txt file with the same base name
-        base = osp.splitext(file_path)[0]
-        out_path = osp.join(out_dir, f"{base}.transcript.txt")
+        out_path = transcript_path(file_path, out_dir)
         with open(out_path, "w") as f:
             f.write(transcript)
         print(f"Transcript saved to {out_path}")
