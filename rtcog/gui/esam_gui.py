@@ -23,7 +23,7 @@ class EsamGUI(BasicGUI):
     """
     GUI class for Experience Sampling (ESAM) fMRI experiments.
 
-    Extends `DefaultGUI` to provide oral recording and Likert-style questionnaires
+    Extends `BasicGUI` to provide oral recording and Likert-style questionnaires
     after a template "hit".
 
     Parameters
@@ -259,4 +259,3 @@ class EsamGUI(BasicGUI):
                 log.debug(f'Likert responses written to {resp_path}')
         if self.responses:
             log.info(f'All likert responses saved')
-            

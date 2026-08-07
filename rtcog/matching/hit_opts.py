@@ -11,16 +11,16 @@ class HitOpts:
     """Number of consecutive volumes required to register a hit."""
 
     hit_thr: float
-    """Threshold value that must be exceeded to count as a hit."""
+    """Threshold value that must be met or exceeded to count as a hit."""
 
     nonline: int
     """Maximum number of templates allowed to exceed the hit threshold
     simultaneously.
 
-    If more than ``nonline`` templates exceed the threshold at the same time,
-    no hit is registered. E.g. a value of ``2`` means only a two templates may
-    exceed the threshold for a hit to be counted, and the template with the
-    greatest value is selected as the hit.
+    If more than ``nonline`` templates meet the threshold at the same time,
+    no hit is registered. For example, a value of ``2`` means at most two
+    templates may meet the threshold for a hit to be counted; the template with
+    the greatest value is selected as the hit.
     """
 
     do_mot: bool

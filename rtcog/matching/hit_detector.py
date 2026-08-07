@@ -32,7 +32,7 @@ class HitDetector:
     def is_hit(self, t, template_labels, scores):
         """
         Determines if a specific time point `t` represents a "hit" for a template based on if match scores
-        exceed a threshold.
+        meet or exceed a threshold.
 
         A time point is a hit if:
 
@@ -40,7 +40,8 @@ class HitDetector:
 
           - The one with the highest score is selected as the "hit".
 
-        - That same template has also been above `hit_thr` nconsec_vols (including the current volume)
+        - That same template has also met or exceeded `hit_thr` for
+          `nconsec_vols` (including the current volume).
         
         Parameters
         -----------
@@ -113,5 +114,3 @@ class HitDetector:
             template_labels,
             scores,
         )
-        
-    

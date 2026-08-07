@@ -114,7 +114,7 @@ class Pipeline:
 
         Raises
         ------
-        SystemExit
+        ValueError
             If the input is not a NumPy array or has the wrong shape.
         """
         if not isinstance(value, np.ndarray):
@@ -158,7 +158,7 @@ class Pipeline:
 
         Raises
         ------
-        SystemExit
+        ValueError
             If the number of voxels in `this_t_data` does not match the expected mask size.
         """
         self.Nv = len(this_t_data)

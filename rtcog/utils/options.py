@@ -66,6 +66,8 @@ class Options:
           ------
           FileNotFoundError
                If the specified YAML config file cannot be found.
+          ValueError
+               If no YAML config is provided for a non-help invocation.
           SystemExit
                If required arguments are missing.
           """
