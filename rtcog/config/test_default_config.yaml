@@ -44,7 +44,7 @@ steps:
 # Experiment/GUI Options
 no_action: false
 fullscreen: false
-q_path: questions_v1 # path to the questions used for the experiment TODO: FIX
+q_path: questions_v1 # path to the questions used for the experiment
 
 # Testing options
 snapshot: true

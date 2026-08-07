@@ -8,8 +8,10 @@ on one TR at a time and integrates into the existing framework.
 1. Create your step class
 ------------------------------
 
-In ``rtcog/preproc/preproc_steps.py``, define a new class that inherits
-from ``PreprocStep``. Your class must implement the following method:
+Define a new class that inherits from ``PreprocStep``. Put it in
+``rtcog/preproc/preproc_steps.py`` or import its module before the pipeline is
+built; importing the subclass adds it to ``PreprocStep.registry``. Your class
+must implement the following method:
 
 - ``_run(self, pipeline)``: **required**
   This is where you apply your preprocessing logic. It operates on
@@ -27,10 +29,17 @@ Example:
 
 .. code:: python
 
+   from rtcog.preproc.preproc_steps import PreprocStep
+
    class CustomStep(PreprocStep):
        def _run(self, pipeline):
-           new_data = some_function(pipeline.processed_tr) # Apply your transformation
+           new_data = some_function(pipeline.processed_tr)
            return new_data
+
+``_run`` must return a NumPy array with the same ``(N_voxels, 1)`` shape as
+``pipeline.processed_tr``. If the subclass lives in another module, add an
+import for that module in application startup code; defining a class in a file
+that is never imported does not register it.
 
 **Naming convention**: Class names ending with “Step” are registered
 using the lowercase prefix (e.g., ``CustomStep`` → ``"custom"``). If
@@ -54,15 +63,15 @@ in the order you want it to be applied during preprocessing:
 
 The string “custom” will automatically map to your ``CustomStep`` class.
 
-3. (Optional) Registering with StepTypes
------------------------------------------
+3. (Optional) Add a StepType
+----------------------------
 
 If you want to check whether a step is active in ``Pipeline`` without
 relying on string literals, add it to the ``StepType`` enum:
 
 .. code:: python
 
-   # step_type.py
+   # rtcog/preproc/step_types.py
    class StepType(Enum):
      # ...
      CUSTOM = 'custom'

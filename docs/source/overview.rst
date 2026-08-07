@@ -72,7 +72,7 @@ The preprocessing engine
 ------------------------
 
 ``rtcog`` builds on AFNI’s real-time fMRI infrastructure, which streams image data
-directly from the scanner on an TR-by-TR basis. AFNI performs initial processing,
+directly from the scanner on a TR-by-TR basis. AFNI performs initial processing,
 including DICOM-to-NIfTI conversion and online volume registration. Each acquisition
 is then transmitted to ``rtcog`` via a socket connection for further processing.
 
@@ -131,8 +131,8 @@ pattern-matching scores, and experiment state.
 
    Screenshot of the operator's view, which is updated in real time as new data comes
    in. The interface consists of three parts: (a) The match (similarity) score
-   between each brain volume and each template; (b) The subject's brain activity 
-   each hit; (c) The subject's behavioral survey responses at each hit.
+   between each brain volume and each template; (b) The subject's brain activity
+   at each hit; (c) The subject's behavioral survey responses at each hit.
 
 Extensibility and Use Cases
 ---------------------------

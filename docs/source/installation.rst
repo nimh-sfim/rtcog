@@ -24,7 +24,7 @@ container workflow.
 
 .. code-block:: bash
 
-   git clone git@github.com:nimh-sfim/rtcog.git
+   git clone https://github.com/nimh-sfim/rtcog.git
    cd rtcog
 
 2. Create an environment
