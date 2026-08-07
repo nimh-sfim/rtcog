@@ -47,9 +47,8 @@ directory, then ``cd`` to the following directories:
 
 - **Scanner**: you will use this window to simulate the scanner sending
   data to AFNI realtime
-- **Realtime**: here you will start AFNI in realtime mode. It will take
-  incoming data from the “fake” scanner, and after a few things sending
-  on its way to the rtcog software.
+- **Realtime**: here you will start AFNI in real-time mode. It will process
+  incoming data from the simulated scanner and forward it to rtcog.
 - **Laptop**: here you will start the rtcog software.
 
 .. figure:: _static/images/simulation_terminals.png
@@ -60,7 +59,7 @@ directory, then ``cd`` to the following directories:
 - Enter the empty **Scanner** folder.
 - Copy the protocol's sample datasets to the **Scanner** folder.
 
-To a minimum you should have an anatomical dataset, a short EPI dataset
+At minimum you should have an anatomical dataset, a short EPI dataset
 to use as reference for alignment, and then two additional long EPI
 datasets: one will be used for training the classifier and the second
 one to simulate a real experience sampling run.
@@ -88,9 +87,11 @@ Before connecting ``rtcog`` for the functional run, apply the current
 ``All_Data_light`` connection settings from :doc:`startup_afni` and the plugin
 settings in step 7.
 
-- Start AFNI in realtime mode
+- Start AFNI in real-time mode:
 
-``$ afni -rt``
+.. code:: bash
+
+   afni -rt
 
 4. Simulate acquisition of anatomical dataset
 
@@ -112,7 +113,7 @@ On the **Scanner** console, type:
 
    rtfeedme EPI_Reference+orig
 
-By the end of this step, you should have a second dataset on **Realime**
+By the end of this step, you should have a second dataset on **Realtime**
 (rt.\__002+orig) on the **Realtime** folder that contains the EPI
 reference data (but now in the realtime system)
 
@@ -126,24 +127,24 @@ reference data (but now in the realtime system)
    sh ./01_BringROIsToSubjectSpace.sh \
           rt.__002+orig. \
           rt.__001+orig. \
-          Frontier2013_CAPs.nii
+          Frontiers2013_CAPs.nii
 
 This will generate a lot of new files. The key ones moving forward are:
 
-- ``EPIREF+orig``: this will become our reference volume for realtime
-  alignemnt.
+- ``EPIREF+orig``: this will become our reference volume for real-time
+  alignment.
 - ``GMribbon_R4Feed.nii``: this will be our mask for sending data to the
   laptop.
 - ``Frontiers2013_R4Feed.nii``: this will be our CAPs template aligned
   to the EPI data.
 
-The last two files need to be transfered (i.e., copied) to the
+The last two files need to be transferred (i.e., copied) to the
 **Laptop** directory.
 
 .. code:: bash
 
-   cp ${REALTIME_FOLDER}/GMribbon_R4Feed.nii ${LAPTOP_FOLDER}
-   cp ${REALTIME_FOLDER}/Frontiers2013_R4Feed.nii ${LAPTOP_FOLDER}
+   cp GMribbon_R4Feed.nii ../Laptop/
+   cp Frontiers2013_R4Feed.nii ../Laptop/
 
 7. Configure the realtime plugin for the rest of the experiment.
 
@@ -174,10 +175,10 @@ In the **Scanner** console, type:
 
    rtfeedme TrainingRun+orig
 
-The data will be send to AFNI, who in turn will do motion correction
-(towards the EPI reference dataset), and then send the values of each
-voxel in the GMribbon mask to the rtcog program that is listening by
-default on port 53214. By the end of this step, the configured output directory
+The data will be sent to AFNI, which will perform motion correction
+(toward the EPI reference dataset) and send the value of each voxel in the
+GMribbon mask to rtcog, which listens on port 53214 by default. By the end of
+this step, the configured output directory
 should contain the standard Basic outputs from :ref:`output-files`, including:
 
 - ``<prefix>_Options.yaml``: record of all the options.

@@ -275,6 +275,7 @@ Then pass the template file to ``rtcog``:
 .. code:: bash
 
    rtcog \
+      --config path/to/esam_run.yaml \
       --exp_type esam \
       --match_path path/to/prefix.nmi_templates.npz \
       --hit_thr your_threshold

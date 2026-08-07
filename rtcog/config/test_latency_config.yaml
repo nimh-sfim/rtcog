@@ -42,7 +42,7 @@ no_action: false
 fullscreen: false
 q_path: questions_v1 # path to the questions used for the experiment
 
-# Testing option2
+# Testing options
 snapshot: true
 test_latency: true
 
@@ -50,7 +50,7 @@ test_latency: true
 matching:
   match_method: mask
   match_start: 100 # Volume when matching should start
-  vols_noaction: 45 # Min. number of volumes to wait since end of last action before declaing a new hit
+  vols_noaction: 45 # Min. number of volumes to wait since end of last action before declaring a new hit
 
 # Hit options
 hits:

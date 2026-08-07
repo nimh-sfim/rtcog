@@ -5,7 +5,7 @@ tcp_port: 53214
 show_data: false
 tr: 1.0
 
-# Testing option2
+# Testing options
 test_latency: true
 
 exp_type: basic

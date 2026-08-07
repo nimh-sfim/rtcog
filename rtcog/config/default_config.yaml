@@ -1,9 +1,19 @@
+# Required per-run values
+# -----------------------
+# Add these keys to a copy of this file, or provide the corresponding CLI
+# options. The output directory must already exist.
+# exp_type: basic
+# mask_path: /absolute/path/to/mask.nii
+# nvols: 300
+# out_dir: /absolute/path/to/output
+# out_prefix: sub-001_run-01
+
 # General options
 debug: false # set logger level to debug
 silent: false # set logger level to warning
 tcp_port: 53214
 show_data: false
-save_orig: False # save the unprocessed image data
+save_orig: false # save the unprocessed image data
 discard: 10
 
 # Preprocessing steps in order
@@ -43,17 +53,22 @@ no_action: false
 fullscreen: false
 q_path: questions_v1 # path to the questions used for the experiment
 
-# Testing option2
+# Testing options
 snapshot: false
 test_latency: false
 
-# Matching options
+# ESAM also requires top-level match_path and hit_thr values. Both can be stored
+# in this YAML file or provided as --match_path and --hit_thr CLI overrides.
+# match_path: /absolute/path/to/template_data.npz
+# hit_thr: 0.5
+
+# Matching options (ESAM)
 matching:
   match_method: mask
   match_start: 100 # Volume when matching should start
-  vols_noaction: 45 # Min. number of volumes to wait since end of last action before declaing a new hit
+  vols_noaction: 45 # Min. number of volumes to wait since end of last action before declaring a new hit
 
-# Hit options
+# Hit options (ESAM)
 hits:
   nconsec_vols: 2 # Number of consecutive vols over threshold required for a hit
   nonline: 1 # The number of templates that may exceed threshold at one time
