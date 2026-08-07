@@ -6,8 +6,9 @@ Requirements
 
 The supported installation paths are:
 
-- **Full environment**: preprocessing plus the PsychoPy participant GUI and
-  audio support.
+- **Full macOS environment**: preprocessing plus the PsychoPy participant GUI
+  and audio support. The checked-in ``env.yaml`` includes the macOS-only
+  ``pyobjc`` dependency.
 - **Minimal environment**: preprocessing and matching without the PsychoPy
   participant GUI.
 - **Minimal Docker image**: the same headless entry point in the AFNI-based
@@ -18,6 +19,10 @@ image pins the exact AFNI image used by the container. The full environment also
 requires `PortAudio <https://portaudio.com/>`_ for audio recording. Conda is
 required for the environment files below; Docker is only required for the
 container workflow.
+
+Both conda environment files pin Python 3.10.16. The Dockerfile builds an
+``linux/amd64`` image; ``--platform linux/amd64`` runs it through emulation on
+ARM hosts such as Apple Silicon.
 
 1. Clone the repository
 -----------------------
@@ -30,7 +35,7 @@ container workflow.
 2. Create an environment
 ------------------------
 
-For access to all of rtcog's features, install as normal:
+For access to all of rtcog's features on macOS, install the full environment:
 
 .. code-block:: bash
 
@@ -39,8 +44,8 @@ For access to all of rtcog's features, install as normal:
    conda activate rtcog
    python -m pip install -e .
 
-If you do not require rtcog's GUI features, you can install a
-minimal version instead:
+If you do not require rtcog's GUI features—or are installing the checked-in
+environment on Linux—install the minimal version instead:
 
 .. code-block:: bash
 

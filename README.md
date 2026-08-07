@@ -12,6 +12,10 @@ The full documentation is available at <https://rtcog.readthedocs.io>.
 Clone the repository and create either the full environment (including the
 PsychoPy participant GUI) or the minimal headless environment.
 
+The checked-in full environment currently targets macOS because it includes
+`pyobjc`. On Linux, use the minimal conda environment or Docker unless you
+maintain a platform-specific PsychoPy environment.
+
 ```bash
 git clone https://github.com/nimh-sfim/rtcog.git
 cd rtcog
