@@ -7,22 +7,16 @@ Requirements
 The supported installation paths are:
 
 - **Full macOS environment**: preprocessing plus the PsychoPy participant GUI
-  and audio support. The checked-in ``env.yaml`` includes the macOS-only
-  ``pyobjc`` dependency.
+  and audio support.
 - **Minimal environment**: preprocessing and matching without the PsychoPy
   participant GUI.
-- **Minimal Docker image**: the same headless entry point in the AFNI-based
-  container defined by this repository's ``Dockerfile``.
+- **Minimal Docker image**: the minimal environment packaged as a Docker image.
 
-Native scanner use requires `AFNI <https://afni.nimh.nih.gov/>`_. The Docker
+``rtcog`` requires `AFNI <https://afni.nimh.nih.gov/>`_. The Docker
 image pins the exact AFNI image used by the container. The full environment also
 requires `PortAudio <https://portaudio.com/>`_ for audio recording. Conda is
-required for the environment files below; Docker is only required for the
-container workflow.
-
-Both conda environment files pin Python 3.10.16. The Dockerfile builds an
-``linux/amd64`` image; ``--platform linux/amd64`` runs it through emulation on
-ARM hosts such as Apple Silicon.
+required for the environment files below; Docker is only required if you are using
+the Docker image.
 
 1. Clone the repository
 -----------------------
@@ -44,8 +38,7 @@ For access to all of rtcog's features on macOS, install the full environment:
    conda activate rtcog
    python -m pip install -e .
 
-If you do not require rtcog's GUI features—or are installing the checked-in
-environment on Linux—install the minimal version instead:
+If you do not require rtcog's GUI features:
 
 .. code-block:: bash
 
@@ -55,11 +48,9 @@ environment on Linux—install the minimal version instead:
    python -m pip install -e .
 
 This version does not have Psychopy GUI presentation and will only
-run preprocessing and matching. The ``rtcog_min`` command does not start the
-participant GUI or the live operator streaming process. This is useful for
-headless deployments and testing.
+run preprocessing and matching. This is useful for deployments and testing.
 
-3. Verify the installation
+1. Verify the installation
 --------------------------
 
 The installed entry points should display their help without starting an
@@ -67,8 +58,8 @@ experiment:
 
 .. code-block:: bash
 
-   rtcog --help
-   rtcog_min --help
+   rtcog --help  # full environment
+   rtcog_min --help  # minimal environment
 
 Use the entry point for the environment you installed. Continue to :doc:`usage`
 for the required inputs and complete run commands.
@@ -93,5 +84,4 @@ After building the Docker image, run a smoke test:
 
    docker run --rm --platform linux/amd64 rtcog
 
-The image's default command is ``rtcog_min --help``, so this smoke test exits
-after displaying the CLI help. See :ref:`docker-usage` for an actual run.
+See :ref:`docker-usage` for details.

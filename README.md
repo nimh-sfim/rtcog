@@ -1,48 +1,42 @@
 # rtcog
 
-`rtcog` is a Python package for closed-loop real-time fMRI experiments. It
-receives masked voxel data and motion estimates from AFNI, applies a configurable
-preprocessing pipeline, and can trigger experimental actions when incoming brain
-volumes match selected templates.
+`rtcog` is a Python package for closed-loop real-time fMRI experiments of the following form:
+
+1. The computer receives volumes from the AFNI real-time plugin on a TR-by-TR basis
+2. Each volume is put through a configurable preprocessing pipeline as it arrives
+3. If the subject's brain looks like a brain configuration of interest, then the program can
+fire a stimulus to the subject (e.g. a survey)
+4. The program continues monitoring the brain in the background.
 
 The full documentation is available at <https://rtcog.readthedocs.io>.
 
 ## Installation
 
-Clone the repository and create either the full environment (including the
-PsychoPy participant GUI) or the minimal headless environment.
+rtcog supports three installation options:
 
-The checked-in full environment currently targets macOS because it includes
-`pyobjc`. On Linux, use the minimal conda environment or Docker unless you
-maintain a platform-specific PsychoPy environment.
+- **Full environment**: includes the PsychoPy participant GUI.
+- **Minimal environment**: runs preprocessing and matching without the GUI.
+- **Minimal Docker image**: packages the minimal environment as a Docker image.
+
+Note: The full environment is for macOS ARM only. On Linux, you may use the
+minimal environment or the Docker container.
+
+### Quick install (full environment on macOS ARM)
 
 ```bash
 git clone https://github.com/nimh-sfim/rtcog.git
 cd rtcog
-
-# Full installation
 conda env create -f env.yaml
 conda activate rtcog
 python -m pip install -e .
 ```
 
-For preprocessing without PsychoPy GUI dependencies:
-
-```bash
-conda env create -f minimal_env.yaml
-conda activate rtcog_min
-python -m pip install -e .
-```
-
-Native real-time scanner use also requires AFNI. The full GUI environment uses
-PortAudio for audio recording. See the
-[installation guide](https://rtcog.readthedocs.io/en/latest/installation.html)
-for the Docker option and additional prerequisites.
+``rtcog`` also requires AFNI. The full GUI environment uses
+PortAudio for audio recording. See the [installation
+guide](https://rtcog.readthedocs.io/en/latest/installation.html) for detailed
+instructions.
 
 ## Verify the installation
-
-Use the entry point for the environment you installed. It should display its
-command-line help without starting an experiment:
 
 ```bash
 rtcog --help      # Full environment
@@ -52,4 +46,4 @@ rtcog_min --help  # Minimal environment
 An experiment requires a YAML configuration, a mask matching the voxel stream,
 the expected number of volumes, and an existing output directory. See the
 [usage guide](https://rtcog.readthedocs.io/en/latest/usage.html) for complete
-Basic and ESAM examples.
+examples.
