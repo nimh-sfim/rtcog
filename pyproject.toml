@@ -22,5 +22,5 @@ rtcog_min = "rtcog.run_minimal:main"
 where = ["."]
 
 [project.urls]
-"Homepage" = "https://github.com/nimh-sfim/rtCAPs"
-"Bug Tracker" = "https://github.com/nimh-sfim/rtCAPs/issues"
+"Homepage" = "https://github.com/nimh-sfim/rtcog"
+"Bug Tracker" = "https://github.com/nimh-sfim/rtcog/issues"

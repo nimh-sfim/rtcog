@@ -15,7 +15,7 @@ The supported installation paths are:
 
 Native scanner use requires `AFNI <https://afni.nimh.nih.gov/>`_. The Docker
 image pins the exact AFNI image used by the container. The full environment also
-requires `PortAudio <https://www.portaudio.com/>`_ for audio recording. Conda is
+requires `PortAudio <https://portaudio.com/>`_ for audio recording. Conda is
 required for the environment files below; Docker is only required for the
 container workflow.
 
