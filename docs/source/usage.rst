@@ -52,8 +52,7 @@ The short version is:
 
 For reproducible runs, the recommended approach is to keep run settings in YAML
 and launch with only ``rtcog -c run_config.yaml``. Use CLI values for deliberate,
-one-run overrides. The resolved values and launch command are both copied to the
-output directory.
+one-run overrides. The resolved values are copied to the output directory.
 
 Top-level YAML and CLI names are not always identical:
 
@@ -172,9 +171,8 @@ Every run requires these values, either in YAML or on the command line:
    zero volumes is rejected.
 
 ``out_dir``
-   Existing output directory. ``rtcog`` writes the resolved configuration and
-   launch command before starting its worker processes, so this directory must
-   already exist.
+   Existing output directory. ``rtcog`` writes the resolved configuration
+   before starting its worker processes, so this directory must already exist.
 
 ``out_prefix``
    Prefix added to run output filenames.
@@ -512,9 +510,6 @@ Every completed Basic or ESAM run
 
 ``<prefix>_Options.yaml``
    Resolved configuration after applying CLI overrides.
-
-``<prefix>_command.txt``
-   Shell-quoted command used to start the run.
 
 ``<prefix>.Motion.1D``
    Six AFNI motion estimates per received volume, tab-delimited.
