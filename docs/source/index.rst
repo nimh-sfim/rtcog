@@ -9,6 +9,7 @@ Documentation for rtcog: real-time fMRI monitoring of brain activity and cogniti
    overview
    installation
    usage
+   options
    startup_afni
    matching
    customize

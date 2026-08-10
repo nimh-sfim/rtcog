@@ -100,6 +100,139 @@ def test_basic_required_args_can_all_come_from_yaml(tmp_path):
     assert parsed["out_prefix"] == "test"
 
 
+def test_save_orig_cli_overrides_yaml_false(tmp_path):
+    mask = tmp_path / "mask.nii"
+    mask.touch()
+    out_dir = tmp_path / "output"
+    out_dir.mkdir()
+    config = tmp_path / "config.yaml"
+    config.write_text(
+        f"""
+        exp_type: basic
+        mask_path: {mask}
+        nvols: 100
+        out_dir: {out_dir}
+        out_prefix: test
+        save_orig: false
+        """
+    )
+
+    parsed = Options.parse_cli_args(
+        ["--config", str(config), "--save_orig"]
+    )
+
+    assert parsed["save_orig"] is True
+
+
+def test_omitted_cli_booleans_preserve_yaml_true(tmp_path):
+    mask = tmp_path / "mask.nii"
+    mask.touch()
+    out_dir = tmp_path / "output"
+    out_dir.mkdir()
+    config = tmp_path / "config.yaml"
+    config.write_text(
+        f"""
+        exp_type: basic
+        mask_path: {mask}
+        nvols: 100
+        out_dir: {out_dir}
+        out_prefix: test
+        debug: true
+        silent: true
+        show_data: true
+        save_orig: true
+        auto_save: true
+        no_action: true
+        fullscreen: true
+        snapshot: true
+        test_latency: true
+        """
+    )
+
+    parsed = Options.parse_cli_args(["--config", str(config)])
+
+    for key in (
+        "debug",
+        "silent",
+        "show_data",
+        "save_orig",
+        "auto_save",
+        "no_action",
+        "fullscreen",
+        "snapshot",
+        "test_latency",
+    ):
+        assert parsed[key] is True
+
+
+def test_cli_long_options_match_yaml_keys(tmp_path):
+    yaml_mask = tmp_path / "yaml-mask.nii"
+    yaml_mask.touch()
+    cli_mask = tmp_path / "cli-mask.nii"
+    cli_mask.touch()
+    out_dir = tmp_path / "output"
+    out_dir.mkdir()
+    config = tmp_path / "config.yaml"
+    config.write_text(
+        f"""
+        exp_type: basic
+        mask_path: {yaml_mask}
+        nvols: 100
+        out_dir: {out_dir}
+        out_prefix: test
+        fullscreen: false
+        test_latency: false
+        """
+    )
+
+    parsed = Options.parse_cli_args(
+        [
+            "--config", str(config),
+            "--mask_path", str(cli_mask),
+            "--fullscreen",
+            "--test_latency",
+        ]
+    )
+
+    assert parsed["mask_path"] == str(cli_mask)
+    assert parsed["fullscreen"] is True
+    assert parsed["test_latency"] is True
+
+
+def test_legacy_cli_aliases_remain_supported(tmp_path):
+    yaml_mask = tmp_path / "yaml-mask.nii"
+    yaml_mask.touch()
+    cli_mask = tmp_path / "cli-mask.nii"
+    cli_mask.touch()
+    out_dir = tmp_path / "output"
+    out_dir.mkdir()
+    config = tmp_path / "config.yaml"
+    config.write_text(
+        f"""
+        exp_type: basic
+        mask_path: {yaml_mask}
+        nvols: 100
+        out_dir: {out_dir}
+        out_prefix: test
+        fullscreen: false
+        test_latency: false
+        """
+    )
+
+    parsed = Options.parse_cli_args(
+        [
+            "--config", str(config),
+            "--mask", str(cli_mask),
+            "--fscreen",
+            "--latency",
+        ]
+    )
+
+    assert parsed["mask_path"] == str(cli_mask)
+    assert parsed["fullscreen"] is True
+    assert parsed["test_latency"] is True
+
+
 def test_esam_required_args_can_all_come_from_yaml(tmp_path):
     mask = tmp_path / "mask.nii"
     mask.touch()

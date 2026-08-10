@@ -76,7 +76,7 @@ class Options:
           config = {}
           pre_parser = argparse.ArgumentParser(add_help=False)
           pre_parser.add_argument("-c", "--config", dest="config_path", help="yaml file containing experiment options", required=False)
-          pre_args, remaining_args = pre_parser.parse_known_args(argv)
+          pre_args, _ = pre_parser.parse_known_args(argv)
 
           # Show error if no config was given except for with --help
           if pre_args.config_path:
@@ -94,13 +94,14 @@ class Options:
                         "You can override some options via CLI."
           )
 
+          parser.add_argument("-c", "--config", dest="config_path", help="YAML file containing experiment options")
+
           parser_gen = parser.add_argument_group("General Options")
           parser_gen.add_argument("-d", "--debug", action="store_true", dest="debug", help="Enable debugging output", default=None)
-          parser_gen.add_argument("-s", "--silent",   action="store_true", dest="silent", help="Minimal text messages", default=None)
+          parser_gen.add_argument("-s", "--silent", action="store_true", dest="silent", help="Minimal text messages", default=None)
           parser_gen.add_argument("-p", "--tcp_port", help="TCP port for incoming connections", action="store", type=int, dest='tcp_port')
-          parser_gen.add_argument("-S", "--show_data", action="store_true",help="display received data in terminal if this option is specified", default=None)
-          parser_gen.add_argument("--ncores", help="Number of cores to use in the parallel processing part of the code", dest="n_cores", action="store",type=int)
-          parser_gen.add_argument("-m","--mask", help="Path to mask", dest="mask_path", action="store", type=file_exists)
+          parser_gen.add_argument("-S", "--show_data", action="store_true", help="Display received data in the terminal", default=None)
+          parser_gen.add_argument("-m", "--mask_path", "--mask", help="Path to mask", dest="mask_path", action="store", type=file_exists)
           parser_gen.add_argument("--nvols", help="Number of expected volumes (for legendre pols only)", dest="nvols", action="store", type=int)
           parser_gen.add_argument("--discard", help="Number of volumes to discard (they won't enter the iGLM step)", dest="discard", action="store", type=int)
 
@@ -108,31 +109,32 @@ class Options:
           parser_save.add_argument("--out_dir", help="Output directory", dest="out_dir", action="store", type=str)
           parser_save.add_argument("--out_prefix", help="Prefix for outputs", dest="out_prefix", action="store", type=str)
           parser_save.add_argument("--snapshot_dir", help="Directory for snapshot test outputs", dest="snapshot_dir", action="store", type=str)
+          parser_save.add_argument("--save_orig", help="Save the original unprocessed data", dest="save_orig", action="store_true", default=None)
           parser_save.add_argument("--auto_save", help="Automatically save all outputs even if error is encountered during processing.", dest="auto_save", action="store_true", default=None)
           
           parser_exp = parser.add_argument_group('Experiment/GUI Options')
           parser_exp.add_argument("-e","--exp_type", help="Type of Experimental Run", type=str)
           parser_exp.add_argument("--no_action", help="Do not perform any action (ex. GUI)", action="store_true", dest='no_action', default=None)
-          parser_exp.add_argument("--fscreen", help="Use full screen for Experiment", action="store_true", dest="fullscreen", default=None)
+          parser_exp.add_argument("--fullscreen", "--fscreen", help="Use full screen for Experiment", action="store_true", dest="fullscreen", default=None)
           parser_exp.add_argument("--q_path", help="The path to the questions json file containing the question stimuli. If not a full path, it will look for the file in RESOURCES_DIR", type=str, dest='q_path', action="store")
 
           parser_dec = parser.add_argument_group('Matching Options')
           parser_dec.add_argument("--match_path", help="Path to inputs required for matching method", dest="match_path", action="store", type=file_exists, default=None)
           parser_dec.add_argument("--hit_thr", help="Threshold for deciding hits [%(default)s]", dest="hit_thr", action="store", type=float, default=None)
 
-          parser_dec = parser.add_argument_group('Testing Options')
-          parser_dec.add_argument("--snapshot", help="Run snapshot test", dest="snapshot", action="store_true", default=None)
-          parser_dec.add_argument("--latency", help="Run latency test", dest="test_latency", action="store_true", default=None)
+          parser_test = parser.add_argument_group('Testing Options')
+          parser_test.add_argument("--snapshot", help="Run snapshot test", dest="snapshot", action="store_true", default=None)
+          parser_test.add_argument("--test_latency", "--latency", help="Run latency test", dest="test_latency", action="store_true", default=None)
 
-          cli_args = parser.parse_args(remaining_args)
+          cli_args = parser.parse_args(argv)
 
           # Only override yaml config with CLI args that were explicitly passed
           for k, v in vars(cli_args).items():
-               if v is not None:
+               if k != "config_path" and v is not None:
                     config[k] = v
           
           if 'exp_type' not in config:
-               parser.error(f"Please specify experiment type with -e/-exp_type.")
+               parser.error("Please specify experiment type with -e/--exp_type.")
 
           required_args = ['mask_path', 'nvols', 'out_dir', 'out_prefix']
 
