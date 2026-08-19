@@ -14,7 +14,7 @@ The full documentation is available at <https://rtcog.readthedocs.io>.
 
 rtcog supports three installation options:
 
-- **Full environment**: includes the PsychoPy participant GUI.
+- **Full environment**: includes the PsychoPy participant GUI for stimulus presenation.
 - **Minimal environment**: runs preprocessing and matching without the GUI.
 - **Minimal Docker image**: packages the minimal environment as a Docker image.
 

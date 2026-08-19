@@ -83,7 +83,6 @@ Example for an ESAM experiment:
            poll_for_escape_key()
        def on_hit(self):
            self.gui.show_custom_prompt()
-           apply_stimulation()
        def on_end(self):
            teardown_function()
            self.gui.close_psychopy_window()
@@ -111,7 +110,7 @@ fields, and question names should be unique because responses are keyed by name.
         }
     ]
 
-See the :download:`packaged questions_v1.json example
+See the :download:`questions_v1.json example
 <../../rtcog/resources/questions_v1.json>` for a complete questionnaire.
 
 However, if you want to create a more complex GUI, you can

@@ -8,9 +8,8 @@ on one TR at a time and integrates into the existing framework.
 1. Create your step class
 ------------------------------
 
-Define a new class that inherits from ``PreprocStep``. Put it in
-``rtcog/preproc/preproc_steps.py`` or import its module before the pipeline is
-built; importing the subclass adds it to ``PreprocStep.registry``. Your class
+In ``rtcog/preproc/custom_steps.py``, define a new class that inherits
+from ``PreprocStep``. Your class
 must implement the following method:
 
 - ``_run(self, pipeline)``: **required**
@@ -29,17 +28,24 @@ Example:
 
 .. code:: python
 
+   # rtcog/preproc/custom_steps.py
    from rtcog.preproc.preproc_steps import PreprocStep
 
    class CustomStep(PreprocStep):
+       def _start(self, pipeline):
+           # Optional: set up any state before the first processed TR.
+           pass
+
        def _run(self, pipeline):
            new_data = some_function(pipeline.processed_tr)
            return new_data
 
+       def _save(self, pipeline):
+           # Optional: save any extra results after processing is complete.
+           pass
+
 ``_run`` must return a NumPy array with the same ``(N_voxels, 1)`` shape as
-``pipeline.processed_tr``. If the subclass lives in another module, add an
-import for that module in application startup code; defining a class in a file
-that is never imported does not register it.
+``pipeline.processed_tr``. 
 
 **Naming convention**: Class names ending with “Step” are registered
 using the lowercase prefix (e.g., ``CustomStep`` → ``"custom"``). If

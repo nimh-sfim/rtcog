@@ -1,3 +1,4 @@
+import sys
 import numpy as np
 import pytest
 from unittest.mock import MagicMock, patch
@@ -13,6 +14,10 @@ def make_pipeline_options(tmp_path=None):
     options.snapshot = False
     options.steps = []
     return options
+
+
+def test_pipeline_imports_custom_steps_module():
+    assert "rtcog.preproc.custom_steps" in sys.modules
 
 
 @patch('rtcog.preproc.pipeline.PreprocStep')
