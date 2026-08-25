@@ -141,7 +141,7 @@ Built-in step-specific options are:
 ======================================
 
 ``match_method``
-   Matching method: ``svr``, ``mask``, ``pearson``, or ``nmi``.
+   Matching method: ``svr`` or ``mask``.
 
 ``match_start``
    Zero-based volume index at which matching begins.

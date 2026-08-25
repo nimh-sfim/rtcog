@@ -197,9 +197,9 @@ same order as the template volumes. For example:
    3dTcat -prefix Templates_R4Feed.nii Frontier2013_CAPs_R4Feed.nii"[25, 4, 18, 28, 24, 11, 21]"
    echo "VPol,DMN,SMot,Audi,ExCn,rFPa,lFPa" > template_labels.txt
 
-Follow :doc:`matching` to prepare and evaluate the input for ``svr``, ``mask``,
-``pearson``, or ``nmi``. That page contains current commands, exact output names,
-and the correct ``match_method`` values.
+Follow :doc:`matching` to prepare and evaluate the input for ``svr`` or
+``mask``. That page contains current commands, exact output names, and the
+correct ``match_method`` values.
 
 Here is an example of the static SVR training report:
 
@@ -209,8 +209,8 @@ Here is an example of the static SVR training report:
 11. Run rtcog in ESAM mode
 
 After preparing the selected matcher, simulate an experience-sampling run. Set
-``match_method`` to ``svr``, ``mask``, ``pearson``, or ``nmi`` and set
-``match_path`` to the corresponding output described in :doc:`matching`.
+``match_method`` to ``svr`` or ``mask`` and set ``match_path`` to the
+corresponding output described in :doc:`matching`.
 
 Then, start the experiment. Refer to :doc:`/usage` for instructions.
 For example, ``match_path`` is:

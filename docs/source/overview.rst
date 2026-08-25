@@ -90,14 +90,11 @@ Pattern Matching and Detection
 
 After preprocessing, each volume is compared against user-defined activation
 templates to detect neural patterns of interest. ``rtcog`` currently provides
-four pattern-matching methods:
+two pattern-matching methods:
 
 - **Mask matching**, which evaluates weighted activation within selected voxels.
 - **SVR matching**, which uses support vector regression models trained on
   previous data.
-- **Pearson matching**, which computes spatial correlation with template maps.
-- **Signed NMI matching**, which measures normalized mutual information and uses
-  spatial correlation to retain the direction of the relationship.
 
 A *hit* is registered when the similarity between a TR and a target template exceeds
 user-defined criteria (e.g., the score exceeds a certain threshold for a specified
