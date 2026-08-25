@@ -68,23 +68,3 @@ in the order you want it to be applied during preprocessing:
        save: false
 
 The string “custom” will automatically map to your ``CustomStep`` class.
-
-3. (Optional) Add a StepType
-----------------------------
-
-If you want to check whether a step is active in ``Pipeline`` without
-relying on string literals, add it to the ``StepType`` enum:
-
-.. code:: python
-
-   # rtcog/preproc/step_types.py
-   class StepType(Enum):
-     # ...
-     CUSTOM = 'custom'
-
-Then in ``pipeline.py``:
-
-.. code:: python
-
-   if StepType.CUSTOM.value in self.steps:
-      do_something()
