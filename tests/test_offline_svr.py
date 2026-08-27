@@ -1,3 +1,4 @@
+import nibabel as nib
 import numpy as np
 import pandas as pd
 import pytest
@@ -16,6 +17,10 @@ def _touch_inputs(tmp_path):
     for path in paths.values():
         path.write_text("fake")
     return paths
+
+
+def _write_nifti(path, data):
+    nib.Nifti1Image(np.asarray(data, dtype=np.float32), np.eye(4)).to_filename(path)
 
 
 def test_process_program_options_parses_fake_inputs(tmp_path):
@@ -50,6 +55,36 @@ def test_process_program_options_parses_fake_inputs(tmp_path):
     assert opts.outdir == str(tmp_path)
     assert opts.prefix == "demo_svr"
     assert opts.no_lasso is True
+
+
+def test_load_datasets_uses_common_labels_and_masked_loading(tmp_path):
+    mask_path = tmp_path / "mask.nii"
+    templates_path = tmp_path / "templates.nii"
+    data_path = tmp_path / "data.nii"
+    labels_path = tmp_path / "labels.txt"
+
+    _write_nifti(mask_path, np.array([[[1]], [[0]], [[1]]]))
+    templates = np.arange(6).reshape(3, 1, 1, 2)
+    data = np.arange(12).reshape(3, 1, 1, 4)
+    _write_nifti(templates_path, templates)
+    _write_nifti(data_path, data)
+    labels_path.write_text("signal_a,signal_b", encoding="utf-8")
+
+    trainer = SVRtrainer.__new__(SVRtrainer)
+    trainer.templates_path = str(templates_path)
+    trainer.template_labels_path = str(labels_path)
+    trainer.data_path = str(data_path)
+    trainer.mask_path = str(mask_path)
+
+    trainer.load_datasets()
+
+    assert trainer.template_labels == ["signal_a", "signal_b"]
+    np.testing.assert_array_equal(trainer.templates_masked, [[0, 1], [4, 5]])
+    np.testing.assert_array_equal(
+        trainer.data_masked,
+        [[0, 1, 2, 3], [8, 9, 10, 11]],
+    )
+    assert (trainer.data_nv, trainer.data_nt) == (2, 4)
 
 
 @pytest.mark.parametrize(
