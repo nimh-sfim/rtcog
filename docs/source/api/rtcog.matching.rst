@@ -52,6 +52,22 @@ rtcog.matching.offline.nmi module
    :undoc-members:
    :show-inheritance:
 
+rtcog.matching.offline.pearson module
+-------------------------------------
+
+.. automodule:: rtcog.matching.offline.pearson
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+rtcog.matching.offline.template\_utils module
+---------------------------------------------
+
+.. automodule:: rtcog.matching.offline.template_utils
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 rtcog.matching.transcribe module
 --------------------------------
 

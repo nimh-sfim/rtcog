@@ -25,9 +25,9 @@ Built-in methods
 
 ``pearson``
    Uses plain spatial Pearson correlation between each template map and the
-   processed TR. Pass an ``.npz`` file containing ``labels`` and raw
-   ``templates`` with shape ``(n_templates, n_voxels)``. The template file
-   produced by ``rtcog/matching/offline/nmi.py`` is compatible.
+   processed TR. Prepare its template file with
+   ``rtcog/matching/offline/pearson.py`` and pass the resulting ``.npz`` file
+   with ``--match_path``.
 
 ``nmi``
    Uses signed normalized mutual information against template maps.
@@ -41,15 +41,56 @@ The Pearson matcher reports one correlation coefficient in the range
 ``[-1, 1]`` for each template. Constant templates, constant TRs, and non-finite
 correlations receive a score of zero.
 
-Prepare templates with the NMI offline command shown below, then configure the
-run with:
+Prepare the Pearson input and optionally evaluate representative processed data
+in one command:
+
+.. code:: bash
+
+   python rtcog/matching/offline/pearson.py \
+      --data path/to/training_data.nii \
+      --templates_path path/to/templates.nii \
+      --mask path/to/mask.nii \
+      --template_labels_path path/to/template_labels.txt \
+      --discard 100 \
+      --out_dir ./existing_output_directory \
+      --prefix prefix
+
+The output directory must already exist. Omit ``--data`` when you only want to
+prepare the online template file. Template labels are optional; when supplied,
+the file contains one comma-separated line in template-volume order, with no
+header. For example:
+
+.. code:: text
+
+   dmn,visual,somatosensory
+
+The command always writes ``prefix.pearson_templates.npz``. This is the file to
+use as ``match_path``. When ``--data`` is supplied, the same command also writes:
+
+``prefix.pearson_scores.npy``
+   Pearson scores with shape ``(n_templates, n_timepoints)``.
+
+``prefix.pearson_score_traces.npz``
+   The same scores stored by template label.
+
+``prefix.pearson_scores.png``
+   A quick-look plot for reviewing the score traces and choosing ``hit_thr``.
+
+Configure the run with:
 
 .. code:: yaml
 
    matching:
      match_method: pearson
 
-Pass the generated ``prefix.nmi_templates.npz`` file with ``--match_path``.
+Then pass ``prefix.pearson_templates.npz`` to ``rtcog``:
+
+.. code:: bash
+
+   rtcog \
+      --exp_type esam \
+      --match_path path/to/prefix.pearson_templates.npz \
+      --hit_thr your_threshold
 
 NMI matching
 ============
