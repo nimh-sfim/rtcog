@@ -1,5 +1,3 @@
-import sys
-import argparse
 import os.path as osp
 import numpy as np
 import pandas as pd
@@ -8,13 +6,17 @@ import hvplot.pandas
 import panel as pn
 import matplotlib.pyplot as plt
 
-from rtcog.utils.fMRI import load_fMRI_file, mask_fMRI_img, unmask_fMRI_img
-from rtcog.utils.core import file_exists
+from rtcog.utils.fMRI import unmask_fMRI_img
 from rtcog.matching.offline.stats import (
     pairwise_template_stats,
     pairwise_trace_stats,
     pairwise_value_heatmap,
     save_stats_csvs,
+)
+from rtcog.matching.offline.template_utils import (
+    load_and_mask_image,
+    load_template_maps,
+    spatial_template_parser,
 )
 
 import logging
@@ -44,25 +46,27 @@ class OfflineMask:
         self.save_txt = opts.save_txt
         
     def load_datasets(self):
-        try:
-            with open (self.template_labels_path, 'r') as f:
-                lines = f.read()
-                self.template_labels = [label.strip() for label in lines.strip().split(',')]
-        except Exception as e:
-            raise RuntimeError(f'Error loading template labels from {self.template_labels_path}: {e}')
-
+        (
+            self.templates_img,
+            mask_img,
+            masked_template_array,
+            self.template_labels,
+        ) = load_template_maps(
+            self.templates_path,
+            self.mask_path,
+            self.template_labels_path,
+        )
         log.info(f"Processing templates: {', '.join(self.template_labels)}")
-        self.data_img = load_fMRI_file(self.data_path)
-        mask_img = load_fMRI_file(self.mask_path)
-        self.templates_img = load_fMRI_file(self.templates_path)
-        
-        masked_template_array = mask_fMRI_img(self.templates_img, mask_img)
+
         masked_template_img_out = self.out_path + '.masked_templates.nii.gz'
         unmask_fMRI_img(masked_template_array, mask_img, masked_template_img_out)
         log.info(f'Saved masked input templates to: {masked_template_img_out}')
 
         self.templates_masked = [masked_template_array[:, i] for i in range(masked_template_array.shape[1])]
-        full_data_masked = mask_fMRI_img(self.data_img, mask_img)
+        self.data_img, _, full_data_masked = load_and_mask_image(
+            self.data_path,
+            mask_img=mask_img,
+        )
         self.data_masked = full_data_masked[:, self.nvols_discard:]
         log.debug(f'Masked data dimensions: {self.data_masked.shape}')
 
@@ -182,22 +186,19 @@ class OfflineMask:
         pn.Column(*report_items).save(html_out)
         log.info(f'Saved dynamic figure to: {html_out}')
 
-def process_options():
-    parser = argparse.ArgumentParser(description="Run mask method offline for spatial template matching")
-    parser_inopts = parser.add_argument_group('Input Options','Inputs to this program')
-    parser_inopts.add_argument("-d","--data", action="store", type=file_exists, dest="data_path", default=None, help="path to training dataset", required=True)
-    parser_inopts.add_argument("-t", "--templates_path", help="Path to templates file", dest="templates_path", action="store", type=file_exists, default=None, required=True)
-    parser_inopts.add_argument("-l", "--template_labels_path", help="Path to text file containing comma-separated template labels in order", dest="template_labels_path", action="store", type=file_exists, default=None, required=True)
-    parser_inopts.add_argument("-m","--mask", action="store", type=file_exists, dest="mask_path", default=None, help="path to mask", required=True)
+def process_options(argv=None):
+    parser, parser_inopts, parser_outopts = spatial_template_parser(
+        "Mask",
+        "mask_method",
+        description="Run mask method offline for spatial template matching",
+        data_required=True,
+        labels_required=True,
+    )
     parser_inopts.add_argument("--template_type", action="store", type=str, choices=['normal', 'binary'], dest="template_type", help="the type of template being used")
-    parser_inopts.add_argument("--discard", action="store", type=int, dest="nvols_discard", default=100,  help="number of volumes to discard")
     parser_inopts.add_argument("--thr", action="store", type=float, dest="template_thr", default=10,  help="threshold to use for the templates [Default: %(default)s]")
     parser_inopts.add_argument("--debug", action="store_true", dest="debug", default=False,  help="Enable debugging [Default: False]")
-    parser_outopts = parser.add_argument_group('Output Options','Were to save results')
-    parser_outopts.add_argument("-o","--out_dir",  action="store", type=str, dest="out_dir", default='./', help="output directory [Default: %(default)s]")
-    parser_outopts.add_argument("-p","--prefix", action="store", type=str, dest="prefix", default="mask_method", help="prefix for output file [Default: %(default)s]")
     parser_outopts.add_argument("--save_txt", action="store_true", dest="save_txt", default=False, help="save txt files for each array [Default: False]")
-    return parser.parse_args()  
+    return parser.parse_args(argv)
 
 if __name__ == "__main__":
     opts = process_options()

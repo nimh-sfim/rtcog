@@ -2,12 +2,54 @@ from types import SimpleNamespace
 
 import nibabel as nib
 import numpy as np
+import pytest
 
-from rtcog.matching.offline.mask import OfflineMask
+from rtcog.matching.offline.mask import OfflineMask, process_options
 
 
 def _write_nifti(path, data):
     nib.Nifti1Image(np.asarray(data, dtype=np.float32), np.eye(4)).to_filename(path)
+
+
+def test_process_options_uses_common_spatial_template_arguments(tmp_path):
+    paths = {
+        "data": tmp_path / "data.nii",
+        "templates": tmp_path / "templates.nii",
+        "labels": tmp_path / "labels.txt",
+        "mask": tmp_path / "mask.nii",
+    }
+    for path in paths.values():
+        path.touch()
+
+    opts = process_options(
+        [
+            "-d",
+            str(paths["data"]),
+            "-t",
+            str(paths["templates"]),
+            "-l",
+            str(paths["labels"]),
+            "-m",
+            str(paths["mask"]),
+            "--discard",
+            "2",
+            "-o",
+            str(tmp_path),
+            "-p",
+            "demo_mask",
+            "--template_type",
+            "binary",
+        ]
+    )
+
+    assert opts.data_path == str(paths["data"])
+    assert opts.templates_path == str(paths["templates"])
+    assert opts.template_labels_path == str(paths["labels"])
+    assert opts.mask_path == str(paths["mask"])
+    assert opts.nvols_discard == 2
+    assert opts.out_dir == str(tmp_path)
+    assert opts.prefix == "demo_mask"
+    assert opts.template_type == "binary"
 
 
 def test_offline_mask_writes_expected_traces_and_template_data(tmp_path):
@@ -99,3 +141,31 @@ def test_offline_mask_writes_expected_traces_and_template_data(tmp_path):
         "trace_b",
         "pearson_r",
     }
+
+
+def test_offline_mask_rejects_wrong_number_of_template_labels(tmp_path):
+    mask_path = tmp_path / "mask.nii"
+    templates_path = tmp_path / "templates.nii"
+    data_path = tmp_path / "data.nii"
+    labels_path = tmp_path / "labels.txt"
+
+    _write_nifti(mask_path, np.ones((2, 1, 1)))
+    _write_nifti(templates_path, np.ones((2, 1, 1, 2)))
+    _write_nifti(data_path, np.ones((2, 1, 1, 2)))
+    labels_path.write_text("only_one", encoding="utf-8")
+
+    opts = SimpleNamespace(
+        templates_path=str(templates_path),
+        data_path=str(data_path),
+        mask_path=str(mask_path),
+        template_labels_path=str(labels_path),
+        template_thr=1,
+        template_type="normal",
+        nvols_discard=0,
+        out_dir=str(tmp_path),
+        prefix="demo",
+        save_txt=False,
+    )
+
+    with pytest.raises(ValueError, match="Found 1 labels for 2 templates"):
+        OfflineMask(opts).load_datasets()
