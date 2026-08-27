@@ -1,4 +1,3 @@
-import argparse
 import logging
 import os.path as osp
 
@@ -8,15 +7,23 @@ import hvplot.pandas
 import panel as pn
 import matplotlib.pyplot as plt
 
-from rtcog.matching.matching_utils import nmi_bin_data, nmi_from_bins, nmi_n_bins
+from rtcog.matching.matching_utils import (
+    nmi_bin_data,
+    nmi_from_bins,
+    nmi_n_bins,
+    pearson_correlations,
+)
 from rtcog.matching.offline.stats import (
     pairwise_template_stats,
     pairwise_trace_stats,
     pairwise_value_heatmap,
     save_stats_csvs,
 )
-from rtcog.utils.core import file_exists
-from rtcog.utils.fMRI import load_fMRI_file, mask_fMRI_img
+from rtcog.matching.offline.template_utils import (
+    load_masked_timeseries,
+    prepare_template_data,
+    spatial_template_parser,
+)
 
 
 log = logging.getLogger("offline_nmi")
@@ -25,45 +32,6 @@ log_ch = logging.StreamHandler()
 log_ch.setFormatter(log_fmt)
 log.setLevel(logging.INFO)
 log.addHandler(log_ch)
-
-
-def load_template_labels(labels_path, n_templates):
-    # TODO: reuse this fn for other methods
-    """
-    Load template labels for an NMI template file.
-
-    Parameters
-    ----------
-    labels_path : str or None
-        Path to a comma-separated label file. When ``None``, labels default to
-        ``T01``, ``T02``, and so on.
-    n_templates : int
-        Expected number of labels.
-
-    Returns
-    -------
-    list of str
-        Template labels in file order.
-
-    Raises
-    ------
-    RuntimeError
-        If ``labels_path`` cannot be read.
-    ValueError
-        If the number of labels does not match ``n_templates``.
-    """
-    if labels_path is None:
-        return [f"T{i + 1:02d}" for i in range(n_templates)]
-
-    try:
-        with open(labels_path, "r") as f:
-            labels = [label.strip() for label in f.read().strip().split(",") if label.strip()]
-    except Exception as e:
-        raise RuntimeError(f"Error loading template labels from {labels_path}: {e}")
-
-    if len(labels) != n_templates:
-        raise ValueError(f"Found {len(labels)} labels for {n_templates} templates")
-    return labels
 
 
 class OfflineNMI:
@@ -111,20 +79,17 @@ class OfflineNMI:
         return self.template_data["labels"].tolist()
 
     def build_template_data(self):
-        templates_img = load_fMRI_file(self.templates_path)
-        mask_img = load_fMRI_file(self.mask_path)
-
-        masked = mask_fMRI_img(templates_img, mask_img)
-        templates = masked[np.newaxis, :] if masked.ndim == 1 else masked.T
-        templates = templates.astype(np.float32)
-
-        n_templates, n_voxels = templates.shape
-        labels = load_template_labels(self.template_labels_path, n_templates)
+        template_data = prepare_template_data(
+            self.templates_path,
+            self.mask_path,
+            self.template_labels_path,
+        )
+        templates = template_data["templates"]
+        n_voxels = templates.shape[1]
         n_bins = nmi_n_bins(n_voxels)
 
         self.template_data = {
-            "labels": np.array(labels),
-            "templates": templates,
+            **template_data,
             "template_bins": np.vstack([nmi_bin_data(template, n_bins) for template in templates]),
             "n_bins": np.array(n_bins),
         }
@@ -142,11 +107,7 @@ class OfflineNMI:
     def score_data(self):
         self._require_template_data()
 
-        data_img = load_fMRI_file(self.data_path)
-        mask_img = load_fMRI_file(self.mask_path)
-        data = mask_fMRI_img(data_img, mask_img).astype(np.float32)
-        if data.ndim == 1:
-            data = data[:, np.newaxis]
+        data = load_masked_timeseries(self.data_path, self.mask_path)
 
         scores, raw_scores, correlations = self._score_timepoints(data)
         self.score_results = {
@@ -181,15 +142,11 @@ class OfflineNMI:
 
         for tr in range(self.discard, n_timepoints):
             tr_data = data[:, tr].astype(np.float32).ravel()
-            data_centered = tr_data - tr_data.mean()
-            data_norm = np.linalg.norm(data_centered)
-            if data_norm == 0:
-                continue
-
-            with np.errstate(divide="ignore", invalid="ignore"):
-                tr_correlations = (
-                    (template_centered @ data_centered) / (template_norms * data_norm)
-                ).astype(np.float32)
+            tr_correlations = pearson_correlations(
+                tr_data,
+                template_centered,
+                template_norms,
+            )
             correlations[:, tr] = tr_correlations
 
             valid = np.isfinite(tr_correlations) & (tr_correlations != 0)
@@ -328,67 +285,9 @@ class OfflineNMI:
             raise FileNotFoundError(f"Out directory does not exist: {self.out_dir}")
 
 
-def process_options():
-    parser = argparse.ArgumentParser(description="Prepare template maps and optionally score data for NMI matching")
-    parser_inopts = parser.add_argument_group("Input Options", "Inputs to this program")
-    parser_inopts.add_argument(
-        "-d", "--data",
-        action="store",
-        type=file_exists,
-        dest="data_path",
-        default=None,
-        help="Optional processed 4D data to score offline",
-    )
-    parser_inopts.add_argument(
-        "-t", "--templates_path",
-        help="Path to template maps",
-        dest="templates_path",
-        action="store",
-        type=file_exists,
-        required=True,
-    )
-    parser_inopts.add_argument(
-        "-m", "--mask",
-        action="store",
-        type=file_exists,
-        dest="mask_path",
-        help="Path to mask",
-        required=True,
-    )
-    parser_inopts.add_argument(
-        "-l", "--template_labels_path",
-        help="Path to comma-separated template labels; defaults to T01, T02, ...",
-        dest="template_labels_path",
-        action="store",
-        type=file_exists,
-        default=None,
-    )
-    parser_inopts.add_argument(
-        "--discard",
-        action="store",
-        type=int,
-        dest="nvols_discard",
-        default=100,
-        help="Number of volumes to leave unscored at the beginning [Default: %(default)s]",
-    )
-    parser_outopts = parser.add_argument_group("Output Options", "Where to save results")
-    parser_outopts.add_argument(
-        "-o", "--out_dir",
-        action="store",
-        type=str,
-        dest="out_dir",
-        default="./",
-        help="Output directory [Default: %(default)s]",
-    )
-    parser_outopts.add_argument(
-        "-p", "--prefix",
-        action="store",
-        type=str,
-        dest="prefix",
-        default="nmi",
-        help="Output prefix [Default: %(default)s]",
-    )
-    return parser.parse_args()
+def process_options(argv=None):
+    parser, _, _ = spatial_template_parser("NMI", "nmi")
+    return parser.parse_args(argv)
 
 
 if __name__ == "__main__":

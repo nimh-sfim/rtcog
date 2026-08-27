@@ -2,7 +2,9 @@ import numpy as np
 import nibabel as nib
 import pytest
 
-from rtcog.matching.offline.nmi import OfflineNMI, load_template_labels
+from rtcog.matching.matcher import NMIMatcher
+from rtcog.matching.offline.nmi import OfflineNMI
+from rtcog.matching.offline.template_utils import load_template_labels
 
 
 def test_load_template_labels_defaults_to_generic_template_labels():
@@ -158,3 +160,42 @@ def test_offline_nmi_save_template_data_requires_existing_dir(tmp_path):
 
     with pytest.raises(FileNotFoundError, match="Out directory"):
         offline_nmi.save_template_data()
+
+
+def test_offline_nmi_scores_match_runtime_matcher():
+    templates = np.array(
+        [
+            [0, 1, 2, 3, 4, 5, 6, 7],
+            [7, 6, 5, 4, 3, 2, 1, 0],
+        ],
+        dtype=np.float32,
+    )
+    template_data = {
+        "labels": np.array(["positive", "negative"]),
+        "templates": templates,
+        "template_bins": np.array(
+            [
+                [1, 1, 1, 1, 2, 2, 2, 2],
+                [2, 2, 2, 2, 1, 1, 1, 1],
+            ],
+            dtype=np.int16,
+        ),
+        "n_bins": np.array(2),
+    }
+    data = np.column_stack([templates[0], templates[1]])
+    offline = OfflineNMI.from_template_data(template_data, discard=0)
+    offline_scores, _, _ = offline._score_timepoints(data)
+
+    matcher = NMIMatcher.__new__(NMIMatcher)
+    matcher.Ntemplates = 2
+    matcher.Nvoxels = 8
+    matcher.n_bins = 2
+    matcher.templates = templates
+    matcher.template_bins = template_data["template_bins"]
+    matcher.template_centered = templates - templates.mean(axis=1, keepdims=True)
+    matcher.template_norms = np.linalg.norm(matcher.template_centered, axis=1)
+    runtime_scores = np.column_stack(
+        [matcher._match(data[:, timepoint]) for timepoint in range(data.shape[1])]
+    )
+
+    np.testing.assert_allclose(offline_scores, runtime_scores)
