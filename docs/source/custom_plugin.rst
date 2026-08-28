@@ -26,23 +26,41 @@ plugin by implementing or extending these components:
 The Processor Class
 -------------------
 
-The ``Processor`` handles how each TR is processed.
-
-Because preprocessing and template matching are fully configurable via
-the config file or subclassing ``PreprocStep``, ``Matcher``, and/or
-``HitDetector``, subclassing ``Processor`` is **not** recommended. Most use
-cases can simply reuse one of the following:
+The ``Processor`` coordinates how each TR moves through the processing workflow.
+Most experiments should reuse one of the existing processor classes:
 
 - ``BasicProcessor``: Basic real-time fMRI preprocessing.
 - ``ESAMProcessor``: Extends ``BasicProcessor`` to support online
   template matching and real-time data visualization.
 
+Customize the individual parts of that workflow through their own configuration
+and extension points:
+
+- **Preprocessing (``PreprocStep``):** Select, order, and configure steps in the
+  ``steps`` section of the YAML file. For a new preprocessing operation,
+  subclass ``PreprocStep`` as described in
+  :doc:`Creating preprocessing steps <custom_preproc>`, then enable it in YAML.
+- **Template matching (``Matcher``, ESAM only):** Select and configure a matching
+  method in the ``matching`` section of the YAML file. For a new matching
+  algorithm, subclass ``Matcher`` as described in
+  :doc:`Adding matching methods <custom_matcher>`.
+- **Hit detection (``HitDetector``, ESAM only):** Configure thresholds, consecutive
+  volumes, and motion rejection with ``hit_thr`` and the ``hits`` section of the
+  YAML file. Subclass ``HitDetector`` when the detection algorithm itself must
+  change.
+
+Do not add any of these experiment-specific behaviors by modifying or subclassing
+``BasicProcessor`` or ``ESAMProcessor``. The processor should only select the
+overall processing mode, while customization belongs in the dedicated class or YAML
+configuration above.
+
 The ActionSeries Class (Optional)
 ---------------------------------
 
-The ``ActionSeries`` class responds to the state of the experiment. By
-extending ``BaseActionSeries``, you can implement your own custom logic
-for what should occur at each stage of the experiment:
+The ``ActionSeries`` class responds to the state of the experiment. For example,
+it can display a survey when a hit is detected in ESAM mode. By extending
+``BaseActionSeries``, you can implement your own custom logic for what should
+occur at each stage of the experiment:
 
 - ``on_start()``: The beginning of the experiment
 - ``on_loop()``: Main experiment loop
