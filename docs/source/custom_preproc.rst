@@ -21,8 +21,19 @@ must implement the following method:
 
 You can optionally implement:
 
-- ``_start(self, pipeline)``: initialize the state at the first TR
+- ``_start(self, pipeline)``: initialize runtime-dependent state when the first
+  TR is received
 - ``_save(self, pipeline)``: save any extra outputs if ``save=True``
+
+``_start`` is called once, after the first volume arrives and the pipeline has
+initialized its run-specific state. Use it for setup that depends on information
+available only through the live pipeline, such as the current run state or the
+complete set of configured preprocessing steps.
+
+At this point, the first volume has not yet been copied into
+``pipeline.Data_FromAFNI`` or assigned to ``pipeline.processed_tr``. If setup
+depends on the first volume's voxel values, perform it during the first call to
+``_run`` instead.
 
 Example:
 
@@ -33,8 +44,7 @@ Example:
 
    class CustomStep(PreprocStep):
        def _start(self, pipeline):
-           # Optional: set up any state before the first processed TR.
-           pass
+           # Optional: initialize state that depends on the live pipeline.
 
        def _run(self, pipeline):
            new_data = some_function(pipeline.processed_tr)
