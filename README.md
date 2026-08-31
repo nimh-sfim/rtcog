@@ -39,8 +39,7 @@ instructions.
 ## Verify the installation
 
 ```bash
-rtcog --help      # Full environment
-rtcog_min --help  # Minimal environment
+rtcog --help     # Full environment
 ```
 
 An experiment requires a YAML configuration, a mask matching the voxel stream,
