@@ -14,7 +14,7 @@ class HitOpts:
     """Threshold value that must be met or exceeded to count as a hit."""
 
     nonline: int
-    """Maximum number of templates allowed to exceed the hit threshold
+    """Maximum number of templates allowed to meet the hit threshold
     simultaneously.
 
     If more than ``nonline`` templates meet the threshold at the same time,

@@ -59,7 +59,7 @@ class OfflineMask:
     def _threshold(self, label, template):
         """Select voxels for a template above desired threshold and apply that mask to the data."""
         if self.template_type == 'continuous':
-            composite_mask_vect = (template > int(self.template_thr)).astype(bool)
+            composite_mask_vect = (template > self.template_thr).astype(bool)
         elif self.template_type == 'binary':
             composite_mask_vect = template.astype(bool)
         
@@ -147,7 +147,7 @@ def process_options():
     parser_inopts.add_argument("-t", "--templates_path", help="Path to templates file", dest="templates_path", action="store", type=file_exists, default=None, required=True)
     parser_inopts.add_argument("-l", "--template_labels_path", help="Path to text file containing comma-separated template labels in order", dest="template_labels_path", action="store", type=file_exists, default=None, required=True)
     parser_inopts.add_argument("-m","--mask", action="store", type=file_exists, dest="mask_path", default=None, help="path to mask", required=True)
-    parser_inopts.add_argument("--template_type", action="store", type=str, choices=['continuous', 'binary'], dest="template_type", help="the type of template being used")
+    parser_inopts.add_argument("--template_type", action="store", type=str, choices=['continuous', 'binary'], dest="template_type", help="the type of template being used", required=True)
     parser_inopts.add_argument("--discard", action="store", type=int, dest="nvols_discard", default=100,  help="number of volumes to discard")
     parser_inopts.add_argument("--thr", action="store", type=float, dest="template_thr", default=10,  help="threshold to use for the templates [Default: %(default)s]")
     parser_inopts.add_argument("--debug", action="store_true", dest="debug", default=False,  help="Enable debugging [Default: False]")

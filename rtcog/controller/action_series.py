@@ -233,8 +233,8 @@ class LatencyTestActionSeries(BasicActionSeries):
         pd.DataFrame or None
             DataFrame containing latency metrics, or None if missing triggers.
         """
-        trig_path = osp.join(f"{self.opts.out_prefix}_trigger_timing.pkl")
-        rec_path = osp.join(f"{self.opts.out_prefix}_receiver_timing.pkl")
+        trig_path = osp.join(self.opts.out_dir, f"{self.opts.out_prefix}_trigger_timing.pkl")
+        rec_path = osp.join(self.opts.out_dir, f"{self.opts.out_prefix}_receiver_timing.pkl")
         
         trig = pd.read_pickle(trig_path)
         rec = pd.read_pickle(rec_path)
@@ -300,7 +300,7 @@ class LatencyTestActionSeries(BasicActionSeries):
         plt.grid(True)
         plt.tight_layout()
         
-        out = f"{self.opts.out_prefix}_latency.png"
+        out = osp.join(self.opts.out_dir, f"{self.opts.out_prefix}_latency.png")
         plt.savefig(out, dpi=300)
         plt.close()
         

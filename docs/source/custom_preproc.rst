@@ -45,6 +45,7 @@ Example:
    class CustomStep(PreprocStep):
        def _start(self, pipeline):
            # Optional: initialize state that depends on the live pipeline.
+           pass
 
        def _run(self, pipeline):
            new_data = some_function(pipeline.processed_tr)
@@ -55,7 +56,7 @@ Example:
            pass
 
 ``_run`` must return a NumPy array with the same ``(N_voxels, 1)`` shape as
-``pipeline.processed_tr``. 
+``pipeline.processed_tr``.
 
 **Naming convention**: Class names ending with “Step” are registered
 using the lowercase prefix (e.g., ``CustomStep`` → ``"custom"``). If

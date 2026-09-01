@@ -50,7 +50,7 @@ If you do not require rtcog's GUI features:
 This version does not have Psychopy GUI presentation and will only
 run preprocessing and matching. This is useful for deployments and testing.
 
-1. Verify the installation
+3. Verify the installation
 --------------------------
 
 The installed entry points should display their help without starting an

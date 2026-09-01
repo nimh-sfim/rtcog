@@ -1,6 +1,7 @@
 import pytest
 from unittest.mock import MagicMock, patch
 import multiprocessing as mp
+from types import SimpleNamespace
 
 from headless_gui_stubs import install_headless_gui_stubs
 
@@ -58,6 +59,29 @@ def test_latencytest_on_loop_calls_poll_trigger(mock_basic_gui, make_sync_mock):
 
     action.on_loop(),
     gui.poll_trigger.assert_called_once()
+
+
+@patch('rtcog.controller.action_series.pd.read_pickle')
+def test_latency_metrics_reads_files_from_output_directory(mock_read_pickle, tmp_path):
+    mock_read_pickle.side_effect = [
+        [0.0, 1.0],
+        {"recv": [0.1, 1.1], "proc": [0.2, 1.2]},
+    ]
+    action = LatencyTestActionSeries.__new__(LatencyTestActionSeries)
+    action.opts = SimpleNamespace(
+        out_dir=str(tmp_path),
+        out_prefix="run",
+        nvols=2,
+        discard=0,
+    )
+
+    result = action._calculate_latency_metrics()
+
+    assert result is not None
+    assert [call.args[0] for call in mock_read_pickle.call_args_list] == [
+        str(tmp_path / "run_trigger_timing.pkl"),
+        str(tmp_path / "run_receiver_timing.pkl"),
+    ]
 
 
 if __name__ == "__main__":

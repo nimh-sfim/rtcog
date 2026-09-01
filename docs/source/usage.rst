@@ -95,7 +95,7 @@ override corresponding top-level YAML values. Nested sections such as ``steps``,
 ``matching``, and ``hits`` must be configured in YAML rather than supplied via
 CLI.
 
-You can define all parameters in the YAML file if you wish. However, is often
+You can define all parameters in the YAML file if you wish. However, it is often
 easiest to pass run-specific values via CLI at runtime because they often change.
 
 These values include:

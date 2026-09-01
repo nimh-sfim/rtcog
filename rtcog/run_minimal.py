@@ -3,6 +3,7 @@ Minimal entry point for rtcog without GUI dependencies.
 """
 
 import sys
+import os.path as osp
 import multiprocessing as mp
 
 from rtcog.utils.options import Options
@@ -27,7 +28,7 @@ def main():
         raise ValueError(f"Unsupported experiment type for minimal mode: {opts.exp_type}.")
 
     clock = SharedClock() if opts.test_latency else None
-    receiver_path = opts.out_dir + f"{opts.out_prefix}_receiver_timing.pkl" if opts.test_latency else None
+    receiver_path = osp.join(opts.out_dir, f"{opts.out_prefix}_receiver_timing.pkl") if opts.test_latency else None
 
     comm_proc = mp.Process(
         target=comm_process,

@@ -60,7 +60,7 @@ second volume, and so on. The number and order of labels should match the
 template volumes in ``templates_path``.
 
 Configure volume timing
-=======================1
+=======================
 
 The volume numbers shown in the method guides are examples, not fixed values.
 Configure the timing of the real-time run in your YAML file:
@@ -82,7 +82,7 @@ Configure the timing of the real-time run in your YAML file:
 ``match_start``
    Zero-based volume number at which real-time matching begins. Set it to a
    value greater than or equal to ``discard`` so matching does not begin during
-   the discarded volumes.Configure it in the YAML ``matching`` section.
+   the discarded volumes. Configure it in the YAML ``matching`` section.
 
 
 ``vols_noaction``

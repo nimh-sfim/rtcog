@@ -6,7 +6,7 @@ from typing import Optional
 from nibabel.nifti1 import Nifti1Image
 
 from rtcog.preproc.preproc_steps import PreprocStep
-import rtcog.preproc.custom_steps 
+import rtcog.preproc.custom_steps
 from rtcog.preproc.step_types import StepType
 from rtcog.utils.exceptions import VolumeOverflowError
 from rtcog.utils.options import Options

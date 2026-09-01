@@ -79,17 +79,11 @@ The command writes:
    Labels, voxel-selection masks, masked template weights, and voxel counts.
    This is the file used as the online ``match_path``.
 
-``mask_method.masked_templates.nii.gz``
-   Input templates after applying the analysis mask.
-
 ``mask_method.act_traces.npz``
    Label-keyed offline activity traces, including zeros for discarded volumes.
 
 ``mask_method.traces.png`` and ``mask_method.traces.html``
    Static and interactive activity summaries.
-
-``mask_method.template_pairwise_stats.csv`` and ``mask_method.trace_pairwise_stats.csv``
-   Spatial template comparisons and temporal trace correlations.
 
 Inspect the activity traces to decide on an appropriate
 ``hit_thr``. Mask scores depend on the template weights, selected voxels, and
@@ -98,7 +92,7 @@ data scale, so there is no universal threshold.
 4. Configure the online run
 ===========================
 
-Add the following values to the complete ESAM run configuration. 
+Add the following values to the complete ESAM run configuration.
 All displayed numbers are examples
 and may be changed:
 

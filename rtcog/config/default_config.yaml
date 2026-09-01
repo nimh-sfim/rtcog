@@ -10,7 +10,7 @@
 
 # General options
 debug: false # set logger level to debug
-silent: false # set logger level to warning
+silent: false # set logger level to critical
 tcp_port: 53214
 show_data: false
 save_orig: false # save the unprocessed image data
