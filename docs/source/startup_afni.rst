@@ -5,19 +5,6 @@ Start AFNI in real-time mode
 AFNI's real-time plugin. Complete the checks below before beginning an
 acquisition.
 
-Preflight checklist
--------------------
-
-- The AFNI host can reach the computer running ``rtcog`` on the configured TCP
-  port. The shipped default is ``53214``.
-- The AFNI real-time mask and the NIfTI supplied as ``mask_path`` describe the
-  same voxel locations. ``rtcog`` stops if the number of streamed voxel values
-  differs from the number of nonzero voxels in its mask.
-- The external EPI reference dataset and real-time mask are available on the
-  AFNI host.
-- AFNI's expected volume count and ``rtcog``'s ``nvols`` describe the same run.
-- ``out_dir`` already exists on the ``rtcog`` computer.
-
 Connection environment
 ----------------------
 

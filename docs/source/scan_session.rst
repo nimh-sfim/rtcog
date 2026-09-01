@@ -1,10 +1,9 @@
 .. warning::
 
-   This page contains historical, site-specific setup notes. It is not a
-   maintained general operating procedure. Use :doc:`startup_afni` for the
-   current AFNI-to-``rtcog`` interface requirements.
+   These notes have not been updated since the old version of this software
+   and may be out of date.
 
-Archived scanning-session notes
+Scanning-session notes
 ===============================
 
 The remaining content is retained as project history and may refer to files,

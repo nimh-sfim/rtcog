@@ -167,6 +167,8 @@ present:
 Make sure to instantiate your ``GUI`` as an attribute of your
 ``ActionSeries``.
 
+.. _register-custom-experiment:
+
 Registering Your Custom Experiment Plugin
 -----------------------------------------
 

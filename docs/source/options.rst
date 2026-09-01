@@ -21,6 +21,7 @@ Required options
 
 ``exp_type`` (CLI: ``-e``, ``--exp_type``)
    Experiment type: ``basic``, ``esam``, or a registered custom type.
+   See :ref:`register-custom-experiment` to register a custom experiment type.
 
 ``mask_path`` (CLI: ``-m``, ``--mask_path``, ``--mask``)
    NIfTI mask defining the streamed voxel locations. Its nonzero voxel count

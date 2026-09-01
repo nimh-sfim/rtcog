@@ -1,15 +1,6 @@
 Simulate an experiment
 ======================
 
-.. important::
-
-   The repository tracks empty ``Simulation/Scanner``, ``Simulation/Realtime``,
-   and ``Simulation/Laptop`` directories, but it does not distribute the sample
-   imaging datasets, ``01_BringROIsToSubjectSpace.sh``, or the original CAP
-   template. Obtain protocol-compatible copies from the study team before using
-   this workflow. There is currently no public download location recorded in
-   the repository.
-
 This section describes how to simulate experiments without access to the
 scanner. This is very useful during software development and testing, as
 all functionalities can be tested without having to request scanner time.
@@ -68,7 +59,7 @@ one to simulate a real experience sampling run.
 
 - Enter the empty **Realtime** folder.
 - Copy the 01_BringROIsToSubjectSpace.sh script here.
-- Copy the Frontiers2013_CAPs.nii file here.
+- Copy the template file here.
 - Export the following variables
 
 .. code:: bash
@@ -127,7 +118,7 @@ reference data (but now in the realtime system)
    sh ./01_BringROIsToSubjectSpace.sh \
           rt.__002+orig. \
           rt.__001+orig. \
-          Frontiers2013_CAPs.nii
+          templates.nii
 
 This will generate a lot of new files. The key ones moving forward are:
 
@@ -135,7 +126,7 @@ This will generate a lot of new files. The key ones moving forward are:
   alignment.
 - ``GMribbon_R4Feed.nii``: this will be our mask for sending data to the
   laptop.
-- ``Frontiers2013_R4Feed.nii``: this will be our CAPs template aligned
+- ``templates_R4Feed.nii``: this will be our template file aligned
   to the EPI data.
 
 The last two files need to be transferred (i.e., copied) to the
@@ -144,7 +135,7 @@ The last two files need to be transferred (i.e., copied) to the
 .. code:: bash
 
    cp GMribbon_R4Feed.nii ../Laptop/
-   cp Frontiers2013_R4Feed.nii ../Laptop/
+   cp templates_R4Feed.nii ../Laptop/
 
 7. Configure the realtime plugin for the rest of the experiment.
 
@@ -189,13 +180,12 @@ should contain the standard Basic outputs from :ref:`output-files`, including:
 
 10. Prepare the matcher
 
-Select templates of interest and create a comma-separated label file in the
+Create a comma-separated label file in the
 same order as the template volumes. For example:
 
 .. code:: bash
 
-   3dTcat -prefix Templates_R4Feed.nii Frontier2013_CAPs_R4Feed.nii"[25, 4, 18, 28, 24, 11, 21]"
-   echo "VPol,DMN,SMot,Audi,ExCn,rFPa,lFPa" > template_labels.txt
+   echo "template_a,template_b" > template_labels.txt
 
 Follow :doc:`matching` to prepare and evaluate the input for ``svr`` or
 ``mask``. That page contains current commands, exact output names, and the
