@@ -14,6 +14,19 @@ def match_opts():
     return MatchingOpts(match_method="mask", match_start=0, vols_noaction=4)
 
 
+class _DummyMatcher(Matcher):
+    def __init__(self, match_opts, Nt, sync, match_result):
+        self.match_result = np.asarray(match_result)
+        super().__init__(match_opts, Nt, sync, match_path=None)
+        self.configure_templates(["a", "b"])
+
+    def setup_shared_memory(self):
+        self.shared_arr = np.zeros((self.Ntemplates, self.Nt), dtype=np.float32)
+
+    def _match(self, tr_data):
+        return self.match_result
+
+
 # ----------------------
 # Matcher Base Tests
 # ----------------------
@@ -30,47 +43,60 @@ def test_match_from_name_unknown():
 
 def test_match_scores_shape(make_sync_mock, match_opts):
     sync_events = make_sync_mock()
-    class DummyMatcher(Matcher):
-        def __init__(self, *args, **kwargs):
-            super().__init__(*args, **kwargs)
-            self.Ntemplates = 2
-            self.shared_arr = np.zeros((2, 5))
-        def _match(self, tr_data):
-            return np.array([0.1, 0.2])
+    m = _DummyMatcher(match_opts, Nt=5, sync=sync_events, match_result=[0.1, 0.2])
 
-    m = DummyMatcher(match_opts, Nt=5, sync=sync_events, match_path=None)
+    assert m.template_labels == ["a", "b"]
+    assert m.Ntemplates == 2
+    assert m.scores.shape == (2, 5)
+    sync_events.shm_ready.set.assert_called_once()
+
     scores = m.match(t=0, n=0, tr_data=np.zeros((10,)))
     assert scores.shape == (2, 5)
     sync_events.new_tr.set.assert_called_once()
 
 def test_match_invalid_shape(make_sync_mock, match_opts):
     sync_events = make_sync_mock()
-    class DummyMatcher(Matcher):
-        def __init__(self, *args, **kwargs):
-            super().__init__(*args, **kwargs)
-            self.Ntemplates = 2
-            self.shared_arr = np.zeros((2, 5))
-        def _match(self, tr_data):
-            return np.zeros((2,2))  # Invalid shape
-
-    m = DummyMatcher(match_opts, Nt=5, sync=sync_events, match_path=None)
+    m = _DummyMatcher(
+        match_opts,
+        Nt=5,
+        sync=sync_events,
+        match_result=np.zeros((2, 2)),
+    )
     with pytest.raises(ValueError):
         m.match(t=0, n=0, tr_data=np.zeros((10,)))
 
 
 def test_match_invalid_score_count(make_sync_mock, match_opts):
     sync_events = make_sync_mock()
-    class DummyMatcher(Matcher):
-        def __init__(self, *args, **kwargs):
-            super().__init__(*args, **kwargs)
-            self.Ntemplates = 2
-            self.shared_arr = np.zeros((2, 5))
-        def _match(self, tr_data):
-            return np.array([0.1])
-
-    m = DummyMatcher(match_opts, Nt=5, sync=sync_events, match_path=None)
+    m = _DummyMatcher(match_opts, Nt=5, sync=sync_events, match_result=[0.1])
     with pytest.raises(ValueError, match="expected 2"):
         m.match(t=0, n=0, tr_data=np.zeros((10,)))
+
+
+def test_configure_templates_rejects_reconfiguration(make_sync_mock, match_opts):
+    matcher = _DummyMatcher(
+        match_opts,
+        Nt=5,
+        sync=make_sync_mock(),
+        match_result=[0.1, 0.2],
+    )
+
+    with pytest.raises(RuntimeError, match="already been configured"):
+        matcher.configure_templates(["replacement"])
+
+
+def test_cleanup_shared_memory_is_idempotent():
+    matcher = Matcher.__new__(Matcher)
+    manager = MagicMock()
+    matcher.shm_manager = manager
+    matcher.shm = MagicMock()
+
+    matcher.cleanup_shared_memory()
+    matcher.cleanup_shared_memory()
+
+    manager.cleanup.assert_called_once()
+    assert matcher.shm_manager is None
+    assert matcher.shm is None
 
 # ----------------------
 # SVRMatcher Tests
