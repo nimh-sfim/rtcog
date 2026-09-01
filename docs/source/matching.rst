@@ -5,10 +5,10 @@ Matching methods
 ``rtcog`` supports two built-in spatial matching methods for ESAM mode. Each
 method follows the same overall workflow:
 
-1. Run the method's offline command to prepare its input file and, when
-   representative data are provided, generate evaluation results.
-2. Review the offline results and choose a hit threshold.
-3. Supply the prepared file as ``match_path`` and select the method with
+1. Run ``rtcog`` in Basic mode with a training rest run.
+2. Run the method's offline command, passing the ``rtcog``-processed training run, to prepare its input file and generate evaluation results.
+3. Review the offline results and choose an appropriate hit threshold.
+4. Supply the prepared file as ``match_path`` and select the method with
    ``match_method`` in the run configuration.
 
 The method-specific pages below separate the offline preparation and online run
@@ -60,7 +60,7 @@ second volume, and so on. The number and order of labels should match the
 template volumes in ``templates_path``.
 
 Configure volume timing
-=======================
+=======================1
 
 The volume numbers shown in the method guides are examples, not fixed values.
 Configure the timing of the real-time run in your YAML file:
@@ -82,11 +82,12 @@ Configure the timing of the real-time run in your YAML file:
 ``match_start``
    Zero-based volume number at which real-time matching begins. Set it to a
    value greater than or equal to ``discard`` so matching does not begin during
-   the discarded volumes.
+   the discarded volumes.Configure it in the YAML ``matching`` section.
+
 
 ``vols_noaction``
    Number of volumes to wait after an action ends before another hit can start
-   a new action.
+   a new action (a cooldown period). Configure it in the YAML ``matching`` section.
 
 Choose these values for the timing and design of your experiment. The example
 values ``10``, ``100``, and ``45`` may all be changed.
@@ -110,7 +111,7 @@ Use representative processed data from the same acquisition and preprocessing
 setup to inspect offline score traces. Then choose these settings together:
 
 ``hit_thr``
-   Score a template must meet or exceed.
+   Score a template must meet or exceed to be counted as a hit.
 
 ``nconsec_vols``
    Number of consecutive volumes that must meet the threshold. Configure it in

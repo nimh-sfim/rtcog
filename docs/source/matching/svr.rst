@@ -12,19 +12,30 @@ See :doc:`/matching` for the settings shared by all matching methods, including
 Workflow summary
 ================
 
-1. Train the SVR models offline and create ``training_svr.pkl``.
-2. Review the offline training summaries and evaluate the scores on
-   representative data.
-3. Set ``match_method: svr`` and use ``training_svr.pkl`` as ``match_path`` for
+1. Run ``rtcog`` in Basic mode on a training rest run.
+2. Pass the processed training run to the offline command to train the SVR models
+   and create ``training_svr.pkl``.
+3. Review the offline training summaries and evaluate the scores to select a hit threshold.
+4. Set ``match_method: svr`` and use ``training_svr.pkl`` as ``match_path`` for
    the real-time run.
 
-1. Prepare the input offline
+1. Process a training run
+=========================
+
+First, run ``rtcog`` in Basic mode on a training rest run. Use the same
+acquisition setup, analysis mask, and preprocessing steps planned for the later
+ESAM run. The resulting ``<prefix>.pp_Final.nii`` file is the processed training
+run used by the offline SVR command. See :ref:`output-files` for details about
+this output.
+
+2. Prepare the input offline
 ============================
 
-The offline command requires processed training data, template maps, a template
-label file, and the analysis mask. The label file must contain one
-comma-separated list in template-volume order. See
-:ref:`template-label-file` for an example.
+The offline command requires the ``rtcog``-processed training run, template maps,
+a template label file, and the analysis mask. Pass the
+``<prefix>.pp_Final.nii`` file from the Basic-mode training run to ``--data``.
+The label file must contain one comma-separated list in template-volume order.
+See :ref:`template-label-file` for an example.
 
 The output directory must already exist. The value passed to ``--discard`` is
 the number of initial training volumes excluded from model fitting; ``100`` is
@@ -33,7 +44,7 @@ only an example.
 .. code:: bash
 
    python rtcog/matching/offline/svr.py \
-      --data path/to/training_data.nii \
+      --data path/to/training_run.pp_Final.nii \
       --templates_path path/to/templates.nii \
       --template_labels_path path/to/template_labels.txt \
       --mask path/to/mask.nii \
@@ -44,7 +55,7 @@ only an example.
 By default, Lasso regression generates the per-template training targets. Pass
 ``--no_lasso`` to use ordinary linear regression instead.
 
-2. Review the offline results
+3. Review the offline results
 =============================
 
 The command writes:
@@ -67,10 +78,10 @@ Review the summaries to confirm that the training data, labels, and template
 ordering are correct. Evaluate the trained models on representative processed
 data before choosing ``hit_thr``; SVR scores do not have a universal threshold.
 
-3. Configure the online run
+4. Configure the online run
 ===========================
 
-Add the following values to the complete ESAM run configuration. All displayed
+Add the following values to the complete ESAM run YAML file. All displayed
 numbers are examples and may be changed:
 
 .. code:: yaml
@@ -88,7 +99,7 @@ The mask used for the online run must preserve the voxel count and ordering used
 to prepare the SVR models. Start the run using the complete command described in
 :doc:`/usage`.
 
-4. Check the online results
+5. Check the online results
 ===========================
 
 The real-time run writes the common ESAM score, hit, action, and report files
