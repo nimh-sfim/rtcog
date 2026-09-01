@@ -20,36 +20,36 @@ the following:
 
 During initialization, your matcher must:
 
-- Set ``self.template_labels``: List of template labels used for scoring.
-- Set ``self.Ntemplates``: Number of templates.
-- Call ``self.setup_shared_memory()`` to initialize shared memory
-  buffers.
-- Call ``self.mp_shm_ready.set()`` once your matcher is fully
-  initialized. This allows for integration with the streaming process.
+- Load and validate any method-specific templates or models.
+- Call ``self.configure_templates(template_labels)`` exactly once after the
+  inputs are ready.
 
-If needed, you can load any templates or models it needs from a filepath.
-Add ``--match_path <filepath>`` when running `rtcog`.
+``configure_templates`` stores the labels and template count, creates the local
+and shared score arrays, and signals that shared memory is ready. Custom
+matchers should not perform those steps individually.
+
+If needed, load templates or models from a file path. Add
+``--match_path <filepath>`` when running ``rtcog``.
 
 
 Example:
 
-.. code:: python
+.. code-block:: python
+
+   import numpy as np
+
+   from rtcog.matching.matcher import Matcher
 
    class CustomMatcher(Matcher):
        def __init__(self, match_opts, Nt, sync, match_path):
-        super().__init__(match_opts, Nt, sync, match_path)
-           
-           self.input = load_custom_model(match_path)  # Load your templates/model
-           self.template_labels = list(self.input["labels"])
-           self.Ntemplates = len(self.template_labels)
-           
-           self.setup_shared_memory()
-           self.mp_shm_ready.set()
+           super().__init__(match_opts, Nt, sync, match_path)
 
-        def _match(self, tr_data):
-            # Implement your matching logic here
-            scores = compute_custom_scores(self.input, tr_data)
-            return scores  
+           self.input = load_custom_model(match_path)  # Load your templates/model
+           self.configure_templates(self.input["labels"])
+
+       def _match(self, tr_data):
+           scores = compute_custom_scores(self.input, tr_data)
+           return np.asarray(scores)
 
 **Naming convention**: Class names ending with “Matcher” are registered
 using the lowercase prefix (e.g., ``CustomMatcher`` → ``"custom"``). If
