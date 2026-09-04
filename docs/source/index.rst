@@ -8,7 +8,6 @@ Documentation for rtcog: real-time fMRI monitoring of brain activity and cogniti
 
    overview
    installation
-   scan_session
    usage
    options
    startup_afni
@@ -16,4 +15,5 @@ Documentation for rtcog: real-time fMRI monitoring of brain activity and cogniti
    customize
    transcribe
    simulation
+   scan_session
    API <modules>
