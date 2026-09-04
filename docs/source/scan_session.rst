@@ -1,10 +1,10 @@
+Scanning-session notes
+======================
+
 .. warning::
 
    These notes have not been updated since the old version of this software
    and may be out of date.
-
-Scanning-session notes
-===============================
 
 The remaining content is retained as project history and may refer to files,
 hardware, or paths that are not distributed with this repository.
