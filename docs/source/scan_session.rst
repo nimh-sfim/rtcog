@@ -9,6 +9,9 @@ Scanning-session notes
 The remaining content is retained as project history and may refer to files,
 hardware, or paths that are not distributed with this repository.
 
+A typical scanning session
+--------------------------
+
 |image1|
 
 Before subjects enter the scanner, the experimenter would provide
@@ -82,12 +85,12 @@ OUTPUTS:
 --------------
 
 Overview of what the Software does
-==================================
+----------------------------------
 
 |image2| \**\*
 
 Targeted CAPs
-=============
+-------------
 
 In July 2019, Xiao Liu (former post-doctoral fellow at Jeff Dyun group)
 was kind to share with me the CAPs template assocuated with his
@@ -101,7 +104,7 @@ subset of the CAPs (see figure below)
 --------------
 
 Experimental Hardware Setup
-===========================
+---------------------------
 
 Three different computers are involved in this experimental setup:
 
@@ -179,7 +182,7 @@ required:
 --------------
 
 Experimental Software Setup
-===========================
+---------------------------
 
 1. Setup the correct AFNI Realtime Plugin
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
