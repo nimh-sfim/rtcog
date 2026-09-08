@@ -109,21 +109,22 @@ class Matcher:
     def configure_templates(self, template_labels):
         """Finalize matcher setup after a subclass loads its scoring inputs.
 
+        Subclasses call this exactly once after all method-specific inputs have
+        been loaded and checked. This records the template labels, prepares the
+        arrays that store match scores, and tells the live display when those
+        arrays are ready to read.
+
         Parameters
         ----------
         template_labels : sequence of str
             Labels corresponding, in order, to the scores returned by
             :meth:`_match`.
-
-        Notes
-        -----
-        Subclasses call this exactly once after all method-specific inputs have
-        been loaded and validated. The base class owns score allocation, shared
-        memory setup, and the readiness signal.
         """
+        # A matcher should be configured only once for a given set of templates
         if self.Ntemplates is not None:
             raise RuntimeError("Matcher templates have already been configured.")
 
+        # Keep the labels in the same order as the scores returned by _match()
         labels = list(template_labels)
         if not labels:
             self.mp_end.set()
@@ -131,8 +132,11 @@ class Matcher:
 
         self.template_labels = labels
         self.Ntemplates = len(labels)
+
+        # Store the score for every template at every time point in the run
         self.scores = np.zeros((self.Ntemplates, self.Nt))
 
+        # Create the score array that is shared with the live display
         try:
             self.setup_shared_memory()
         except Exception:
@@ -141,6 +145,8 @@ class Matcher:
             raise
 
         log.info(f'List of templates to be tested: {self.template_labels}')
+
+        # The live display may begin reading scores after setup is complete
         self.mp_shm_ready.set()
 
     def match(self, t, n, tr_data):
@@ -176,8 +182,9 @@ class Matcher:
                 f"scores, expected {self.Ntemplates}"
             )
 
+        # Save the scores locally and update the copy read by the live display
         self.scores[:, t] = this_t_scores
-        self.shared_arr[:, t] = this_t_scores
+        self.shared_scores[:, t] = this_t_scores
         self.mp_new_tr.set()
         log.debug(f'[t={t},n={n}] Online - Matching - scores.shape   {self.scores.shape}')
 
@@ -195,8 +202,14 @@ class Matcher:
         base_arr = np.zeros((self.Ntemplates, self.Nt), dtype=np.float32)
         self.shm_manager = SharedMemoryManager("match_scores", create=True, size=base_arr.nbytes)
         self.shm = self.shm_manager.open()
-        self.shared_arr = np.ndarray(base_arr.shape, dtype=base_arr.dtype, buffer=self.shm.buf)
-        self.shared_arr.fill(0)
+        self.shared_scores = np.ndarray(
+            base_arr.shape,
+            dtype=base_arr.dtype,
+            buffer=self.shm.buf,
+        )
+
+        # Start every template and time point at zero until a score is written
+        self.shared_scores.fill(0)
         
     def cleanup_shared_memory(self):
         """
@@ -205,6 +218,8 @@ class Matcher:
         manager = getattr(self, 'shm_manager', None)
         if manager is not None:
             manager.cleanup()
+
+            # Clearing these references also makes repeated cleanup safe
             self.shm_manager = None
             self.shm = None
     
