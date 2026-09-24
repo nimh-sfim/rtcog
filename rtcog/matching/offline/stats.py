@@ -41,6 +41,12 @@ def _safe_pearson(x, y):
 def pairwise_template_stats(labels, templates, masks=None):
     templates = _template_matrix(templates)
     masks = _mask_matrix(masks, templates)
+    if masks.shape != templates.shape:
+        raise ValueError("masks and templates must have the same shape")
+
+    # Correlate the maps that are actually used by the matcher: retain the
+    # selected template weights and represent every excluded voxel as zero.
+    thresholded_templates = np.where(masks, templates, 0.0)
 
     rows = []
     for i in range(len(labels)):
@@ -54,7 +60,10 @@ def pairwise_template_stats(labels, templates, masks=None):
                 "template_a": str(labels[i]),
                 "template_b": str(labels[j]),
                 "overlap_voxels": selected_intersection,
-                "spatial_pearson_r": _safe_pearson(templates[i], templates[j]),
+                "spatial_pearson_r": _safe_pearson(
+                    thresholded_templates[i],
+                    thresholded_templates[j],
+                ),
             })
     return pd.DataFrame(rows)
 

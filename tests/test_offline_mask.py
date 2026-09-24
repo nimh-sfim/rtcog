@@ -143,6 +143,41 @@ def test_offline_mask_writes_expected_traces_and_template_data(tmp_path):
     }
 
 
+def test_offline_mask_template_correlation_uses_thresholded_maps():
+    offline_mask = OfflineMask.__new__(OfflineMask)
+    offline_mask.template_labels = ["left", "right"]
+    offline_mask.templates_masked = [
+        np.array([4.0, 2.0, 1.0, 1.0]),
+        np.array([1.0, 3.0, 2.0, 1.0]),
+    ]
+    offline_mask.mask_vectors = {
+        "left": np.array([True, True, False, False]),
+        "right": np.array([False, True, True, False]),
+    }
+    offline_mask.act_traces = {
+        "left": np.array([1.0, 2.0]),
+        "right": np.array([1.0, 2.0]),
+    }
+    offline_mask.nvols_discard = 0
+
+    pairwise = offline_mask.build_stats_tables()[
+        "template_pairwise_stats"
+    ].iloc[0]
+    thresholded_left = np.array([4.0, 2.0, 0.0, 0.0])
+    thresholded_right = np.array([0.0, 3.0, 2.0, 0.0])
+
+    assert pairwise["overlap_voxels"] == 1
+    assert pairwise["spatial_pearson_r"] == pytest.approx(
+        np.corrcoef(thresholded_left, thresholded_right)[0, 1]
+    )
+    assert pairwise["spatial_pearson_r"] != pytest.approx(
+        np.corrcoef(
+            offline_mask.templates_masked[0],
+            offline_mask.templates_masked[1],
+        )[0, 1]
+    )
+
+
 def test_offline_mask_rejects_wrong_number_of_template_labels(tmp_path):
     mask_path = tmp_path / "mask.nii"
     templates_path = tmp_path / "templates.nii"
