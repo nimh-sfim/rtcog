@@ -1,8 +1,13 @@
-import sys
 import pickle
 import numpy as np
 
 from rtcog.matching.matching_opts import MatchingOpts
+from rtcog.matching.matching_utils import (
+    nmi_bin_data,
+    nmi_from_bins,
+    nmi_n_bins,
+    pearson_correlations,
+)
 from rtcog.utils.log import get_logger
 from rtcog.utils.shared_memory_manager import SharedMemoryManager
 from rtcog.utils.sync import SyncEvents
@@ -10,7 +15,6 @@ from rtcog.utils.sync import SyncEvents
 log = get_logger()
 
 
-# TODO: accept SyncEvents instead of individual mp events
 class Matcher:
     """
     Base class for matching processed TR data to given templates.
@@ -36,6 +40,20 @@ class Matcher:
     mp_shm_ready : multiprocessing.Event
         Event indicating shared memory is ready.
 
+    Methods
+    -------
+    from_name(name)
+        Factory method to instantiate a matcher by name.
+    match(t, n, tr_data)
+        Compute similarity scores for a TR and update shared memory.
+    configure_templates(template_labels)
+        Configure score storage and shared memory after subclass inputs load.
+    setup_shared_memory()
+        Initialize shared memory for score storage.
+    cleanup_shared_memory()
+        Clean up shared memory resources.
+    _match(tr_data)
+        Abstract method for computing match scores (implemented by subclasses).
     """
 
     registry = {} # Holds all available matching classes
@@ -59,6 +77,7 @@ class Matcher:
         self.Nt = Nt
         self.scores = None
         self.Ntemplates = None
+        self.template_labels = None
         
         self.mp_end = sync.end
         self.mp_new_tr = sync.new_tr
@@ -85,6 +104,49 @@ class Matcher:
             raise ValueError(f'Unknown matching method: {name}')
         return cls.registry[name]
 
+    def configure_templates(self, template_labels):
+        """Finalize matcher setup after a subclass loads its scoring inputs.
+
+        Subclasses call this exactly once after all method-specific inputs have
+        been loaded and checked. This records the template labels, prepares the
+        arrays that store match scores, and tells the live display when those
+        arrays are ready to read.
+
+        Parameters
+        ----------
+        template_labels : sequence of str
+            Labels corresponding, in order, to the scores returned by
+            :meth:`_match`.
+        """
+        # A matcher should be configured only once for a given set of templates
+        if self.Ntemplates is not None:
+            raise RuntimeError("Matcher templates have already been configured.")
+
+        # Keep the labels in the same order as the scores returned by _match()
+        labels = list(template_labels)
+        if not labels:
+            self.mp_end.set()
+            raise ValueError("A matcher requires at least one template label.")
+
+        self.template_labels = labels
+        self.Ntemplates = len(labels)
+
+        # Store the score for every template at every time point in the run
+        self.scores = np.zeros((self.Ntemplates, self.Nt))
+
+        # Create the score array that is shared with the live display
+        try:
+            self.setup_shared_memory()
+        except Exception:
+            self.mp_end.set()
+            self.cleanup_shared_memory()
+            raise
+
+        log.info(f'List of templates to be tested: {self.template_labels}')
+
+        # The live display may begin reading scores after setup is complete
+        self.mp_shm_ready.set()
+
     def match(self, t, n, tr_data):
         """
         Compute similarity scores for a TR and update shared memory.
@@ -103,10 +165,10 @@ class Matcher:
         np.ndarray
             Updated scores array.
         """
-        if self.scores is None:
-            self.scores = np.zeros((self.Ntemplates, self.Nt))
-        
-        this_t_scores = self._match(tr_data)
+        if self.Ntemplates is None:
+            raise RuntimeError("Matcher templates have not been configured.")
+
+        this_t_scores = np.asarray(self._match(tr_data))
         if this_t_scores.ndim != 1:
             raise ValueError(
                 f"{self.__class__.__name__}._match() must return 1D array; "
@@ -118,8 +180,9 @@ class Matcher:
                 f"scores, expected {self.Ntemplates}"
             )
 
+        # Save the scores locally and update the copy read by the live display
         self.scores[:, t] = this_t_scores
-        self.shared_arr[:, t] = this_t_scores
+        self.shared_scores[:, t] = this_t_scores
         self.mp_new_tr.set()
         log.debug(f'[t={t},n={n}] Online - Matching - scores.shape   {self.scores.shape}')
 
@@ -137,16 +200,26 @@ class Matcher:
         base_arr = np.zeros((self.Ntemplates, self.Nt), dtype=np.float32)
         self.shm_manager = SharedMemoryManager("match_scores", create=True, size=base_arr.nbytes)
         self.shm = self.shm_manager.open()
-        self.shared_arr = np.ndarray(base_arr.shape, dtype=base_arr.dtype, buffer=self.shm.buf)
+        self.shared_scores = np.ndarray(
+            base_arr.shape,
+            dtype=base_arr.dtype,
+            buffer=self.shm.buf,
+        )
+
+        # Start every template and time point at zero until a score is written
+        self.shared_scores.fill(0)
         
     def cleanup_shared_memory(self):
         """
         Clean up shared memory resources.
         """
-        if hasattr(self, 'shm_manager'):
-            self.shm_manager.cleanup()
-        if hasattr(self, 'shm_manager'):
-            self.shm_manager.cleanup()
+        manager = getattr(self, 'shm_manager', None)
+        if manager is not None:
+            manager.cleanup()
+
+            # Clearing these references also makes repeated cleanup safe
+            self.shm_manager = None
+            self.shm = None
     
     def _match(self, tr_data):
         """
@@ -186,12 +259,7 @@ class SVRMatcher(Matcher):
             self.mp_end.set()
             raise RuntimeError(f'Unable to open SVR model pickle file: {e}')
 
-        self.Ntemplates = len(self.input.keys())
-        self.template_labels = list(self.input.keys())
-        log.info(f'List of templates to be tested: {self.template_labels}')
-        
-        self.setup_shared_memory()
-        self.mp_shm_ready.set()
+        self.configure_templates(self.input.keys())
     
     def _match(self, tr_data):
         out = []
@@ -218,16 +286,11 @@ class MaskMatcher(Matcher):
             self.mp_end.set()
             raise RuntimeError(f'Error loading mask method file: {e}')
         
-        self.template_labels = list(self.input["labels"])
-        self.Ntemplates = len(self.template_labels)
-        log.info(f'List of templates to be tested: {self.template_labels}')
-        
         self.masked_templates = self.input["masked_templates"].item()
         self.masks = self.input["masks"].item()
         self.voxel_counts = self.input["voxel_counts"].item()
 
-        self.setup_shared_memory()
-        self.mp_shm_ready.set()
+        self.configure_templates(self.input["labels"])
     
     def _match(self, tr_data):
         out = []
@@ -240,3 +303,173 @@ class MaskMatcher(Matcher):
 
         return np.array(out)
         
+class PearsonMatcher(Matcher):
+    """Match TRs to template maps using spatial Pearson correlation."""
+
+    def __init__(self, match_opts, Nt, sync, match_path):
+        super().__init__(match_opts, Nt, sync, match_path)
+
+        if match_path is None:
+            self.mp_end.set()
+            raise ValueError('Pearson template data not provided.')
+
+        try:
+            self.input = np.load(match_path, allow_pickle=True)
+        except Exception as e:
+            self.mp_end.set()
+            raise RuntimeError(f'Error loading Pearson template file: {e}')
+
+        if "labels" not in self.input or "templates" not in self.input:
+            self.mp_end.set()
+            raise ValueError('Pearson template file must contain "labels" and "templates".')
+
+        template_labels = list(self.input["labels"])
+        templates = np.asarray(self.input["templates"], dtype=np.float32)
+        if templates.ndim != 2 or templates.shape[0] != len(template_labels):
+            self.mp_end.set()
+            raise ValueError(
+                f'Pearson templates must have shape (n_templates, n_voxels); '
+                f'got {templates.shape} for {len(template_labels)} labels.'
+            )
+
+        self.Nvoxels = templates.shape[1]
+        self.template_centered = templates - templates.mean(axis=1, keepdims=True)
+        self.template_norms = np.linalg.norm(self.template_centered, axis=1)
+
+        self.configure_templates(template_labels)
+
+    def _match(self, tr_data):
+        """Return the spatial Pearson correlation with each template."""
+        data = np.squeeze(tr_data).astype(np.float32).ravel()
+        if data.size != self.Nvoxels:
+            raise ValueError(
+                f'Pearson matcher expected {self.Nvoxels} voxels, got {data.size}'
+            )
+
+        return pearson_correlations(
+            data,
+            self.template_centered,
+            self.template_norms,
+        )
+
+
+class NMIMatcher(Matcher):
+    """
+    Match TRs to templates using signed normalized mutual information.
+
+    This matcher scores TRs with binned normalized mutual information inspired
+    by gRAICAR (https://github.com/yangzhi-psy/gRAICAR). We also include the raw
+    templates so Pearson correlation can supply the score sign. High NMI with
+    negative correlation is reported as a negative score.
+
+    Parameters
+    ----------
+    match_opts : MatchingOpts
+        Runtime matching options.
+    Nt : int
+        Total number of time points.
+    sync : SyncEvents
+        Synchronization events shared with the processor.
+    match_path : str
+        Path to an ``.npz`` file containing ``labels`` and raw ``templates``.
+        Templates must have shape ``(n_templates, n_voxels)``. ``template_bins``
+        and ``n_bins`` may also be supplied as precomputed cache values.
+    """
+    def __init__(self, match_opts, Nt, sync, match_path):
+        super().__init__(match_opts, Nt, sync, match_path)
+
+        if match_path is None:
+            self.mp_end.set()
+            raise ValueError('NMI template data not provided.')
+
+        try:
+            self.input = np.load(match_path, allow_pickle=True)
+        except Exception as e:
+            self.mp_end.set()
+            raise RuntimeError(f'Error loading NMI template file: {e}')
+
+        template_labels = list(self.input["labels"])
+
+        if "templates" not in self.input:
+            self.mp_end.set()
+            raise ValueError('NMI template file must contain raw "templates" for signed-correlation scoring.')
+
+        templates = np.asarray(self.input["templates"], dtype=np.float32)
+        if templates.ndim != 2 or templates.shape[0] != len(template_labels):
+            self.mp_end.set()
+            raise ValueError(
+                f'NMI templates must have shape (n_templates, n_voxels); '
+                f'got {templates.shape} for {len(template_labels)} labels.'
+            )
+
+        self.templates = templates
+        self.Nvoxels = self.templates.shape[1]
+        self.n_bins = int(np.asarray(self.input["n_bins"]).item()) if "n_bins" in self.input else nmi_n_bins(self.Nvoxels)
+
+        if "template_bins" in self.input:
+            template_bins = np.asarray(self.input["template_bins"])
+            if template_bins.shape != self.templates.shape:
+                self.mp_end.set()
+                raise ValueError(
+                    f'NMI template_bins shape {template_bins.shape} does not match '
+                    f'templates shape {self.templates.shape}.'
+                )
+            self.template_bins = template_bins.astype(np.int16)
+        else:
+            self.template_bins = np.vstack([
+                nmi_bin_data(template, self.n_bins) for template in self.templates
+            ])
+
+        self.template_centered = self.templates - self.templates.mean(axis=1, keepdims=True)
+        self.template_norms = np.linalg.norm(self.template_centered, axis=1)
+
+        self.configure_templates(template_labels)
+
+    def _match(self, tr_data):
+        """
+        Compute MI scores for one processed TR.
+        
+        Because NMI can be high for inverted maps, Pearson correlation supplies
+        the sign of the binned NMI score.
+
+        Parameters
+        ----------
+        tr_data : array_like
+            Processed TR data vector in mask space.
+
+        Returns
+        -------
+        np.ndarray
+            One score per template. Scores are ``sign(correlation) * (NMI - 1)``.
+            Zero or non-finite correlations receive a score of zero.
+
+        Raises
+        ------
+        ValueError
+            If ``tr_data`` does not contain the expected number of voxels.
+        """
+        data = np.squeeze(tr_data).astype(np.float32).ravel()
+        if data.size != self.Nvoxels:
+            raise ValueError(
+                f'NMI matcher expected {self.Nvoxels} voxels, got {data.size}'
+            )
+
+        correlations = pearson_correlations(
+            data,
+            self.template_centered,
+            self.template_norms,
+        )
+
+        valid = np.isfinite(correlations) & (correlations != 0)
+        if not np.any(valid):
+            return np.zeros(self.Ntemplates, dtype=np.float32)
+
+        # Perform gRAICAR-style binned NMI
+        data_bins = nmi_bin_data(data, self.n_bins)
+        scores = np.zeros(self.Ntemplates, dtype=np.float32)
+        for idx in np.flatnonzero(valid):
+            score = nmi_from_bins(data_bins, self.template_bins[idx], self.n_bins) - 1
+            strength = max(score, 0)
+            scores[idx] = strength if correlations[idx] > 0 else -strength
+
+        return scores

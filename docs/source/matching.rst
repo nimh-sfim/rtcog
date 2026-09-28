@@ -2,130 +2,206 @@
 Matching methods
 ################
 
-``rtcog`` supports two built-in spatial matching methods for ESAM mode. Each
-method follows the same overall workflow:
+``rtcog`` supports four built-in spatial matching methods for ESAM mode. Select
+the method in the ``matching`` section of your YAML config with ``match_method``.
 
-1. Run ``rtcog`` in Basic mode with a training rest run.
-2. Run the method's offline command, passing the ``rtcog``-processed training run, to prepare its input file and generate evaluation results.
-3. Review the offline results and choose an appropriate hit threshold.
-4. Supply the prepared file as ``match_path`` and select the method with
-   ``match_method`` in the run configuration.
+All four matchers require an input file, which is created offline
+(detailed instruction below).
 
-The method-specific pages below separate the offline preparation and online run
-instructions. To implement a new method, see :doc:`custom_matcher`.
+To implement a new matching method, see :doc:`custom_matcher`.
 
-Choose a method
-===============
-
-.. list-table::
-   :header-rows: 1
-   :widths: 15 40 45
-
-   * - Method
-     - Score
-     - Prepared online input
-   * - :doc:`SVR <matching/svr>`
-     - Prediction from one trained linear SVR per template.
-     - Pickled model dictionary created by ``offline/svr.py``.
-   * - :doc:`Mask <matching/mask>`
-     - Average activity in weighted template masks.
-     - Template-data ``.npz`` created by ``offline/mask.py``.
-
-Method workflows
+Built-in methods
 ================
 
-.. toctree::
-   :maxdepth: 1
+``svr``
+   Uses a pretrained support vector regression model. Prepare the model with
+   ``rtcog/matching/offline/svr.py`` and pass the resulting pickle file with
+   ``--match_path``.
 
-   matching/svr
-   matching/mask
+``mask``
+   Uses template masks and average masked activity. Prepare the template file
+   with ``rtcog/matching/offline/mask.py`` and pass the resulting ``.npz`` file
+   with ``--match_path``.
 
-.. _template-label-file:
+``pearson``
+   Uses plain spatial Pearson correlation between each template map and the
+   processed TR. Prepare its template file with
+   ``rtcog/matching/offline/pearson.py`` and pass the resulting ``.npz`` file
+   with ``--match_path``.
 
-Create the template label file
-==============================
+``nmi``
+   Uses signed normalized mutual information against template maps.
+   Prepare the template file with ``rtcog/matching/offline/nmi.py`` and pass the
+   resulting ``.npz`` file with ``--match_path``.
 
-The offline commands use ``--template_labels_path`` to associate a readable
-name with each template. Both SVR and mask preparation require this file.
+Pearson matching
+================
 
-The file contains one comma-separated line with no header. For example, a
-``template_labels.txt`` file for three template volumes could contain:
+The Pearson matcher reports one correlation coefficient in the range
+``[-1, 1]`` for each template. Constant templates, constant TRs, and non-finite
+correlations receive a score of zero.
+
+Prepare the Pearson input and optionally evaluate representative processed data
+in one command:
+
+.. code:: bash
+
+   python rtcog/matching/offline/pearson.py \
+      --data path/to/training_data.nii \
+      --templates_path path/to/templates.nii \
+      --mask path/to/mask.nii \
+      --template_labels_path path/to/template_labels.txt \
+      --discard 100 \
+      --out_dir ./existing_output_directory \
+      --prefix prefix
+
+The output directory must already exist. Omit ``--data`` when you only want to
+prepare the online template file. Template labels are optional; when supplied,
+the file contains one comma-separated line in template-volume order, with no
+header. For example:
 
 .. code:: text
 
    dmn,visual,somatosensory
 
-The first label names the first template volume, the second label names the
-second volume, and so on. The number and order of labels should match the
-template volumes in ``templates_path``.
+The command always writes ``prefix.pearson_templates.npz``. This is the file to
+use as ``match_path``. When ``--data`` is supplied, the same command also writes:
 
-Configure volume timing
-=======================
+``prefix.pearson_scores.npy``
+   Pearson scores with shape ``(n_templates, n_timepoints)``.
 
-The volume numbers shown in the method guides are examples, not fixed values.
-Configure the timing of the real-time run in your YAML file:
+``prefix.pearson_score_traces.npz``
+   The same scores stored by template label.
+
+``prefix.pearson_scores.png``
+   A quick-look plot for reviewing the score traces and choosing ``hit_thr``.
+
+Configure the run with:
 
 .. code:: yaml
 
-   discard: 10
+   matching:
+     match_method: pearson
+
+Then pass ``prefix.pearson_templates.npz`` to ``rtcog``:
+
+.. code:: bash
+
+   rtcog \
+      --exp_type esam \
+      --match_path path/to/prefix.pearson_templates.npz \
+      --hit_thr your_threshold
+
+NMI matching
+============
+
+The NMI matcher can use any template-map file that can be masked into the same
+voxel space as incoming processed TRs.
+
+Input shape determines how templates are read:
+
+- A 3D image is treated as one template.
+- A 4D image is treated as multiple templates, with one template per volume in
+  file order.
+
+Convert the template maps into an ``rtcog`` template file *before* the real-time
+run. If you also provide processed training data with ``--data``, the command
+scores that run offline with the same signed-NMI calculation used online:
+
+.. code:: bash
+
+   python rtcog/matching/offline/nmi.py \
+      --data path/to/training_data.nii \
+      --templates_path path/to/templates.nii \
+      --mask path/to/mask.nii \
+      --template_labels_path path/to/template_labels.txt \
+      --discard 100 \
+      --out_dir ./output_directory \
+      --prefix prefix
+
+Omit ``--data`` when you only want to prepare the template file and template
+statistics.
+
+Template labels are optional:
+
+- If ``--template_labels_path`` is omitted, labels default to ``T01``, ``T02``,
+  and so on.
+- If labels are provided for a 4D image, they should be comma-separated and in
+  the same order as the volumes in the template file.
+
+The output ``prefix.nmi_templates.npz`` contains:
+
+``labels``
+   Template labels in template-map order.
+
+``templates``
+   Raw masked templates with shape ``(n_templates, n_voxels)``. These are
+   required to assign the Pearson-correlation sign.
+
+``template_bins``
+   Precomputed binned templates used for the NMI score.
+
+``n_bins``
+   Number of bins used for all templates.
+
+The offline command also writes a CSV sidecar with pairwise template statistics:
+overlap voxels and spatial Pearson correlation. If ``--data`` is omitted,
+spatial correlations are shown as a heatmap in a
+``prefix.nmi_template_stats.html`` report. For continuous templates,
+selected-mask overlap is based on nonzero voxels, so spatial correlation is
+usually the more informative statistic.
+
+When ``--data`` is provided, the offline command also writes:
+
+``prefix.nmi_scores.npy``
+   Signed NMI scores with shape ``(n_templates, n_timepoints)``.
+
+``prefix.nmi_raw_scores.npy``
+   Unsigned raw ``NMI - 1`` scores before applying the Pearson-correlation sign.
+
+``prefix.nmi_correlations.npy``
+   Pearson correlations used to assign the sign of each NMI score.
+
+``prefix.nmi_score_traces.npz``
+   Label-keyed signed NMI traces.
+
+``prefix.nmi_scores.png`` and ``prefix.nmi_scores.html``
+   Static and interactive score summaries. The HTML report includes spatial
+   template-correlation and temporal score-trace correlation heatmaps.
+
+``prefix.nmi_score_pairwise_stats.csv``
+   Pairwise Pearson correlations for the signed NMI score traces after
+   discarded volumes.
+
+At run time, each processed TR is compared with each template in two steps:
+
+1. The matcher computes Pearson correlation between the raw template and the
+   processed TR. The correlation supplies the sign of the NMI score.
+
+   - Mutual information can be high for inverted patterns, so Pearson
+     correlation is used to preserve whether a high-NMI pattern is template-like
+     or inverted.
+
+2. Templates are scored with binned normalized mutual information. The reported
+   score is ``sign(correlation) * max(NMI - 1, 0)``. Zero or non-finite
+   correlations receive a score of zero.
+
+   - Positive ``hit_thr`` values only trigger positive template-like matches;
+     negative scores remain available for interpreting inverted high-NMI
+     patterns.
+
+Configure the run with:
+
+.. code:: yaml
 
    matching:
-     match_method: svr
-     match_start: 100
-     vols_noaction: 45
+     match_method: nmi
 
-``discard``
-   Number of volumes at the beginning of the run that are received and stored
-   but excluded from preprocessing. This is a YAML setting and can
-   also be overridden on the CLI with ``--discard``.
+Then pass the template file to ``rtcog``:
 
-``match_start``
-   Zero-based volume number at which real-time matching begins. Set it to a
-   value greater than or equal to ``discard`` so matching does not begin during
-   the discarded volumes. Configure it in the YAML ``matching`` section.
+.. code:: bash
 
-
-``vols_noaction``
-   Number of volumes to wait after an action ends before another hit can start
-   a new action (a cooldown period). Configure it in the YAML ``matching`` section.
-
-Choose these values for the timing and design of your experiment. The example
-values ``10``, ``100``, and ``45`` may all be changed.
-
-Offline ``--discard`` is separate
----------------------------------
-
-The offline preparation commands for SVR and mask matching also accept a
-``--discard`` option. It controls how many initial volumes of the training data
-are excluded from offline fitting or scoring; it does not set ``discard`` for
-the later real-time run. The ``--discard 100`` values in the method guides are
-examples and may be changed for your training data.
-
-Choose a hit threshold
-======================
-
-SVR and mask scores have method- and dataset-specific distributions. There is
-no threshold that works for every method or dataset.
-
-Use representative processed data from the same acquisition and preprocessing
-setup to inspect offline score traces. Then choose these settings together:
-
-``hit_thr``
-   Score a template must meet or exceed to be counted as a hit.
-
-``nconsec_vols``
-   Number of consecutive volumes that must meet the threshold. Configure it in
-   the YAML ``hits`` section.
-
-``nonline``
-   Maximum number of templates that may meet the threshold simultaneously.
-   Configure it in the YAML ``hits`` section.
-
-Keep the voxel space consistent
-===============================
-
-The online mask and SVR inputs must be prepared with the same analysis mask and
-voxel ordering used by the real-time run.
-
-See :doc:`usage` for a complete ESAM run command and :ref:`output-files` for
-the files written during a real-time run.
+   rtcog \
+      --exp_type esam \
+      --match_path path/to/prefix.nmi_templates.npz \
+      --hit_thr your_threshold

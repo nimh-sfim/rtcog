@@ -30,6 +30,15 @@ def test_save_config(mock_dump, mock_file):
     mock_dump.assert_called_once()
 
 
+@patch('builtins.open', new_callable=mock_open)
+def test_save_command(mock_file):
+    config = {'exp_type': 'basic', 'nvols': 100, 'out_dir': '/tmp', 'out_prefix': 'test'}
+    options = Options(config)
+    options.save_command(["rtcog", "--config", "my config.yaml", "--out_prefix", "test"])
+    mock_file.assert_called_once_with('/tmp/test_command.txt', 'w')
+    mock_file().write.assert_called_once_with("rtcog --config 'my config.yaml' --out_prefix test\n")
+
+
 def test_from_yaml():
     path = osp.join(CONFIG_DIR, 'default_config.yaml')
     opts = Options.from_yaml(path)
@@ -308,6 +317,61 @@ def test_esam_missing_required_args(tmp_path, capsys):
     err = capsys.readouterr().err
     assert "The following arguments are required:" in err
     assert "--hit_thr" in err
+    assert "--match_path" in err
+
+
+def test_esam_nmi_requires_match_path(tmp_path, capsys):
+    config = tmp_path / "config.yaml"
+    config.write_text("""
+        exp_type: esam
+        matching:
+           match_method: nmi
+        """)
+
+    mask = tmp_path / "mask.nii"
+    mask.touch()
+
+    with pytest.raises(SystemExit):
+        Options.parse_cli_args(
+            [
+                "--config", str(config),
+                "--mask", str(mask),
+                "--nvols", "100",
+                "--out_dir", "/tmp",
+                "--out_prefix", "test",
+                "--hit_thr", "0.5"
+            ]
+        )
+
+    err = capsys.readouterr().err
+    assert "The following arguments are required:" in err
+    assert "--match_path" in err
+
+
+def test_esam_pearson_requires_match_path(tmp_path, capsys):
+    config = tmp_path / "config.yaml"
+    config.write_text("""
+        exp_type: esam
+        matching:
+           match_method: pearson
+        """)
+
+    mask = tmp_path / "mask.nii"
+    mask.touch()
+
+    with pytest.raises(SystemExit):
+        Options.parse_cli_args(
+            [
+                "--config", str(config),
+                "--mask", str(mask),
+                "--nvols", "100",
+                "--out_dir", "/tmp",
+                "--out_prefix", "test",
+                "--hit_thr", "0.5"
+            ]
+        )
+
+    err = capsys.readouterr().err
     assert "--match_path" in err
 
 

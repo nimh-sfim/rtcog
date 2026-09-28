@@ -1,8 +1,6 @@
 import logging
 import os.path as osp
 import sys
-from scipy.stats import zscore
-import argparse
 
 log     = logging.getLogger("trainSVRs")
 log_fmt = logging.Formatter('[%(levelname)s - Main]: %(message)s')
@@ -18,20 +16,20 @@ from tqdm import tqdm
 tqdm().pandas()
 
 from rtcog.matching.offline.svr_training import SVRtrainer
-from rtcog.utils.core import file_exists
+from rtcog.matching.offline.template_utils import spatial_template_parser
 # -------------------------------------------------------------------------------------
 
 def processProgramOptions (self, options=None):
-    parser = argparse.ArgumentParser(description="Train SVRs for spatial template matching")
-    parser_inopts = parser.add_argument_group('Input Options','Inputs to this program')
-    parser_inopts.add_argument("-d","--data", action="store", type=str, dest="data_path", default=None, help="path to training dataset [Default: %(default)s]", required=True)
-    parser_inopts.add_argument("-t", "--templates_path",       help="Path to templates file",     dest="templates_path", action="store", type=file_exists, default=None, required=True)
-    parser_inopts.add_argument("-l", "--template_labels_path",       help="Path to text file containing comma-separated template labels in order",     dest="template_labels_path", action="store", type=file_exists, default=None, required=True)
-    parser_inopts.add_argument("-m","--mask", action="store", type=str, dest="mask_path", default=None, help="path to mask [Default: %(default)s]", required=True)
-    parser_inopts.add_argument("--discard",   action="store", type=int, dest="nvols_discard",   default=100,  help="number of volumes [Default: %(default)s]")
-    parser_outopts = parser.add_argument_group('Output Options','Were to save results')
-    parser_outopts.add_argument("-o","--out_dir",  action="store", type=str, dest="outdir",  default='./', help="output directory [Default: %(default)s]")
-    parser_outopts.add_argument("-p","--prefix", action="store", type=str, dest="prefix", default="svr", help="prefix for output file [Default: %(default)s]")
+    parser, _, _ = spatial_template_parser(
+        "SVR",
+        "svr",
+        description="Train SVRs for spatial template matching",
+        data_required=True,
+        labels_required=True,
+        data_type=str,
+        mask_type=str,
+        out_dir_dest="outdir",
+    )
     parser_svropts = parser.add_argument_group('Training Options','Different Training Options')
     parser_svropts.add_argument("--no_lasso",          action="store_true", default=False, dest="no_lasso", help="Generate Labels with Linear Regression (No Lasso) [Default: %(default)s]")
     parser_svropts.add_argument("--lasso_alpha",       action="store",      type=float, default=0.75,  dest="lasso_alpha", help="Regularization constant for Lasso Step (Label Generation) [Default: %(default)s]")
@@ -55,10 +53,9 @@ def main():
     # 4) Generate Training labels via Linear Regression + Z-scoring
     if svr_trainer.do_lasso:
         log.info('4) Generating training labels (LASSO)...')
-        svr_trainer.generate_training_labels_lasso()
     else:
         log.info('4) Generating training labels (Linear Regression)...')
-        svr_trainer.generate_training_labels()
+    svr_trainer.generate_training_labels()
 
     # 5) Train the SVRs
     log.info('5) Training SVRs...')

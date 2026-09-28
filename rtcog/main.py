@@ -33,6 +33,7 @@ def main():
     # -------------------------------------------------
     opts = Options.from_cli()
     opts.save_config()
+    opts.save_command()
     
     print(opts)
 

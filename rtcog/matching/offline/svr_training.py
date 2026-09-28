@@ -17,7 +17,10 @@ import panel as pn
 from bokeh.palettes import Category10_7
 tqdm().pandas()
 
-from rtcog.utils.fMRI import load_fMRI_file, mask_fMRI_img
+from rtcog.matching.offline.template_utils import (
+    load_and_mask_image,
+    load_template_maps,
+)
 
 import logging
 log     = logging.getLogger("training")
@@ -72,31 +75,30 @@ class SVRtrainer(object):
         
         self.templates_path = opts.templates_path
         self.template_labels_path = opts.template_labels_path
-    
+
     def load_datasets(self):
-        try:
-            with open (self.template_labels_path, 'r') as f:
-                lines = f.read()
-                self.template_labels = [label.strip() for label in lines.strip().split(',')]
-        except FileNotFoundError:
-            log.error('Template labels file does not exist.')
-            sys.exit(-1)
-        except Exception as e:
-            log.error(e)
-            sys.exit(-1)
-
-        self.templates_img = load_fMRI_file(self.templates_path, verbose=True)
-        self.mask_img = load_fMRI_file(self.mask_path, verbose=True)
-        self.data_img = load_fMRI_file(self.data_path, verbose=True)
-
-        self.templates_masked = mask_fMRI_img(self.templates_img, self.mask_img)
+        (
+            self.templates_img,
+            self.mask_img,
+            self.templates_masked,
+            self.template_labels,
+        ) = load_template_maps(
+            self.templates_path,
+            self.mask_path,
+            self.template_labels_path,
+            verbose=True,
+        )
         # Now assuming we are using every template within a file.
         # self.templates_masked = self.templates_masked[:, self.templates_indexes]  # Select only templates of interest 
-        self.data_masked = mask_fMRI_img(self.data_img, self.mask_img)
+        self.data_img, _, self.data_masked = load_and_mask_image(
+            self.data_path,
+            mask_img=self.mask_img,
+            verbose=True,
+        )
         [self.data_nv, self.data_nt] = self.data_masked.shape
         log.debug('Masked templates Dimensions: %s' % str(self.templates_masked.shape))
         log.debug('Masked Data Dimensions: %s' % str(self.data_masked.shape))
-    
+
     def generate_training_labels(self):
         self.vols4training = np.arange(self.nvols_discard, self.data_nt)
         log.debug('[generate_training_labels] Number of volumes for training [%d]: [min=%d, max=%d] (Python)' % (self.vols4training.shape[0], np.min(self.vols4training), np.max(self.vols4training)))
@@ -150,7 +152,7 @@ class SVRtrainer(object):
             mySVR.fit(self.data_masked[:,self.vols4training].T,Training_Labels[self.vols4training])
             self.SVRs[template_lab] = mySVR
         return 1
-    
+
     def train_svrs_mp(self):
         num_cores = len(self.template_labels)
         pool = mp.Pool(num_cores)  # Create as many processes as SVRs need to be trained
@@ -237,4 +239,3 @@ class SVRtrainer(object):
         #renderer.save(LM_Layout, self.outhtml)
         log.info(' - save_results - Saved Label Computation Results (Dynamic View) to [%s.html]' % self.outhtml)
         return 1
-    

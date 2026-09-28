@@ -3,7 +3,7 @@ import numpy as np
 import pytest
 from unittest.mock import MagicMock, patch, mock_open
 
-from rtcog.matching.matcher import Matcher, SVRMatcher, MaskMatcher
+from rtcog.matching.matcher import Matcher, SVRMatcher, MaskMatcher, PearsonMatcher, NMIMatcher
 from rtcog.matching.matching_opts import MatchingOpts
 
 # ----------------------
@@ -12,6 +12,19 @@ from rtcog.matching.matching_opts import MatchingOpts
 @pytest.fixture
 def match_opts():
     return MatchingOpts(match_method="mask", match_start=0, vols_noaction=4)
+
+
+class _DummyMatcher(Matcher):
+    def __init__(self, match_opts, Nt, sync, match_result):
+        self.match_result = np.asarray(match_result)
+        super().__init__(match_opts, Nt, sync, match_path=None)
+        self.configure_templates(["a", "b"])
+
+    def setup_shared_memory(self):
+        self.shared_arr = np.zeros((self.Ntemplates, self.Nt), dtype=np.float32)
+
+    def _match(self, tr_data):
+        return self.match_result
 
 
 # ----------------------
@@ -30,47 +43,60 @@ def test_match_from_name_unknown():
 
 def test_match_scores_shape(make_sync_mock, match_opts):
     sync_events = make_sync_mock()
-    class DummyMatcher(Matcher):
-        def __init__(self, *args, **kwargs):
-            super().__init__(*args, **kwargs)
-            self.Ntemplates = 2
-            self.shared_arr = np.zeros((2, 5))
-        def _match(self, tr_data):
-            return np.array([0.1, 0.2])
+    m = _DummyMatcher(match_opts, Nt=5, sync=sync_events, match_result=[0.1, 0.2])
 
-    m = DummyMatcher(match_opts, Nt=5, sync=sync_events, match_path=None)
+    assert m.template_labels == ["a", "b"]
+    assert m.Ntemplates == 2
+    assert m.scores.shape == (2, 5)
+    sync_events.shm_ready.set.assert_called_once()
+
     scores = m.match(t=0, n=0, tr_data=np.zeros((10,)))
     assert scores.shape == (2, 5)
     sync_events.new_tr.set.assert_called_once()
 
 def test_match_invalid_shape(make_sync_mock, match_opts):
     sync_events = make_sync_mock()
-    class DummyMatcher(Matcher):
-        def __init__(self, *args, **kwargs):
-            super().__init__(*args, **kwargs)
-            self.Ntemplates = 2
-            self.shared_arr = np.zeros((2, 5))
-        def _match(self, tr_data):
-            return np.zeros((2,2))  # Invalid shape
-
-    m = DummyMatcher(match_opts, Nt=5, sync=sync_events, match_path=None)
+    m = _DummyMatcher(
+        match_opts,
+        Nt=5,
+        sync=sync_events,
+        match_result=np.zeros((2, 2)),
+    )
     with pytest.raises(ValueError):
         m.match(t=0, n=0, tr_data=np.zeros((10,)))
 
 
 def test_match_invalid_score_count(make_sync_mock, match_opts):
     sync_events = make_sync_mock()
-    class DummyMatcher(Matcher):
-        def __init__(self, *args, **kwargs):
-            super().__init__(*args, **kwargs)
-            self.Ntemplates = 2
-            self.shared_arr = np.zeros((2, 5))
-        def _match(self, tr_data):
-            return np.array([0.1])
-
-    m = DummyMatcher(match_opts, Nt=5, sync=sync_events, match_path=None)
+    m = _DummyMatcher(match_opts, Nt=5, sync=sync_events, match_result=[0.1])
     with pytest.raises(ValueError, match="expected 2"):
         m.match(t=0, n=0, tr_data=np.zeros((10,)))
+
+
+def test_configure_templates_rejects_reconfiguration(make_sync_mock, match_opts):
+    matcher = _DummyMatcher(
+        match_opts,
+        Nt=5,
+        sync=make_sync_mock(),
+        match_result=[0.1, 0.2],
+    )
+
+    with pytest.raises(RuntimeError, match="already been configured"):
+        matcher.configure_templates(["replacement"])
+
+
+def test_cleanup_shared_memory_is_idempotent():
+    matcher = Matcher.__new__(Matcher)
+    manager = MagicMock()
+    matcher.shm_manager = manager
+    matcher.shm = MagicMock()
+
+    matcher.cleanup_shared_memory()
+    matcher.cleanup_shared_memory()
+
+    manager.cleanup.assert_called_once()
+    assert matcher.shm_manager is None
+    assert matcher.shm is None
 
 # ----------------------
 # SVRMatcher Tests
@@ -141,3 +167,181 @@ def test_maskmatcher_match_logic(match_opts):
     scores = matcher._match(tr_data)
     assert scores.shape == (1,)
     assert np.isclose(scores[0], 10)
+
+
+# ----------------------
+# PearsonMatcher Tests
+# ----------------------
+@patch.object(PearsonMatcher, "setup_shared_memory")
+def test_pearsonmatcher_loads_file(mock_setup_shm, tmp_path, match_opts, make_sync_mock):
+    sync_events = make_sync_mock()
+    match_path = tmp_path / "pearson_templates.npz"
+    np.savez(
+        match_path,
+        labels=np.array(["positive", "negative"]),
+        templates=np.array([[0, 1, 2], [2, 1, 0]], dtype=np.float32),
+    )
+
+    matcher = PearsonMatcher(match_opts, Nt=5, sync=sync_events, match_path=str(match_path))
+
+    assert Matcher.from_name("pearson") is PearsonMatcher
+    assert matcher.Ntemplates == 2
+    assert matcher.template_labels == ["positive", "negative"]
+    assert matcher.Nvoxels == 3
+    mock_setup_shm.assert_called_once()
+    sync_events.shm_ready.set.assert_called_once()
+
+
+def test_pearsonmatcher_returns_spatial_correlations():
+    matcher = PearsonMatcher.__new__(PearsonMatcher)
+    templates = np.array([
+        [0, 1, 2, 3],
+        [3, 2, 1, 0],
+        [0, 1, 0, 1],
+    ], dtype=np.float32)
+    matcher.Ntemplates = 3
+    matcher.Nvoxels = 4
+    matcher.template_centered = templates - templates.mean(axis=1, keepdims=True)
+    matcher.template_norms = np.linalg.norm(matcher.template_centered, axis=1)
+
+    scores = matcher._match(np.array([0, 1, 2, 3], dtype=np.float32))
+
+    np.testing.assert_allclose(scores, [1, -1, 0.4472136], rtol=1e-6)
+
+
+def test_pearsonmatcher_returns_zero_for_constant_data_and_templates():
+    matcher = PearsonMatcher.__new__(PearsonMatcher)
+    templates = np.array([[1, 1, 1], [0, 1, 2]], dtype=np.float32)
+    matcher.Ntemplates = 2
+    matcher.Nvoxels = 3
+    matcher.template_centered = templates - templates.mean(axis=1, keepdims=True)
+    matcher.template_norms = np.linalg.norm(matcher.template_centered, axis=1)
+
+    np.testing.assert_array_equal(matcher._match([2, 2, 2]), [0, 0])
+    np.testing.assert_array_equal(matcher._match([0, 1, 2]), [0, 1])
+
+
+def test_pearsonmatcher_rejects_wrong_voxel_count():
+    matcher = PearsonMatcher.__new__(PearsonMatcher)
+    matcher.Ntemplates = 1
+    matcher.Nvoxels = 3
+
+    with pytest.raises(ValueError, match="expected 3 voxels, got 2"):
+        matcher._match([0, 1])
+
+
+# ----------------------
+# NMIMatcher Tests
+# ----------------------
+@patch.object(NMIMatcher, "setup_shared_memory")
+def test_nmimatcher_loads_file(mock_setup_shm, tmp_path, match_opts, make_sync_mock):
+    sync_events = make_sync_mock()
+    match_path = tmp_path / "nmi_templates.npz"
+    np.savez(
+        match_path,
+        labels=np.array(["ac001"]),
+        templates=np.array([[0, 1, 2, 3, 4, 5, 6, 7]], dtype=np.float32),
+        n_bins=np.array(2),
+    )
+
+    matcher = NMIMatcher(match_opts, Nt=5, sync=sync_events, match_path=str(match_path))
+
+    assert matcher.Ntemplates == 1
+    assert matcher.template_labels == ["ac001"]
+    assert matcher.template_bins.shape == (1, 8)
+    mock_setup_shm.assert_called_once()
+    sync_events.shm_ready.set.assert_called_once()
+
+
+@patch.object(NMIMatcher, "setup_shared_memory")
+def test_nmimatcher_accepts_precomputed_bins_with_raw_templates(mock_setup_shm, tmp_path, match_opts, make_sync_mock):
+    sync_events = make_sync_mock()
+    match_path = tmp_path / "nmi_templates.npz"
+    precomputed_bins = np.array([[1, 1, 1, 2, 2, 2, 2, 2]], dtype=np.int16)
+    np.savez(
+        match_path,
+        labels=np.array(["ac001"]),
+        templates=np.array([[0, 1, 2, 3, 4, 5, 6, 7]], dtype=np.float32),
+        template_bins=precomputed_bins,
+        n_bins=np.array(2),
+    )
+
+    matcher = NMIMatcher(match_opts, Nt=5, sync=sync_events, match_path=str(match_path))
+
+    np.testing.assert_array_equal(matcher.template_bins, precomputed_bins)
+    mock_setup_shm.assert_called_once()
+    sync_events.shm_ready.set.assert_called_once()
+
+
+@patch.object(NMIMatcher, "setup_shared_memory")
+def test_nmimatcher_rejects_bins_without_raw_templates(mock_setup_shm, tmp_path, match_opts, make_sync_mock):
+    sync_events = make_sync_mock()
+    match_path = tmp_path / "nmi_bins_only.npz"
+    np.savez(
+        match_path,
+        labels=np.array(["ac001"]),
+        template_bins=np.array([[1, 1, 1, 1, 2, 2, 2, 2]], dtype=np.int16),
+        n_bins=np.array(2),
+    )
+
+    with pytest.raises(ValueError, match='raw "templates"'):
+        NMIMatcher(match_opts, Nt=5, sync=sync_events, match_path=str(match_path))
+
+    mock_setup_shm.assert_not_called()
+    sync_events.end.set.assert_called_once()
+
+
+@pytest.mark.parametrize(
+    ("labels", "templates"),
+    [
+        (["ac001"], np.array([0, 1, 2, 3, 4, 5, 6, 7], dtype=np.float32)),
+        (["ac001", "ac002"], np.arange(16, dtype=np.float32).reshape(8, 2)),
+    ],
+)
+@patch.object(NMIMatcher, "setup_shared_memory")
+def test_nmimatcher_rejects_noncanonical_template_shape(
+    mock_setup_shm,
+    labels,
+    templates,
+    tmp_path,
+    match_opts,
+    make_sync_mock,
+):
+    sync_events = make_sync_mock()
+    match_path = tmp_path / "nmi_bad_templates.npz"
+    np.savez(
+        match_path,
+        labels=np.array(labels),
+        templates=templates,
+        n_bins=np.array(2),
+    )
+
+    with pytest.raises(ValueError, match="must have shape"):
+        NMIMatcher(match_opts, Nt=5, sync=sync_events, match_path=str(match_path))
+
+    mock_setup_shm.assert_not_called()
+    sync_events.end.set.assert_called_once()
+
+
+def test_nmimatcher_returns_signed_similarity(match_opts):
+    matcher = NMIMatcher.__new__(NMIMatcher)
+    matcher.Ntemplates = 2
+    matcher.template_labels = ["positive", "negative"]
+    matcher.templates = np.array([
+        [0, 1, 2, 3, 4, 5, 6, 7],
+        [7, 6, 5, 4, 3, 2, 1, 0],
+    ], dtype=np.float32)
+    matcher.template_bins = np.array([
+        [1, 1, 1, 1, 2, 2, 2, 2],
+        [2, 2, 2, 2, 1, 1, 1, 1],
+    ], dtype=np.int16)
+    matcher.template_centered = matcher.templates - matcher.templates.mean(axis=1, keepdims=True)
+    matcher.template_norms = np.linalg.norm(matcher.template_centered, axis=1)
+    matcher.Nvoxels = 8
+    matcher.n_bins = 2
+
+    scores = matcher._match(np.array([0, 1, 2, 3, 4, 5, 6, 7], dtype=np.float32))
+
+    assert scores.shape == (2,)
+    assert np.isclose(scores[0], 1.0)
+    assert np.isclose(scores[1], -1.0)

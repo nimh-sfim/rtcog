@@ -1,6 +1,7 @@
 import os.path as osp
 import sys
 import argparse
+import shlex
 import yaml
 
 from rtcog.utils.core import file_exists
@@ -143,7 +144,7 @@ class Options:
                if not isinstance(matching, dict):
                     parser.error("'matching' section is required for esam experiment")
 
-               if matching.get('match_method') in ('mask', 'svr'):
+               if matching.get('match_method') in ('mask', 'svr', 'nmi', 'pearson'):
                     required_args.append('match_path')
 
                required_args.append('hit_thr')
@@ -208,4 +209,18 @@ class Options:
           with open(out_path, 'w') as file:
                yaml.safe_dump(self.__dict__, file, sort_keys=False)
           print(f"++ Options saved to {out_path}")
+
+     def save_command(self, argv=None):
+          """
+          Save the command used to launch rtcog to a text file.
+          The filename will include the out_prefix (e.g., `Run01_command.txt`).
+          """
+          if argv is None:
+               argv = sys.argv
+
+          command = shlex.join([str(arg) for arg in argv])
+          out_path = osp.join(self.out_dir, f'{self.out_prefix}_command.txt')
+          with open(out_path, 'w') as file:
+               file.write(f"{command}\n")
+          print(f"++ Command saved to {out_path}")
      

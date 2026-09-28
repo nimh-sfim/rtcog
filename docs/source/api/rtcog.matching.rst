@@ -44,6 +44,14 @@ rtcog.matching.matching\_utils module
    :undoc-members:
    :show-inheritance:
 
+rtcog.matching.offline.nmi module
+---------------------------------
+
+.. automodule:: rtcog.matching.offline.nmi
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 rtcog.matching.offline.mask module
 ----------------------------------
 
@@ -56,6 +64,22 @@ rtcog.matching.offline.svr module
 ---------------------------------
 
 .. automodule:: rtcog.matching.offline.svr
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+rtcog.matching.offline.pearson module
+-------------------------------------
+
+.. automodule:: rtcog.matching.offline.pearson
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+rtcog.matching.offline.template\_utils module
+---------------------------------------------
+
+.. automodule:: rtcog.matching.offline.template_utils
    :members:
    :undoc-members:
    :show-inheritance:

@@ -124,6 +124,9 @@ Every completed run
 ``<prefix>_Options.yaml``
    Resolved YAML and CLI configuration used for the run.
 
+``<prefix>_command.txt``
+   Command used to launch ``rtcog`` or ``rtcog_min``.
+
 ``<prefix>.Motion.1D``
    Six AFNI motion estimates per received volume.
 
