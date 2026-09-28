@@ -21,7 +21,7 @@ class _DummyMatcher(Matcher):
         self.configure_templates(["a", "b"])
 
     def setup_shared_memory(self):
-        self.shared_arr = np.zeros((self.Ntemplates, self.Nt), dtype=np.float32)
+        self.shared_scores = np.zeros((self.Ntemplates, self.Nt), dtype=np.float32)
 
     def _match(self, tr_data):
         return self.match_result
@@ -127,7 +127,7 @@ def test_svrmatcher_match_logic(match_opts):
     matcher.Ntemplates = 2
     matcher.template_labels = ["a","b"]
     matcher.input = {"a": DummyModel(), "b": DummyModel()}
-    matcher.shared_arr = np.zeros((2,3))
+    matcher.shared_scores = np.zeros((2,3))
     matcher.mp_new_tr = MagicMock()
 
     tr_data = np.array([1,2,3])

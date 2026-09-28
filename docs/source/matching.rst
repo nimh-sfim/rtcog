@@ -10,6 +10,28 @@ All four matchers require an input file, which is created offline
 
 To implement a new matching method, see :doc:`custom_matcher`.
 
+Method workflows
+================
+
+.. toctree::
+   :maxdepth: 1
+
+   matching/svr
+   matching/mask
+
+.. _template-label-file:
+
+Template label files
+====================
+
+The matching methods require a text file that associates a name
+with each template. The file contains one comma-separated line in the same
+order as the template volumes, with no header. For example:
+
+.. code:: text
+
+   dmn,visual,somatosensory
+
 Built-in methods
 ================
 
