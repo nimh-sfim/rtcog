@@ -109,6 +109,50 @@ def test_basic_required_args_can_all_come_from_yaml(tmp_path):
     assert parsed["out_prefix"] == "test"
 
 
+def test_missing_out_dir_is_created(tmp_path, capsys):
+    mask = tmp_path / "mask.nii"
+    mask.touch()
+    out_dir = tmp_path / "new" / "output"
+    config = tmp_path / "config.yaml"
+    config.write_text(
+        f"""
+        exp_type: basic
+        mask_path: {mask}
+        nvols: 100
+        out_prefix: test
+        """
+    )
+
+    parsed = Options.parse_cli_args(
+        ["--config", str(config), "--out_dir", str(out_dir)]
+    )
+
+    assert parsed["out_dir"] == str(out_dir)
+    assert out_dir.is_dir()
+    assert f"++ Output directory created: {out_dir}" in capsys.readouterr().out
+
+
+def test_existing_out_dir_does_not_print_creation_message(tmp_path, capsys):
+    mask = tmp_path / "mask.nii"
+    mask.touch()
+    out_dir = tmp_path / "output"
+    out_dir.mkdir()
+    config = tmp_path / "config.yaml"
+    config.write_text(
+        f"""
+        exp_type: basic
+        mask_path: {mask}
+        nvols: 100
+        out_dir: {out_dir}
+        out_prefix: test
+        """
+    )
+
+    Options.parse_cli_args(["--config", str(config)])
+
+    assert "Output directory created" not in capsys.readouterr().out
+
+
 def test_save_orig_cli_overrides_yaml_false(tmp_path):
     mask = tmp_path / "mask.nii"
     mask.touch()

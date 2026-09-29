@@ -29,7 +29,8 @@ Quickstart
         --out_dir /path/to/output_directory \
         --out_prefix output_prefix
 
-   ``out_dir`` must already exist. The AFNI realtime mask and ``--mask`` file
+   If ``out_dir`` does not exist, ``rtcog`` creates it at startup. The AFNI
+   realtime mask and ``--mask`` file
    must contain the same voxels.
 
 See :doc:`startup_afni` for the AFNI realtime settings and :doc:`simulation`

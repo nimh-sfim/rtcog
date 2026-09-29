@@ -43,6 +43,7 @@ rtcog --help     # Full environment
 ```
 
 An experiment requires a YAML configuration, a mask matching the voxel stream,
-the expected number of volumes, and an existing output directory. See the
+the expected number of volumes, and an output directory. A missing output
+directory is created automatically. See the
 [usage guide](https://rtcog.readthedocs.io/en/latest/usage.html) for complete
 examples.

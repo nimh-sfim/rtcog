@@ -1,3 +1,4 @@
+import os
 import os.path as osp
 import sys
 import argparse
@@ -155,6 +156,10 @@ class Options:
                     missing.append(f'--{arg}') 
           if missing:
                parser.error(f"The following arguments are required: {', '.join(missing)}")
+
+          if not osp.isdir(config['out_dir']):
+               os.makedirs(config['out_dir'], exist_ok=True)
+               print(f"++ Output directory created: {config['out_dir']}")
                     
           return config
 
