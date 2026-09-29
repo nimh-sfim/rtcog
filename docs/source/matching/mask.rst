@@ -3,8 +3,8 @@ Mask matching
 #############
 
 Mask matching measures average activity within weighted template masks. The
-template masks and their offline activity traces are prepared before the
-real-time run.
+template masks are prepared before the real-time run. Processed run data are
+optional and are only needed to generate offline activity traces.
 
 See :doc:`/matching` for the settings shared by all matching methods, including
 ``discard``, ``match_start``, ``vols_noaction``, and hit-threshold selection.
@@ -12,46 +12,29 @@ See :doc:`/matching` for the settings shared by all matching methods, including
 Workflow summary
 ================
 
-1. Run ``rtcog`` in Basic mode on a training rest run.
-2. Pass the processed training run to the offline command to prepare the weighted
-   masks and create ``mask_method.template_data.npz``.
-3. Review the offline activity traces and choose an appropriate hit threshold.
-4. Set ``match_method: mask`` and use the template-data file as ``match_path``
+1. Prepare the weighted masks and create ``mask_method.template_data.npz``.
+2. Optionally score a processed training run and review its activity traces.
+3. Set ``match_method: mask`` and use the template-data file as ``match_path``
    for the real-time run.
 
-1. Process a training run
-=========================
-
-First, run ``rtcog`` in Basic mode on a training rest run. Use the same
-acquisition setup, analysis mask, and preprocessing steps planned for the later
-ESAM run. The resulting ``<prefix>.pp_Final.nii`` file is the processed training
-run used by the offline mask command. See :ref:`output-files` for details about
-this output.
-
-2. Prepare the input offline
+1. Prepare the input offline
 ============================
 
-The offline command requires the ``rtcog``-processed training run, template maps,
-a template label file, and the analysis mask. Pass the
-``<prefix>.pp_Final.nii`` file from the Basic-mode training run to ``--data``.
-The comma-separated labels must follow template-volume order. See
-:ref:`template-label-file` for an example.
+The offline command requires template maps, a template label file, and the
+analysis mask. The comma-separated labels must follow template-volume order.
+See :ref:`template-label-file` for an example.
 
-The output directory must already exist. In the example below, ``--thr 10`` and
-``--discard 100`` are configurable example values. Set ``--thr`` for your
-template's value scale and ``--discard`` to the number of initial training
-volumes to exclude from offline scoring.
+The output directory must already exist. In the example below, ``--thr 10`` is
+a configurable example value. Set it for your template's value scale.
 
 .. code:: bash
 
    python rtcog/matching/offline/mask.py \
-      --data path/to/training_run.pp_Final.nii \
       --templates_path path/to/templates.nii \
       --template_labels_path path/to/template_labels.txt \
       --mask path/to/mask.nii \
       --template_type continuous \
       --thr 10 \
-      --discard 100 \
       --out_dir ./existing_output_directory \
       --prefix mask_method
 
@@ -70,14 +53,22 @@ the analysis mask is applied:
    every selected voxel equal weight. This avoids re-thresholding clusters
    extracted from a full template.
 
-3. Review the offline results
-=============================
-
-The command writes:
+The template-only command writes:
 
 ``mask_method.template_data.npz``
    Labels, voxel-selection masks, masked template weights, and voxel counts.
    This is the file used as the online ``match_path``.
+
+2. Optionally score a processed run
+===================================
+
+To generate offline activity traces, first run ``rtcog`` in Basic mode using
+the acquisition setup, analysis mask, and preprocessing planned for the ESAM
+run. Then repeat the preparation command with the resulting
+``<prefix>.pp_Final.nii`` file supplied as ``--data`` and set ``--discard`` to
+the number of initial volumes to exclude from offline scoring.
+
+When ``--data`` is provided, the command additionally writes:
 
 ``mask_method.act_traces.npz``
    Label-keyed offline activity traces, including zeros for discarded volumes.
@@ -89,7 +80,7 @@ Inspect the activity traces to decide on an appropriate
 ``hit_thr``. Mask scores depend on the template weights, selected voxels, and
 data scale, so there is no universal threshold.
 
-4. Configure the online run
+3. Configure the online run
 ===========================
 
 Add the following values to the complete ESAM run configuration.
@@ -111,7 +102,7 @@ The online analysis mask must preserve the voxel count and ordering used during
 offline preparation. Start the run using the complete command described in
 :doc:`/usage`.
 
-5. Check the online results
+4. Check the online results
 ===========================
 
 The real-time run writes the common ESAM score, hit, action, and report files

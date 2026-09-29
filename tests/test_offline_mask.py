@@ -52,6 +52,73 @@ def test_process_options_uses_common_spatial_template_arguments(tmp_path):
     assert opts.template_type == "binary"
 
 
+def test_process_options_allows_template_only_preparation(tmp_path):
+    templates_path = tmp_path / "templates.nii"
+    labels_path = tmp_path / "labels.txt"
+    mask_path = tmp_path / "mask.nii"
+    for path in (templates_path, labels_path, mask_path):
+        path.touch()
+
+    opts = process_options(
+        [
+            "--templates_path",
+            str(templates_path),
+            "--template_labels_path",
+            str(labels_path),
+            "--mask",
+            str(mask_path),
+            "--template_type",
+            "binary",
+        ]
+    )
+
+    assert opts.data_path is None
+
+
+def test_offline_mask_prepares_template_data_without_run_data(tmp_path):
+    mask_path = tmp_path / "mask.nii"
+    templates_path = tmp_path / "templates.nii"
+    labels_path = tmp_path / "labels.txt"
+
+    _write_nifti(mask_path, np.ones((2, 1, 1)))
+    templates = np.zeros((2, 1, 1, 2), dtype=np.float32)
+    templates[0, 0, 0, 0] = 2
+    templates[1, 0, 0, 1] = 3
+    _write_nifti(templates_path, templates)
+    labels_path.write_text("left,right", encoding="utf-8")
+
+    opts = SimpleNamespace(
+        templates_path=str(templates_path),
+        data_path=None,
+        mask_path=str(mask_path),
+        template_labels_path=str(labels_path),
+        template_thr=1,
+        template_type="continuous",
+        nvols_discard=0,
+        out_dir=str(tmp_path),
+        prefix="template_only",
+        save_txt=False,
+    )
+
+    outputs = OfflineMask(opts).run()
+
+    assert outputs == {
+        "templates": str(tmp_path / "template_only.template_data.npz")
+    }
+    assert not (tmp_path / "template_only.act_traces.npz").exists()
+    artifact = np.load(outputs["templates"], allow_pickle=True)
+    assert artifact["labels"].tolist() == ["left", "right"]
+    np.testing.assert_array_equal(
+        artifact["masked_templates"].item()["left"],
+        [2],
+    )
+    np.testing.assert_array_equal(
+        artifact["masks"].item()["right"],
+        [False, True],
+    )
+    assert artifact["voxel_counts"].item() == {"left": 1, "right": 1}
+
+
 def test_offline_mask_writes_expected_traces_and_template_data(tmp_path):
     mask_path = tmp_path / "mask.nii"
     templates_path = tmp_path / "templates.nii"

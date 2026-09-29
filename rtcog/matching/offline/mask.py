@@ -63,15 +63,18 @@ class OfflineMask:
         log.info(f'Saved masked input templates to: {masked_template_img_out}')
 
         self.templates_masked = [masked_template_array[:, i] for i in range(masked_template_array.shape[1])]
-        self.data_img, _, full_data_masked = load_and_mask_image(
-            self.data_path,
-            mask_img=mask_img,
-        )
-        self.data_masked = full_data_masked[:, self.nvols_discard:]
-        log.debug(f'Masked data dimensions: {self.data_masked.shape}')
+        self.data_img = None
+        self.data_masked = None
+        if self.data_path is not None:
+            self.data_img, _, full_data_masked = load_and_mask_image(
+                self.data_path,
+                mask_img=mask_img,
+            )
+            self.data_masked = full_data_masked[:, self.nvols_discard:]
+            log.debug(f'Masked data dimensions: {self.data_masked.shape}')
 
     def _threshold(self, label, template):
-        """Select voxels for a template above desired threshold and apply that mask to the data."""
+        """Select template voxels and optionally apply that selection to run data."""
         if self.template_type == 'continuous':
             composite_mask_vect = (template > self.template_thr).astype(bool)
         elif self.template_type == 'binary':
@@ -84,33 +87,56 @@ class OfflineMask:
         thresholded_template = template[composite_mask_vect]
 
         log.debug(f"template shape: {template.shape}")
-        log.debug(f"data_masked.shape: {self.data_masked.shape}")
         log.debug(f"composite_mask_vect shape: {composite_mask_vect.shape}")
-        thresholded_data = self.data_masked[composite_mask_vect, :]
+        thresholded_data = None
+        if self.data_masked is not None:
+            log.debug(f"data_masked.shape: {self.data_masked.shape}")
+            thresholded_data = self.data_masked[composite_mask_vect, :]
 
         return thresholded_template, thresholded_data, composite_mask_Nv
 
+    def prepare_template_data(self):
+        """Threshold templates and save the artifact used by the online matcher."""
+        self.masked_templates = {}
+        self.voxel_counts = {}
+        self.mask_vectors = {}
+
+        for label, template in zip(self.template_labels, self.templates_masked):
+            thresholded_template, _, voxel_count = self._threshold(label, template)
+            self.masked_templates[label] = thresholded_template
+            self.voxel_counts[label] = voxel_count
+
+        template_out = self.out_path + '.template_data.npz'
+        np.savez(
+            template_out,
+            labels=np.array(self.template_labels),
+            masked_templates=self.masked_templates,
+            masks=self.mask_vectors,
+            voxel_counts=self.voxel_counts,
+        )
+        log.info(f'Saved thresholded template data to: {template_out}')
+        return template_out
+
     def get_masked_traces(self):
-        """Compute and save masked activation traces and thresholded template data."""
+        """Compute and save activation traces when processed run data are supplied."""
+        if self.data_masked is None:
+            raise RuntimeError('Processed data were not provided for offline scoring')
+        if not hasattr(self, 'masked_templates'):
+            self.prepare_template_data()
+
         full_timepoints = self.data_masked.shape[1] + self.nvols_discard
         self.act_traces = {}
 
-        masked_templates = {}
-        voxel_counts = {}
-        self.mask_vectors = {}
-        
-        for label, template in zip(self.template_labels, self.templates_masked):
-            thr_template, thr_data, Nvoxels_in_mask = self._threshold(label, template)
-            act_trace = np.dot(thr_template, thr_data) / Nvoxels_in_mask
-            
+        for label in self.template_labels:
+            thresholded_template = self.masked_templates[label]
+            thresholded_data = self.data_masked[self.mask_vectors[label], :]
+            voxel_count = self.voxel_counts[label]
+            act_trace = np.dot(thresholded_template, thresholded_data) / voxel_count
+
             final = np.zeros(full_timepoints)
             final[self.nvols_discard:] = act_trace
-
             self.act_traces[label] = final
-            masked_templates[label] = thr_template
-            voxel_counts[label] = Nvoxels_in_mask
 
-        # Save activation traces
         trace_out = self.out_path + '.act_traces.npz'
         np.savez(trace_out, **self.act_traces)
 
@@ -119,18 +145,17 @@ class OfflineMask:
                 with open(f'{template}.act_trace.txt', 'w') as f:
                     np.savetxt(f, arr, delimiter=',')
 
-        # Save thresholded template info for online use
-        template_out = self.out_path + '.template_data.npz'
-        np.savez(
-            template_out,
-            labels=np.array(self.template_labels),
-            masked_templates=masked_templates,
-            masks=self.mask_vectors,
-            voxel_counts=voxel_counts
-        )
-
         log.info(f'Saved traces to: {trace_out}')
-        log.info(f'Saved thresholded template data to: {template_out}')
+        return trace_out
+
+    def run(self):
+        """Prepare templates and optionally score processed run data."""
+        self.load_datasets()
+        outputs = {'templates': self.prepare_template_data()}
+        if self.data_path is not None:
+            outputs['traces'] = self.get_masked_traces()
+            self.save_figures()
+        return outputs
 
     def build_stats_tables(self):
         templates = np.vstack(self.templates_masked)
@@ -190,8 +215,8 @@ def process_options(argv=None):
     parser, parser_inopts, parser_outopts = spatial_template_parser(
         "Mask",
         "mask_method",
-        description="Run mask method offline for spatial template matching",
-        data_required=True,
+        description="Prepare mask templates and optionally score processed data",
+        data_required=False,
         labels_required=True,
     )
     parser_inopts.add_argument("--template_type", action="store", type=str, choices=['continuous', 'binary'], dest="template_type", help="the type of template being used", required=True)
@@ -204,7 +229,4 @@ if __name__ == "__main__":
     opts = process_options()
     if opts.debug:
         log.setLevel(logging.DEBUG)
-    offline_mask = OfflineMask(opts)
-    offline_mask.load_datasets()
-    offline_mask.get_masked_traces()
-    offline_mask.save_figures()
+    OfflineMask(opts).run()
