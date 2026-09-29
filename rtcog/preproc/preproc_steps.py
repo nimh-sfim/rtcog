@@ -126,6 +126,8 @@ class PreprocStep:
     
     def snapshot(self):
         """Return data_out for testing purposes"""
+        if not self.save:
+            return {}
         return {self.name: self.data_out}
         
 

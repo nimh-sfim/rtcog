@@ -51,6 +51,12 @@ def test_EMAStep_second():
     assert ema.filt.shape == (2, 1)
 
 
+def test_unsaved_step_snapshot_is_empty():
+    ema = EMAStep(save=False, alpha=0.98, Nv=2, Nt=4)
+
+    assert ema.snapshot() == {}
+
+
 @pytest.mark.local_data
 def test_SnormStep(sample_data):
     data_2d = sample_data.this_t_data[:, np.newaxis]
