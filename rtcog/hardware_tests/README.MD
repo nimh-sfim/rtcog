@@ -1,10 +1,12 @@
 # Hardware tests
 
-This directory contains scripts to test essential hardware components before a scanning session.
+This directory contains scripts to test essential hardware components before a
+scanning session.
 
 ## `test_scanner_latency.py`
 
-Measure the latency between scanner triggers (via `t` keystrokes) and the time the software receives associated data.
+Measure the latency between scanner triggers (via `t` keystrokes) and the time
+the software receives associated data.
 
 Usage:
 
@@ -13,7 +15,7 @@ python test_scanner_latency.py --out_dir <output_directory> --out_prefix <output
 ```
 
 - After starting the script, click into the GUI window so it has focus.
-- The timing of`t` keystrokes and data receipt will be logged and saved.
+- The timing of `t` keystrokes and data receipt will be logged and saved.
 - Press `esc` in GUI to end experiment.
 
 ## `test_keystrokes.py`
