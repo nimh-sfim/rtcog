@@ -1,31 +1,65 @@
-"""Run rtcaps_matcher.py in basic mode with --snapshot flag to compare to known values using PILOT03_Run01.300vols.nii.
-Could be automated in the future for quick testing after updates.
-Note: Data_kalman has some nonnumeric values for some reason (nans maybe?) so np.load won't load if it's in there. Need to look into that."""
+"""Compare an rtcog run of the synthetic phantom with its saved snapshot."""
 
-import os.path as osp
-import pytest
+from pathlib import Path
+
 import numpy as np
+import pytest
 
-from rtcog.paths import DATA_DIR, OUTPUT_DIR
+from rtcog.paths import CONFIG_DIR, DATA_DIR, ROOT_DIR
+from rtcog.utils.options import Options
 
 
-def assert_snapshot_close(expected, actual):
-    assert expected.shape == actual.shape
-    assert np.allclose(expected, actual, rtol=0, atol=1e-8, equal_nan=True)
+EXPECTED_PATH = Path(DATA_DIR) / "synthetic_snapshot_expected.npz"
+CONFIG_PATH = Path(CONFIG_DIR) / "test_default_config.yaml"
+SNAPSHOT_KEYS = (
+    "Data_FromAFNI",
+    "Data_processed",
+    "ema",
+    "iglm",
+    "kalman",
+    "smooth",
+    "snorm",
+    "windowing",
+)
 
-@pytest.mark.local_data
+
+def _actual_path() -> Path:
+    config = Options.load_yaml(CONFIG_PATH)
+    snapshot_dir = Path(config["snapshot_dir"])
+    if not snapshot_dir.is_absolute():
+        snapshot_dir = Path(ROOT_DIR) / snapshot_dir
+    return snapshot_dir / "new_snapshots.npz"
+
+
 @pytest.mark.snapshot
-def test_snapshot():
-    """New version of software vs old version (v2.0, using rtcaps_matcher.py)"""
-    orig = osp.join(DATA_DIR, 'snapshot_all-on_snapshots.npz')
-    res = osp.join(OUTPUT_DIR, 'new_snapshots.npz')
+def test_synthetic_pipeline_snapshot():
+    """The end-to-end synthetic run remains numerically stable."""
+    actual_path = _actual_path()
+    if not actual_path.exists():
+        pytest.fail(
+            f"Snapshot output not found at {actual_path}. "
+            "Follow the snapshot-test procedure in CONTRIBUTING.rst first."
+        )
 
-    with np.load(orig, allow_pickle=True) as f1, np.load(res, allow_pickle=True) as f2:
+    with (
+        np.load(EXPECTED_PATH, allow_pickle=False) as expected,
+        np.load(actual_path, allow_pickle=False) as actual,
+    ):
+        assert set(expected.files) == set(SNAPSHOT_KEYS)
+        assert set(actual.files) == set(SNAPSHOT_KEYS)
+        assert not np.array_equal(actual["iglm"], actual["ema"]), (
+            "synthetic snapshot must exercise iGLM polynomial detrending"
+        )
 
-        assert_snapshot_close(f1["Data_EMA"], f2["ema"])
-        assert_snapshot_close(f1["Data_iGLM"], f2["iglm"])
-        assert_snapshot_close(f1["Data_smooth"], f2["smooth"])
-        assert_snapshot_close(f1["Data_norm"], f2["snorm"])
+        for key in SNAPSHOT_KEYS:
+            np.testing.assert_allclose(
+                actual[key],
+                expected[key],
+                rtol=0,
+                atol=1e-8,
+                equal_nan=True,
+                err_msg=f"snapshot mismatch for {key}",
+            )
 
 if __name__ == "__main__":
     pytest.main()

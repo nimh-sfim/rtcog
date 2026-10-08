@@ -30,7 +30,7 @@ def pytest_addoption(parser):
         "--snapshot",
         action="store_true",
         default=False,
-        help="run snapshot tests (implies local data for those tests)",
+        help="run snapshot tests after generating their run output",
     )
     parser.addoption(
         "--local-data", action="store_true", default=False, help="run tests that require local fixture data"

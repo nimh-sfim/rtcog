@@ -145,7 +145,7 @@ Options
 On the new window, ensure the following configurations:
 
 - Registration = 3D: realtime
-- Resampling = Quintic
+- Resampling = Cubic
 - Reg Base = External Dataset
 - External Dset = EPIREF+orig
 - Base Image = 0

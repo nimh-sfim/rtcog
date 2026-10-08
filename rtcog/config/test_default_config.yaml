@@ -1,13 +1,21 @@
-# Config file for testing software. Saves final snapshot of all
-# preprocessing steps
+# End-to-end snapshot-test configuration for the committed synthetic phantom.
+# Run commands from the repository root so these relative paths resolve.
+
+exp_type: basic
+mask_path: tests/data/synthetic_snapshot_mask.nii.gz
+nvols: 24
+out_dir: Simulation/outputs
+out_prefix: synthetic_snapshot
+snapshot_dir: Simulation/outputs
 
 # General options
 debug: false # set logger level to debug
 silent: false # set logger level to warning
 tcp_port: 53214
 show_data: false
-save_orig: False # save the unprocessed image data
-discard: 10
+save_orig: false # save the unprocessed image data
+auto_save: false
+discard: 4
 
 # Preprocessing steps in order
 steps:
@@ -20,12 +28,12 @@ steps:
     enabled: true
     save: true
     num_polorts: 2
-    iGLM_motion: true
+    iGLM_motion: false
 
   - name: kalman
     enabled: true
     save: true
-    n_cores: 10
+    n_cores: 1
 
   - name: smooth
     enabled: true
