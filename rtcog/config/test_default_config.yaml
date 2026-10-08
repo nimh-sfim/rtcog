@@ -28,7 +28,7 @@ steps:
     enabled: true
     save: true
     num_polorts: 2
-    iGLM_motion: false
+    iGLM_motion: true
 
   - name: kalman
     enabled: true

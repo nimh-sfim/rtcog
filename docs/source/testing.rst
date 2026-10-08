@@ -61,11 +61,10 @@ to detect unintended numerical changes across the complete realtime pipeline.
 It's useful to run when big, overarching changes are made to the orchestration
 of preprocessing.
 
-The synthetic volumes contain intensity changes but no intentional rigid-body
-motion. The snapshot configuration therefore disables the six motion
-regressors and tests iGLM polynomial detrending only. The snapshot does not
-currently test motion regression; add controlled translations and rotations to
-the phantom before enabling ``iGLM_motion`` for this fixture.
+The synthetic volumes contain intensity changes and small deterministic
+rigid-body transforms. The first volume is stationary; later volumes include
+sub-voxel translations and sub-degree rotations so the snapshot exercises the
+six iGLM motion regressors as well as polynomial detrending.
 
 The repository includes the simulation inputs and expected pipeline output:
 

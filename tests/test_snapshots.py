@@ -31,15 +31,36 @@ def _actual_path() -> Path:
     return snapshot_dir / "new_snapshots.npz"
 
 
+def _motion_path(config: dict) -> Path:
+    output_dir = Path(config["out_dir"])
+    if not output_dir.is_absolute():
+        output_dir = Path(ROOT_DIR) / output_dir
+    return output_dir / f"{config['out_prefix']}.Motion.1D"
+
+
 @pytest.mark.snapshot
 def test_synthetic_pipeline_snapshot():
     """The end-to-end synthetic run remains numerically stable."""
+    config = Options.load_yaml(CONFIG_PATH)
+    iglm_config = next(
+        step for step in config["steps"] if step["name"].lower() == "iglm"
+    )
+    assert iglm_config["enabled"]
+    assert iglm_config["iGLM_motion"]
+
     actual_path = _actual_path()
     if not actual_path.exists():
         pytest.fail(
             f"Snapshot output not found at {actual_path}. "
             "Follow the snapshot-test procedure in CONTRIBUTING.rst first."
         )
+
+    motion = np.loadtxt(_motion_path(config))
+    assert motion.shape == (config["nvols"], 6)
+    assert np.isfinite(motion).all()
+    kept_motion = motion[config["discard"] :]
+    assert np.linalg.matrix_rank(kept_motion) == 6
+    assert np.all(np.ptp(kept_motion, axis=0) > 1e-3)
 
     with (
         np.load(EXPECTED_PATH, allow_pickle=False) as expected,
