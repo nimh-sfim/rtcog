@@ -110,14 +110,14 @@ Run the tests
 =============
 
 The complete testing guide is in ``docs/source/testing.rst``. It explains how
-to add focused tests, run the continuous-integration selection, use local-data
-tests, and perform snapshot testing.
+to add focused tests, run the continuous-integration selection, and perform
+snapshot testing.
 
 Before opening a pull request, run the standard selection:
 
 .. code-block:: bash
 
-   python -m pytest -q -m "not local_data and not snapshot"
+   python -m pytest -q -m "not snapshot"
 
 Update the documentation
 ========================
@@ -152,15 +152,13 @@ Before submitting:
 
    git status
    git diff --check
-   python -m pytest -q -m "not local_data and not snapshot"
+   python -m pytest -q -m "not snapshot"
    python -m sphinx -W --keep-going -b html docs/source docs/_build/html
 
 In the pull request:
 
 - Explain the problem and the chosen solution.
 - Describe user-visible or configuration changes.
-- Call out limitations, follow-up work, and any tests requiring unavailable
-  local data or hardware.
 - Include screenshots for meaningful GUI or visualization changes.
 
 Keep review follow-ups in the same branch. A pull request should be small enough

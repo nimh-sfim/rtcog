@@ -6,6 +6,7 @@ from rtcog.preproc.helpers.preproc_utils import gen_polort_regressors
 from rtcog.preproc.helpers.preproc_utils import rt_smooth_vol
 from rtcog.preproc.helpers.preproc_utils import calculate_spc, CircularBuffer
 from rtcog.preproc.helpers.iglm import iGLM
+from rtcog.utils.fMRI import mask_fMRI_img
 
 
 def test_gen_polort_regressors():
@@ -49,16 +50,20 @@ def test_rt_regress_vol():
 
 
 
-@pytest.mark.local_data
-def test_rt_smooth_vol(sample_data):
-    data_2d = sample_data.this_t_data[:, np.newaxis]
-    res = rt_smooth_vol(data_2d, sample_data.mask_img, fwhm=4)
+def test_rt_smooth_vol(synthetic_fmri_data):
+    data_2d = mask_fMRI_img(
+        synthetic_fmri_data.img, synthetic_fmri_data.mask_img
+    )[:, [0]]
+    assert np.ptp(data_2d) > 0
+
+    res = rt_smooth_vol(data_2d, synthetic_fmri_data.mask_img, fwhm=4)
 
     assert isinstance(res, np.ndarray)
     assert res.ndim == 2
-    assert res.shape == (sample_data.this_t_data.shape[0], 1)
+    assert res.shape == data_2d.shape
+    assert np.isfinite(res).all()
 
-    assert not np.allclose(res[:, 0], sample_data.this_t_data)
+    assert not np.allclose(res, data_2d)
 
 
 def test_calculate_spc_with_mean_present():

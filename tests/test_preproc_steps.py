@@ -1,8 +1,8 @@
 import numpy as np
-import pytest
 
 from rtcog.preproc.preproc_steps import EMAStep
 from rtcog.preproc.preproc_steps import SnormStep
+
 
 class DummyPipeline:
     def __init__(self, data=None, processed_tr=None, n=None, t=None):
@@ -57,15 +57,19 @@ def test_unsaved_step_snapshot_is_empty():
     assert ema.snapshot() == {}
 
 
-@pytest.mark.local_data
-def test_SnormStep(sample_data):
-    data_2d = sample_data.this_t_data[:, np.newaxis]
+def test_snorm_step_normalizes_synthetic_volume(synthetic_fmri_data):
+    data_2d = synthetic_fmri_data.data[..., 0][
+        synthetic_fmri_data.mask
+    ][:, np.newaxis]
+    assert np.std(data_2d) > 0
 
     pipeline = DummyPipeline(processed_tr=data_2d)
-    step = SnormStep(save=False, Nv=1, Nt=1)
+    step = SnormStep(save=False, Nv=data_2d.shape[0], Nt=1)
 
     res = step._run(pipeline)
+    expected = (data_2d - np.mean(data_2d)) / np.std(data_2d)
 
     assert res.shape == data_2d.shape
     assert np.isclose(np.mean(res), 0.0, atol=1e-12)
     assert np.isclose(np.std(res), 1.0, atol=1e-12)
+    np.testing.assert_allclose(res, expected, rtol=0, atol=1e-12)

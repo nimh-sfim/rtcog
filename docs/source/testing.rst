@@ -2,10 +2,10 @@
 Testing rtcog
 =============
 
-The test suite has three categories:
+The test suite has two categories:
 
-- Ordinary unit and integration tests run in continuous integration.
-- Tests marked ``local_data`` require datasets outside a normal checkout.
+- Ordinary unit and integration tests run in continuous integration and use
+  compact, committed synthetic data where fMRI images are needed.
 - The AFNI snapshot test uses committed synthetic inputs and requires a local
   AFNI realtime session.
 
@@ -39,7 +39,7 @@ Run the same selection used by continuous integration:
 
 .. code-block:: bash
 
-   python -m pytest -q -m "not local_data and not snapshot"
+   python -m pytest -q -m "not snapshot"
 
 During development, run the narrowest relevant test first, for example:
 
@@ -48,9 +48,6 @@ During development, run the narrowest relevant test first, for example:
    python -m pytest -q tests/test_pipeline.py
    python -m pytest -q tests/test_matcher.py
 
-Tests marked ``local_data`` require datasets that are not part of a normal
-checkout. Enable them with ``--local-data`` only after preparing the required
-inputs described by the test or its subsystem documentation.
 
 Run the snapshot test
 =====================

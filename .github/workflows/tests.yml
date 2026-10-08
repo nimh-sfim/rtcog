@@ -68,4 +68,4 @@ jobs:
         shell: bash -el {0}
         run: |
           python -m pytest -q \
-            -m "not local_data and not snapshot"
+            -m "not snapshot"
