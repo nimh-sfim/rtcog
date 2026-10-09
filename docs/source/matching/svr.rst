@@ -15,7 +15,8 @@ Workflow summary
 1. Run ``rtcog`` in Basic mode on a training rest run.
 2. Pass the processed training run to the offline command to train the SVR models
    and create ``training_svr.pkl``.
-3. Review the offline training summaries and evaluate the scores to select a hit threshold.
+3. Review the offline training summaries and evaluate the scores to select a
+   hit threshold.
 4. Set ``match_method: svr`` and use ``training_svr.pkl`` as ``match_path`` for
    the real-time run.
 
@@ -55,7 +56,7 @@ only an example.
 By default, Lasso regression generates the per-template training targets. Pass
 ``--no_lasso`` to use ordinary linear regression instead.
 
-3. Review the offline results
+3. Review the offline outputs
 =============================
 
 The command writes:
@@ -68,11 +69,14 @@ The command writes:
    Zero-based volume indices used for SVR training after the offline
    ``--discard`` value.
 
-``training_svr_lm_R2.csv`` and ``training_svr_lm_z_labels.csv``
-   Per-volume regression fit and normalized training targets.
+``training_svr_lm_R2.csv``
+   Per-volume regression fit. Discarded volumes contain zero.
+
+``training_svr_lm_z_labels.csv``
+   Normalized per-template targets used to train the SVR models.
 
 ``training_svr.png`` and ``training_svr.html``
-   Static and interactive training summaries.
+   Static and interactive summaries of regression fit and training targets.
 
 Review the summaries to confirm that the training data, labels, and template
 ordering are correct. Evaluate the trained models on representative processed

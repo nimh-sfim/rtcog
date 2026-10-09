@@ -180,16 +180,17 @@ should contain the standard Basic outputs from :ref:`output-files`, including:
 
 10. Prepare the matcher
 
-Create a comma-separated label file in the
-same order as the template volumes. For example:
+For SVR or mask matching, create a comma-separated label file in the same order
+as the template volumes. Pearson and NMI accept the same file but can generate
+default labels when it is omitted. For example:
 
 .. code:: bash
 
    echo "template_a,template_b" > template_labels.txt
 
-Follow :doc:`matching` to prepare and evaluate the input for ``svr`` or
-``mask``. That page contains current commands, exact output names, and the
-correct ``match_method`` values.
+Follow the appropriate guide in :doc:`matching` to prepare and evaluate the
+matcher input. Each guide contains the command, output names, and correct
+``match_method`` value.
 
 Here is an example of the static SVR training report:
 
@@ -199,11 +200,13 @@ Here is an example of the static SVR training report:
 11. Run rtcog in ESAM mode
 
 After preparing the selected matcher, simulate an experience-sampling run. Set
-``match_method`` to ``svr`` or ``mask`` and set ``match_path`` to the
-corresponding output described in :doc:`matching`.
+``match_method`` to ``svr``, ``mask``, ``pearson``, or ``nmi`` and set
+``match_path`` to the corresponding output described in :doc:`matching`.
 
 Then, start the experiment. Refer to :doc:`/usage` for instructions.
 For example, ``match_path`` is:
 
 - ``training_svr.pkl`` for SVR method
 - ``mask_method.template_data.npz`` for mask method
+- ``pearson_method.pearson_templates.npz`` for Pearson method
+- ``nmi_method.nmi_templates.npz`` for NMI method

@@ -94,8 +94,8 @@ ESAM options
    Score threshold used by hit detection. Required for ESAM runs.
 
 ``match_path`` (CLI: ``--match_path``)
-   Model or template file. Required for the ``mask`` and ``svr`` matchers; see
-   :doc:`matching` for method-specific inputs.
+   Offline-prepared model or template file. Required for every built-in
+   matcher; see :doc:`matching` for method-specific inputs.
 
 Preprocessing ``steps`` (YAML-only)
 ===================================
@@ -142,7 +142,7 @@ Built-in step-specific options are:
 ======================================
 
 ``match_method``
-   Matching method: ``svr`` or ``mask``.
+   Matching method: ``svr``, ``mask``, ``pearson``, or ``nmi``.
 
 ``match_start``
    Zero-based volume index at which matching begins.
