@@ -50,7 +50,7 @@ class SVRtrainer(object):
         self.mask_path = opts.mask_path
         self.data_path = opts.data_path
         self.nvols_discard = opts.nvols_discard
-        self.do_lasso      = not(opts.no_lasso)
+        self.do_lasso      = opts.do_lasso
         self.lasso_alpha   = opts.lasso_alpha
         self.lasso_pos     = not(opts.lasso_no_pos_only) 
 

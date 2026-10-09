@@ -53,8 +53,9 @@ only an example.
       --out_dir ./existing_output_directory \
       --prefix training_svr
 
-By default, Lasso regression generates the per-template training targets. Pass
-``--no_lasso`` to use ordinary linear regression instead.
+By default, ordinary linear regression generates the per-template training
+targets. Pass ``--lasso`` to use Lasso regression instead. ``--lasso_alpha``
+and ``--lasso_no_pos_only`` only affect training when ``--lasso`` is enabled.
 
 3. Review the offline outputs
 =============================

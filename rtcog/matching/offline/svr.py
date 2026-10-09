@@ -31,7 +31,7 @@ def processProgramOptions (self, options=None):
         out_dir_dest="outdir",
     )
     parser_svropts = parser.add_argument_group('Training Options','Different Training Options')
-    parser_svropts.add_argument("--no_lasso",          action="store_true", default=False, dest="no_lasso", help="Generate Labels with Linear Regression (No Lasso) [Default: %(default)s]")
+    parser_svropts.add_argument("--lasso",             action="store_true", default=False, dest="do_lasso", help="Generate labels with Lasso regression [Default: %(default)s]")
     parser_svropts.add_argument("--lasso_alpha",       action="store",      type=float, default=0.75,  dest="lasso_alpha", help="Regularization constant for Lasso Step (Label Generation) [Default: %(default)s]")
     parser_svropts.add_argument("--lasso_no_pos_only", action="store",      default=False, dest="lasso_no_pos_only", help="Allow positives and negative fit values in Lasso Step (Label Generation) [Default: %(default)s]")
     return parser.parse_args(options)  

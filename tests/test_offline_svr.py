@@ -43,7 +43,7 @@ def test_process_program_options_parses_fake_inputs(tmp_path):
             str(tmp_path),
             "-p",
             "demo_svr",
-            "--no_lasso",
+            "--lasso",
         ],
     )
 
@@ -54,7 +54,40 @@ def test_process_program_options_parses_fake_inputs(tmp_path):
     assert opts.nvols_discard == 2
     assert opts.outdir == str(tmp_path)
     assert opts.prefix == "demo_svr"
-    assert opts.no_lasso is True
+    assert opts.do_lasso is True
+
+
+@pytest.mark.parametrize(
+    ("extra_args", "expected_do_lasso"),
+    [
+        ([], False),
+        (["--lasso"], True),
+    ],
+)
+def test_trainer_uses_lasso_only_when_requested(
+    tmp_path,
+    extra_args,
+    expected_do_lasso,
+):
+    paths = _touch_inputs(tmp_path)
+    opts = svr.processProgramOptions(
+        None,
+        [
+            "-d",
+            str(paths["data"]),
+            "-t",
+            str(paths["templates"]),
+            "-l",
+            str(paths["labels"]),
+            "-m",
+            str(paths["mask"]),
+            "-o",
+            str(tmp_path),
+            *extra_args,
+        ],
+    )
+
+    assert SVRtrainer(opts).do_lasso is expected_do_lasso
 
 
 def test_load_datasets_uses_common_labels_and_masked_loading(tmp_path):
@@ -90,8 +123,8 @@ def test_load_datasets_uses_common_labels_and_masked_loading(tmp_path):
 @pytest.mark.parametrize(
     ("extra_args", "expected_do_lasso"),
     [
-        ([], True),
-        (["--no_lasso"], False),
+        ([], False),
+        (["--lasso"], True),
     ],
 )
 def test_main_runs_expected_svr_pipeline_without_real_outputs(
@@ -106,7 +139,7 @@ def test_main_runs_expected_svr_pipeline_without_real_outputs(
     class FakeSVRTrainer:
         def __init__(self, opts):
             self.opts = opts
-            self.do_lasso = not opts.no_lasso
+            self.do_lasso = opts.do_lasso
             self.calls = []
             trainer_instances.append(self)
 
