@@ -102,7 +102,7 @@ When changing a config option:
 4. Add coverage in ``tests/test_options.py`` or the relevant subsystem test.
 
 Extending ``rtcog``
-----------------
+--------------------
 
 See the customization guides in ``docs/source/customize.rst``.
 
